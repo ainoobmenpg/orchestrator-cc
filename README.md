@@ -39,6 +39,35 @@ Claude Code C (上司、プロセス3)
 
 **次のフェーズ**: Phase 1 - 基礎プロセス起動・管理機能の実装
 
+### Phase 1 で作成するファイル
+
+| ファイル | 役割 |
+|---------|------|
+| `orchestrator/core/cc_process_models.py` | エージェントの設定情報（名前、役割、ポート番号など）のデータモデル |
+| `orchestrator/core/cc_process_launcher.py` | Claude Codeを起動・停止するプロセス管理クラス |
+| `config/personalities/*.txt` | 各エージェントの性格プロンプトテキスト |
+| `config/cc-cluster.yaml` | クラスタ全体の設定ファイル |
+
+### 採用アプローチ: 設定ファイル分離（ホームディレクトリ分離方式）
+
+各エージェント専用のHOMEディレクトリを作成し、その中に `.claude/settings.json` を配置して性格設定を管理します。
+
+```
+/tmp/orchestrator-cc/
+├── agents/
+│   ├── grand_boss/
+│   │   └── .claude/
+│   │       └── settings.json  ← Grand Bossの性格設定
+│   ├── middle_manager/
+│   │   └── .claude/
+│   │       └── settings.json  ← Middle Managerの性格設定
+│   └── coding_specialist/
+│       └── .claude/
+│           └── settings.json  ← Coding Specialistの性格設定
+```
+
+起動方法: `HOME=/tmp/orchestrator-cc/agents/grand_boss claude mcp serve`
+
 ## 開発
 
 詳細な開発ガイドラインは [CLAUDE.md](CLAUDE.md) を参照してください。
