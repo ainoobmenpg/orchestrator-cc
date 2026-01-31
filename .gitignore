@@ -1,0 +1,26 @@
+# テスト用一時ファイル
+tests/validation/test_*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# プロジェクト固有
+/tmp/orchestrator-cc/
+*.log
