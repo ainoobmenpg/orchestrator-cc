@@ -193,9 +193,137 @@ asyncio.run(test_thinking_log())
 
 ---
 
+## Phase 0.5: 中間検証（設定ファイル・複数プロセス）
+
+**目的**: 設定ファイル分離アプローチの実動確認と、複数プロセス同時起動の検証
+
+### 背景
+
+Phase 0 では基本的なMCP通信は確認できましたが、以下は未検証です：
+
+- 設定ファイル（`.claude/settings.json`）で性格設定が本当に機能するか
+- 複数の Claude Code プロセスを同時に起動できるか
+- 思考ログをどうやって出力させるか
+
+これらを本格実装前に確認することで、実装の失敗リスクを減らします。
+
+---
+
+### V-101: 設定ファイルでの性格設定
+
+**目的**: `.claude/settings.json` で性格設定が機能するか確認
+
+**手順**:
+```bash
+# 1. テスト用設定ディレクトリを作成
+mkdir -p /tmp/test-agent/.claude
+
+# 2. settings.json を作成（agents プロパティを試す）
+cat > /tmp/test-agent/.claude/settings.json << 'EOF'
+{
+  "agents": {
+    "test_agent": {
+      "description": "テスト用エージェント",
+      "prompt": "あなたはテスト用エージェントです。返信には必ず「テストOK」と含めてください。"
+    }
+  }
+}
+EOF
+
+# 3. 環境変数 HOME を設定して起動
+HOME=/tmp/test-agent claude mcp serve
+
+# 4. 別の端末からリクエスト送信（インタラクティブに検証）
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | HOME=/tmp/test-agent claude mcp serve
+```
+
+**成功基準**:
+- [ ] 設定ファイルが読み込まれる
+- [ ] `agents` プロパティが機能する（または別の方法が見つかる）
+- [ ] 性格プロンプトが反映される
+
+**失敗時の対処**:
+- `agents` プロパティが機能しない: Claude Codeのドキュメントで別の設定方法を探す
+- 設定ファイルが読み込まれない: 別の設定場所を試す
+
+---
+
+### V-102: 複数プロセス同時起動
+
+**目的**: 複数の Claude Code プロセスを同時に起動できるか確認
+
+**手順**:
+```bash
+# 1. 2つのエージェント用設定ディレクトリを作成
+mkdir -p /tmp/agent1/.claude /tmp/agent2/.claude
+
+# 2. それぞれに settings.json を作成
+echo '{}' > /tmp/agent1/.claude/settings.json
+echo '{}' > /tmp/agent2/.claude/settings.json
+
+# 3. バックグラウンドで同時に起動
+HOME=/tmp/agent1 claude mcp serve &
+PID1=$!
+HOME=/tmp/agent2 claude mcp serve &
+PID2=$!
+
+# 4. プロセスの状態を確認
+sleep 2
+ps aux | grep "claude mcp serve" | grep -v grep
+
+# 5. クリーンアップ
+kill $PID1 $PID2 2>/dev/null
+```
+
+**成功基準**:
+- [ ] 2つのプロセスが同時に起動できる
+- [ ] ポート競合などのエラーが発生しない
+- [ ] 各プロセスが独立して動作する
+
+**失敗時の対処**:
+- ポート競合: ポート番号を明示的に指定する方法を探す
+- 起動失敗: 起動順序を変える or 遅延を入れる
+
+---
+
+### V-103: 思考ログの出力方法
+
+**目的**: Claude Codeが思考プロセスを出力する方法を特定する
+
+**手順**:
+```bash
+# 1. Claude Codeのオプションを確認
+claude --help | grep -i think
+claude --help | grep -i reason
+claude --help | grep -i verbose
+
+# 2. 設定ファイルでの思考ログ設定を確認
+# → settings.json に思考ログ関連のプロパティがあるか
+
+# 3. 実際に試して確認
+```
+
+**成功基準**:
+- [ ] 思考ログを出力する方法を特定できる
+- [ ] 出力形式（stdout, ファイル, etc.）を確認できる
+
+**失敗時の対処**:
+- 思考ログ機能がない: メッセージ内にカスタムフィールドを追加する方式を検討
+- 出力先が不明: 複数の出力先を試す
+
+---
+
+### 完了条件
+
+- [ ] V-101: 設定ファイルでの性格設定方法を確立
+- [ ] V-102: 複数プロセス同時起動が可能であることを確認
+- [ ] V-103: 思考ログの出力方法を特定
+
+---
+
 ## Phase 1: プロセス起動検証
 
-### V-101: 単一プロセス起動
+### V-104: 単一プロセス起動
 
 **目的**: 単一のClaude Codeプロセスを起動できることを確認
 
