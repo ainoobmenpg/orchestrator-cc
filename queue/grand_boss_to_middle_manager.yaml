@@ -1,0 +1,9 @@
+content: 新しい機能を実装してください
+from: grand_boss
+id: msg-100050ab
+metadata:
+  source: user
+status: pending
+timestamp: '2026-02-02T08:49:32.459106'
+to: middle_manager
+type: task

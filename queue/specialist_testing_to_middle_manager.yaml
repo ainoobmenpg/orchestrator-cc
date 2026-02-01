@@ -1,0 +1,10 @@
+# Testing Specialist から Middle Manager への通信YAML
+id: "msg-000"
+from: "specialist_testing"
+to: "middle_manager"
+type: "result"
+status: "pending"
+content: |
+  サブタスク結果
+timestamp: "2026-02-02T00:00:00"
+metadata: {}

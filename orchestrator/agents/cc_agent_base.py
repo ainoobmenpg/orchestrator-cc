@@ -3,7 +3,11 @@
 このモジュールでは、全エージェントで使用する基底クラスCCAgentBaseを定義します。
 """
 
+import asyncio
+import uuid
 from abc import ABC, abstractmethod
+from datetime import datetime
+from pathlib import Path
 from typing import Final
 
 from orchestrator.core.cc_cluster_manager import (
@@ -12,6 +16,17 @@ from orchestrator.core.cc_cluster_manager import (
 )
 from orchestrator.core.message_logger import LogLevel, MessageLogger, MessageType
 from orchestrator.core.pane_io import PaneTimeoutError
+from orchestrator.core.yaml_protocol import (
+    AgentState,
+    AgentStatus,
+    MessageStatus,
+    MessageType as YAMLMessageType,
+    TaskMessage,
+    read_message_async,
+    read_status_async,
+    write_message_async,
+    write_status_async,
+)
 
 
 # 例外クラス
@@ -191,3 +206,153 @@ class CCAgentBase(ABC):
             level = LogLevel.DEBUG
 
         self._logger.log_thought(self._name, thought, level)
+
+    # === YAML通信対応メソッド ===
+
+    def _get_queue_path(self, to_agent: str | None = None) -> Path:
+        """YAML通信ファイルのパスを取得します。
+
+        Args:
+            to_agent: 送信先エージェント名（Noneの場合は自分宛）
+
+        Returns:
+            YAMLファイルのパス
+        """
+        from_agent = self._name
+        to = to_agent if to_agent else self._name
+
+        # queue/{from}_to_{to}.yaml
+        filename = f"{from_agent}_to_{to}.yaml"
+        return Path("queue") / filename
+
+    def _get_status_path(self) -> Path:
+        """ステータスファイルのパスを取得します。
+
+        Returns:
+            ステータスファイルのパス
+        """
+        filename = f"{self._name}.yaml"
+        return Path("status") / "agents" / filename
+
+    async def _read_yaml_message(
+        self,
+        from_agent: str | None = None,
+    ) -> TaskMessage | None:
+        """YAMLメッセージを読み込みます。
+
+        Args:
+            from_agent: 送信元エージェント名（Noneの場合は任意の送信元）
+
+        Returns:
+            読み込んだメッセージ。メッセージがない場合はNone。
+        """
+        if from_agent:
+            # 特定のエージェントからのメッセージを読む
+            path = Path("queue") / f"{from_agent}_to_{self._name}.yaml"
+        else:
+            # 自分宛のメッセージを探す
+            path = Path("queue") / f"_to_{self._name}.yaml"
+            # パターンマッチで見つける必要があるが、ここでは簡略実装
+
+        return await read_message_async(path)
+
+    async def _write_yaml_message(
+        self,
+        to_agent: str,
+        content: str,
+        msg_type: YAMLMessageType = YAMLMessageType.TASK,
+        msg_id: str | None = None,
+        metadata: dict | None = None,
+    ) -> str:
+        """YAMLメッセージを書き込みます。
+
+        Args:
+            to_agent: 送信先エージェント名
+            content: メッセージ内容
+            msg_type: メッセージタイプ
+            msg_id: メッセージID（Noneの場合は自動生成）
+            metadata: 追加メタデータ
+
+        Returns:
+            メッセージID
+        """
+        message_id = msg_id or f"msg-{uuid.uuid4().hex[:8]}"
+
+        message = TaskMessage(
+            id=message_id,
+            from_agent=self._name,  # from_agent
+            to=to_agent,
+            type=msg_type,
+            status=MessageStatus.PENDING,
+            content=content,
+            timestamp=datetime.now().isoformat(),
+            metadata=metadata or {},
+        )
+
+        path = self._get_queue_path(to_agent)
+        await write_message_async(message, path)
+
+        return message_id
+
+    async def _update_status(
+        self,
+        state: AgentState,
+        current_task: str | None = None,
+        statistics: dict | None = None,
+    ) -> None:
+        """ステータスを更新します。
+
+        Args:
+            state: エージェント状態
+            current_task: 現在処理中のタスクID
+            statistics: 統計情報の更新
+        """
+        status_path = self._get_status_path()
+
+        # 既存のステータスを読み込む
+        existing = await read_status_async(status_path)
+        if existing:
+            # 既存の統計情報をマージ
+            merged_stats = existing.statistics.copy()
+            if statistics:
+                merged_stats.update(statistics)
+            statistics = merged_stats
+
+        status = AgentStatus(
+            agent_name=self._name,
+            state=state,
+            current_task=current_task,
+            last_updated=datetime.now().isoformat(),
+            statistics=statistics or {},
+        )
+
+        await write_status_async(status, status_path)
+
+    async def _check_and_process_messages(self) -> list[TaskMessage]:
+        """自分宛のメッセージを確認して処理します。
+
+        Returns:
+            見つかったメッセージのリスト
+        """
+        messages = []
+
+        # 自分宛のメッセージファイルを探す
+        queue_dir = Path("queue")
+        if not queue_dir.exists():
+            return messages
+
+        # パターン: *_to_{self._name}.yaml
+        pattern = f"_to_{self._name}.yaml"
+        for yaml_file in queue_dir.glob(f"*{pattern}"):
+            try:
+                message = await read_message_async(yaml_file)
+                if message and message.status == MessageStatus.PENDING:
+                    messages.append(message)
+                    # ステータスをIN_PROGRESSに更新
+                    message.status = MessageStatus.IN_PROGRESS
+                    await write_message_async(message, yaml_file)
+            except Exception:
+                # 読み込みエラーはスキップ
+                pass
+
+        return messages

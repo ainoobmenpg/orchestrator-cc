@@ -3,10 +3,20 @@
 このモジュールでは、ユーザーとの窓口であるGrand Bossエージェントを定義します。
 """
 
+import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from orchestrator.agents.cc_agent_base import (
     CCAgentBase,
+)
+from orchestrator.core.yaml_protocol import (
+    AgentState,
+    MessageStatus,
+    MessageType as YAMLMessageType,
+    TaskMessage,
+    read_message_async,
+    write_message_async,
 )
 
 if TYPE_CHECKING:
@@ -16,6 +26,7 @@ if TYPE_CHECKING:
 # 定数
 MIDDLE_MANAGER_NAME: Final[str] = "middle_manager"
 DEFAULT_TASK_TIMEOUT: Final[float] = 120.0
+YAML_POLL_INTERVAL: Final[float] = 1.0  # YAML確認間隔（秒）
 
 
 class GrandBossAgent(CCAgentBase):
@@ -68,6 +79,7 @@ class GrandBossAgent(CCAgentBase):
         """タスクを処理します。
 
         ユーザーからのタスクを受領し、Middle Managerに委任して結果を整形して返します。
+        YAMLベースの通信を使用します。
 
         Args:
             task: ユーザーからのタスク内容
@@ -89,15 +101,81 @@ class GrandBossAgent(CCAgentBase):
         if not task or not task.strip():
             raise ValueError("taskは空であってはなりません")
 
-        # Middle Managerにタスクを転送
-        response = await self.send_to(
+        # ステータスをWORKINGに更新
+        await self._update_status(AgentState.WORKING, current_task="user_task")
+
+        # YAMLメッセージを送信
+        msg_id = await self._write_yaml_message(
             to_agent=MIDDLE_MANAGER_NAME,
-            message=task,
-            timeout=self._default_timeout,
+            content=task,
+            msg_type=YAMLMessageType.TASK,
+            metadata={"source": "user"},
         )
 
+        self.log_thought(f"タスクをYAMLで送信しました: {msg_id}")
+
+        # Middle Managerからの結果を待つ
+        result = await self._wait_for_result(msg_id, timeout=self._default_timeout)
+
+        # ステータスをIDLEに戻す
+        await self._update_status(AgentState.IDLE, statistics={"tasks_completed": 1})
+
         # 結果を整形して返す
-        return self._format_final_result(response, task)
+        return self._format_final_result(result, task)
+
+    async def _wait_for_result(self, msg_id: str, timeout: float) -> str:
+        """YAMLメッセージの結果を待ちます。
+
+        Args:
+            msg_id: 待機するメッセージID
+            timeout: タイムアウト時間（秒）
+
+        Returns:
+            結果の内容
+
+        Raises:
+            CCAgentTimeoutError: タイムアウトした場合
+        """
+        start_time = asyncio.get_event_loop().time()
+        result_path = Path("queue") / f"{MIDDLE_MANAGER_NAME}_to_{self._name}.yaml"
+
+        while asyncio.get_event_loop().time() - start_time < timeout:
+            # 結果メッセージを確認
+            message = await read_message_async(result_path)
+            if message and message.status == MessageStatus.COMPLETED:
+                return message.content
+
+            await asyncio.sleep(YAML_POLL_INTERVAL)
+
+        raise TimeoutError(f"メッセージ {msg_id} の結果がタイムアウトしました")
+
+    async def check_and_process_yaml_messages(self) -> None:
+        """YAMLメッセージを確認して処理します。
+
+        Middle Managerからの結果メッセージを確認して処理します。
+        """
+        messages = await self._check_and_process_messages()
+
+        for message in messages:
+            if message.type == YAMLMessageType.RESULT:
+                self.log_thought(f"結果を受信しました: {message.id}")
+                # 結果を処理（必要に応じて応答を返す）
+                # ステータスをCOMPLETEDに更新
+                message.status = MessageStatus.COMPLETED
+                result_path = self._get_queue_path(MIDDLE_MANAGER_NAME)
+                await write_message_async(message, result_path)
+
+    async def run_yaml_loop(self) -> None:
+        """YAMLメッセージ監視ループを実行します。
+
+        定期的にYAMLメッセージを確認して処理します。
+        """
+        while True:
+            try:
+                await self.check_and_process_yaml_messages()
+            except Exception as e:
+                self.log_thought(f"YAML処理でエラーが発生: {e}")
+            await asyncio.sleep(YAML_POLL_INTERVAL)
 
     def _format_final_result(self, middle_manager_result: str, original_task: str) -> str:
         """Middle Managerからの結果を最終成果物として整形します。

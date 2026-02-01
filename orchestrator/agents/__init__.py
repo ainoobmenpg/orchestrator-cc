@@ -18,9 +18,7 @@ from orchestrator.agents.specialists import (
     CodingWritingSpecialist,
     ResearchAnalysisSpecialist,
     TestingSpecialist,
-)
-from orchestrator.agents.specialists import (
-    DEFAULT_TASK_TIMEOUT as SPECIALIST_DEFAULT_TASK_TIMEOUT,
+    DEFAULT_TASK_TIMEOUT,
 )
 
 __all__ = [
@@ -40,5 +38,5 @@ __all__ = [
     "CODING_MARKER",
     "RESEARCH_MARKER",
     "TESTING_MARKER",
-    "SPECIALIST_DEFAULT_TASK_TIMEOUT",
+    "DEFAULT_TASK_TIMEOUT",
 ]

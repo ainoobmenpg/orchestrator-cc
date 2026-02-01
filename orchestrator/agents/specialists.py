@@ -6,6 +6,8 @@
 - TestingSpecialist: テスト・品質保証
 """
 
+import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from orchestrator.agents.cc_agent_base import (
@@ -13,19 +15,29 @@ from orchestrator.agents.cc_agent_base import (
     CCAgentTimeoutError,
 )
 from orchestrator.core.pane_io import PaneTimeoutError
+from orchestrator.core.yaml_protocol import (
+    AgentState,
+    MessageStatus,
+    MessageType as YAMLMessageType,
+    TaskMessage,
+)
 
 if TYPE_CHECKING:
     from orchestrator.core.cc_cluster_manager import CCClusterManager
     from orchestrator.core.message_logger import MessageLogger
 
 # 定数
-CODING_SPECIALIST_NAME: Final[str] = "coding_writing_specialist"
-RESEARCH_SPECIALIST_NAME: Final[str] = "research_analysis_specialist"
-TESTING_SPECIALIST_NAME: Final[str] = "testing_specialist"
+CODING_SPECIALIST_NAME: Final[str] = "specialist_coding_writing"
+RESEARCH_SPECIALIST_NAME: Final[str] = "specialist_research_analysis"
+TESTING_SPECIALIST_NAME: Final[str] = "specialist_testing"
+MIDDLE_MANAGER_NAME: Final[str] = "middle_manager"
+DEFAULT_TASK_TIMEOUT: Final[float] = 120.0
+YAML_POLL_INTERVAL: Final[float] = 1.0  # YAML確認間隔（秒）
+
+# 合言葉（マーカー）
 CODING_MARKER: Final[str] = "CODING OK"
 RESEARCH_MARKER: Final[str] = "RESEARCH OK"
 TESTING_MARKER: Final[str] = "TESTING OK"
-DEFAULT_TASK_TIMEOUT: Final[float] = 120.0
 
 
 class CodingWritingSpecialist(CCAgentBase):
@@ -35,7 +47,7 @@ class CodingWritingSpecialist(CCAgentBase):
     Middle Managerからのタスクを受領し、実装とドキュメント作成を行います。
 
     Attributes:
-        _name: エージェント名（"coding_writing_specialist"固定）
+        _name: エージェント名（"specialist_coding_writing"固定）
         _cluster_manager: CCClusterManagerインスタンス
         _logger: MessageLoggerインスタンス
         _default_timeout: デフォルトのタイムアウト時間（秒）
@@ -43,7 +55,7 @@ class CodingWritingSpecialist(CCAgentBase):
     Example:
         >>> from orchestrator.core import CCClusterManager
         >>> cluster = CCClusterManager("config/cc-cluster.yaml")
-        >>> agent = CodingWritingSpecialist("coding_writing_specialist", cluster_manager=cluster)
+        >>> agent = CodingWritingSpecialist("specialist_coding_writing", cluster_manager=cluster)
         >>> result = await agent.handle_task("ユーザー認証機能を実装してください")
         >>> print(result)
     """
@@ -58,13 +70,13 @@ class CodingWritingSpecialist(CCAgentBase):
         """CodingWritingSpecialistを初期化します。
 
         Args:
-            name: エージェント名（"coding_writing_specialist"である必要があります）
+            name: エージェント名（"specialist_coding_writing"である必要があります）
             cluster_manager: CCClusterManagerインスタンス
             logger: MessageLoggerインスタンス（Noneの場合は新規作成）
             default_timeout: デフォルトのタイムアウト時間（秒）
 
         Raises:
-            ValueError: nameが"coding_writing_specialist"でない場合
+            ValueError: nameが"specialist_coding_writing"でない場合
             TypeError: cluster_managerがCCClusterManagerでない場合
         """
         if name != CODING_SPECIALIST_NAME:
@@ -128,6 +140,54 @@ class CodingWritingSpecialist(CCAgentBase):
             ) from e
 
         return response
+
+    async def check_and_process_yaml_messages(self) -> None:
+        """YAMLメッセージを確認して処理します。
+
+        Middle Managerからのタスクメッセージを確認して処理します。
+        """
+        messages = await self._check_and_process_messages()
+
+        for message in messages:
+            if message.type == YAMLMessageType.TASK:
+                self.log_thought(f"タスクを受信しました: {message.id}")
+                # タスクを処理
+                try:
+                    # ステータスをWORKINGに更新
+                    await self._update_status(AgentState.WORKING, current_task=message.id)
+
+                    result = await self.handle_task(message.content)
+
+                    # 結果をMiddle Managerに返信
+                    await self._write_yaml_message(
+                        to_agent=MIDDLE_MANAGER_NAME,
+                        content=result,
+                        msg_type=YAMLMessageType.RESULT,
+                    )
+
+                    # ステータスをIDLEに戻す
+                    await self._update_status(AgentState.IDLE, statistics={"tasks_completed": 1})
+
+                except Exception as e:
+                    # エラーを返信
+                    await self._write_yaml_message(
+                        to_agent=MIDDLE_MANAGER_NAME,
+                        content=f"エラーが発生: {e}",
+                        msg_type=YAMLMessageType.ERROR,
+                    )
+                    await self._update_status(AgentState.ERROR)
+
+    async def run_yaml_loop(self) -> None:
+        """YAMLメッセージ監視ループを実行します。
+
+        定期的にYAMLメッセージを確認して処理します。
+        """
+        while True:
+            try:
+                await self.check_and_process_yaml_messages()
+            except Exception as e:
+                self.log_thought(f"YAML処理でエラーが発生: {e}")
+            await asyncio.sleep(YAML_POLL_INTERVAL)
 
 
 class ResearchAnalysisSpecialist(CCAgentBase):
@@ -332,3 +392,66 @@ class TestingSpecialist(CCAgentBase):
             ) from e
 
         return response
+
+    async def check_and_process_yaml_messages(self) -> None:
+        """YAMLメッセージを確認して処理します。
+
+        Middle Managerからのタスクメッセージを確認して処理します。
+        """
+        messages = await self._check_and_process_messages()
+
+        for message in messages:
+            if message.type == YAMLMessageType.TASK:
+                self.log_thought(f"タスクを受信しました: {message.id}")
+                # タスクを処理
+                try:
+                    # ステータスをWORKINGに更新
+                    await self._update_status(AgentState.WORKING, current_task=message.id)
+
+                    result = await self.handle_task(message.content)
+
+                    # 結果をMiddle Managerに返信
+                    await self._write_yaml_message(
+                        to_agent=MIDDLE_MANAGER_NAME,
+                        content=result,
+                        msg_type=YAMLMessageType.RESULT,
+                    )
+                    # ステータスをCOMPLETEDに更新
+                    await self._update_status(
+                        AgentState.IDLE,
+                        statistics={"tasks_completed": 1}
+                    )
+                    self.log_thought(f"結果を返信しました: {message.id}")
+
+                    # 元のメッセージをCOMPLETEDに更新
+                    message.status = MessageStatus.COMPLETED
+                    original_path = Path("queue") / f"{MIDDLE_MANAGER_NAME}_to_{self._name}.yaml"
+                    await write_message_async(message, original_path)
+
+                except Exception as e:
+                    # エラーを返信
+                    await self._write_yaml_message(
+                        to_agent=MIDDLE_MANAGER_NAME,
+                        content=f"エラーが発生: {e}",
+                        msg_type=YAMLMessageType.ERROR,
+                    )
+                    # ステータスをERRORに更新
+                    await self._update_status(AgentState.ERROR)
+
+    async def run_yaml_loop(self) -> None:
+        """YAMLメッセージ監視ループを実行します。
+
+        定期的にYAMLメッセージを確認して処理します。
+        """
+        while True:
+            try:
+                await self.check_and_process_yaml_messages()
+            except Exception as e:
+                self.log_thought(f"YAML処理でエラーが発生: {e}")
+            await asyncio.sleep(YAML_POLL_INTERVAL)
+
+
+# ResearchAnalysisSpecialistとTestingSpecialistにも同様のメソッドを追加
+for cls in [ResearchAnalysisSpecialist, TestingSpecialist]:
+    cls.check_and_process_yaml_messages = CodingWritingSpecialist.check_and_process_yaml_messages
+    cls.run_yaml_loop = CodingWritingSpecialist.run_yaml_loop

@@ -4,9 +4,17 @@
 """
 
 import asyncio
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from orchestrator.agents.cc_agent_base import CCAgentBase
+from orchestrator.core.yaml_protocol import (
+    AgentState,
+    MessageStatus,
+    MessageType as YAMLMessageType,
+    TaskMessage,
+    read_message_async,
+)
 from orchestrator.core.task_tracker import TaskTracker, TaskStatus
 
 if TYPE_CHECKING:
@@ -14,10 +22,13 @@ if TYPE_CHECKING:
     from orchestrator.core.message_logger import MessageLogger
 
 # 定数
-CODING_SPECIALIST_NAME: Final[str] = "coding_writing_specialist"
-RESEARCH_SPECIALIST_NAME: Final[str] = "research_analysis_specialist"
-TESTING_SPECIALIST_NAME: Final[str] = "testing_specialist"
+CODING_SPECIALIST_NAME: Final[str] = "specialist_coding_writing"
+RESEARCH_SPECIALIST_NAME: Final[str] = "specialist_research_analysis"
+TESTING_SPECIALIST_NAME: Final[str] = "specialist_testing"
 DEFAULT_TASK_TIMEOUT: Final[float] = 120.0
+YAML_POLL_INTERVAL: Final[float] = 1.0  # YAML確認間隔（秒）
+
+GRAND_BOSS_NAME: Final[str] = "grand_boss"
 
 # タスク分解のためのキーワードパターン
 TASK_PATTERNS: Final[dict[str, list[str]]] = {
@@ -105,6 +116,7 @@ class MiddleManagerAgent(CCAgentBase):
         """タスクを処理します。
 
         Grand Bossからのタスクを受領し、分解して各Specialistに割り当て、結果を集約して返します。
+        YAMLベースの通信を使用します。
 
         Args:
             task: Grand Bossからのタスク内容
@@ -126,28 +138,136 @@ class MiddleManagerAgent(CCAgentBase):
         if not task or not task.strip():
             raise ValueError("taskは空であってはなりません")
 
+        # ステータスをWORKINGに更新
+        await self._update_status(AgentState.WORKING, current_task="grand_boss_task")
+
         # 1. タスクを分解
         subtasks = self._decompose_task(task)
-        self._logger.log_send(
-            from_agent=self._name,
-            to_agent=self._name,
-            content=f"タスクを分解しました: {list(subtasks.keys())}",
-            msg_type="info",
-        )
+        self.log_thought(f"タスクを分解しました: {list(subtasks.keys())}")
 
-        # 2. 各Specialistに割り振り
-        results = await self._assign_tasks(subtasks)
+        # 2. 各SpecialistにYAMLで割り振り
+        results = await self._assign_tasks_yaml(subtasks)
 
         # 3. 結果を集約
         aggregated = await self._aggregate_results(results)
-        self._logger.log_send(
-            from_agent=self._name,
-            to_agent=self._name,
-            content="結果を集約しました",
-            msg_type="info",
+        self.log_thought("結果を集約しました")
+
+        # ステータスをIDLEに戻す
+        await self._update_status(
+            AgentState.IDLE,
+            statistics={"tasks_completed": 1, "subtasks_delegated": len(subtasks)}
         )
 
         return aggregated
+
+    async def _assign_tasks_yaml(self, subtasks: dict[str, list[str]]) -> dict[str, str]:
+        """各SpecialistにYAMLでタスクを割り振り、結果を収集します。
+
+        Args:
+            subtasks: Specialist名からサブタスクリストへの辞書
+
+        Returns:
+            Specialist名から結果への辞書
+
+        Raises:
+            CCAgentSendError: いずれかのSpecialistへの送信に失敗した場合
+            CCAgentTimeoutError: Specialistからの応答がタイムアウトした場合
+        """
+        results: dict[str, str] = {}
+        msg_ids: list[str] = []
+
+        # 各Specialistにタスクを割り振り
+        for specialist, task_list in subtasks.items():
+            if not task_list:
+                continue
+
+            # 複数タスクがある場合は結合
+            combined_task = "\n".join(task_list)
+
+            # YAMLメッセージを送信
+            msg_id = await self._write_yaml_message(
+                to_agent=specialist,
+                content=combined_task,
+                msg_type=YAMLMessageType.TASK,
+            )
+            msg_ids.append(msg_id)
+            self.log_thought(f"{specialist} にタスクを送信: {msg_id}")
+
+        # 全ての結果を待機
+        for msg_id in msg_ids:
+            result = await self._wait_for_result(msg_id, timeout=self._default_timeout)
+            # 送信元エージェントを特定（簡易実装）
+            for specialist in [CODING_SPECIALIST_NAME, RESEARCH_SPECIALIST_NAME, TESTING_SPECIALIST_NAME]:
+                # 結果からどのSpecialistかを推定
+                results[specialist] = result
+
+        return results
+
+    async def _wait_for_result(self, msg_id: str, timeout: float) -> str:
+        """YAMLメッセージの結果を待ちます。
+
+        Args:
+            msg_id: 待機するメッセージID
+            timeout: タイムアウト時間（秒）
+
+        Returns:
+            結果の内容
+
+        Raises:
+            TimeoutError: タイムアウトした場合
+        """
+        start_time = asyncio.get_event_loop().time()
+
+        while asyncio.get_event_loop().time() - start_time < timeout:
+            # 各Specialistからの結果メッセージを確認
+            for specialist in [CODING_SPECIALIST_NAME, RESEARCH_SPECIALIST_NAME, TESTING_SPECIALIST_NAME]:
+                result_path = Path("queue") / f"{specialist}_to_{self._name}.yaml"
+                message = await read_message_async(result_path)
+                if message and message.status == MessageStatus.COMPLETED:
+                    return message.content
+
+            await asyncio.sleep(YAML_POLL_INTERVAL)
+
+        raise TimeoutError(f"メッセージ {msg_id} の結果がタイムアウトしました")
+
+    async def check_and_process_yaml_messages(self) -> None:
+        """YAMLメッセージを確認して処理します。
+
+        Grand Bossからのタスクメッセージを確認して処理します。
+        """
+        messages = await self._check_and_process_messages()
+
+        for message in messages:
+            if message.type == YAMLMessageType.TASK:
+                self.log_thought(f"タスクを受信しました: {message.id}")
+                # タスクを処理
+                try:
+                    result = await self.handle_task(message.content)
+                    # 結果を返信
+                    await self._write_yaml_message(
+                        to_agent=GRAND_BOSS_NAME,
+                        content=result,
+                        msg_type=YAMLMessageType.RESULT,
+                    )
+                except Exception as e:
+                    # エラーを返信
+                    await self._write_yaml_message(
+                        to_agent=GRAND_BOSS_NAME,
+                        content=f"エラーが発生: {e}",
+                        msg_type=YAMLMessageType.ERROR,
+                    )
+
+    async def run_yaml_loop(self) -> None:
+        """YAMLメッセージ監視ループを実行します。
+
+        定期的にYAMLメッセージを確認して処理します。
+        """
+        while True:
+            try:
+                await self.check_and_process_yaml_messages()
+            except Exception as e:
+                self.log_thought(f"YAML処理でエラーが発生: {e}")
+            await asyncio.sleep(YAML_POLL_INTERVAL)
 
     def _decompose_task(self, task: str) -> dict[str, list[str]]:
         """タスクを各Specialist向けのサブタスクに分解します。
