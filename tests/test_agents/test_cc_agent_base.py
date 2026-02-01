@@ -23,8 +23,8 @@ from orchestrator.core import (
 )
 
 
-# テスト用の具象エージェントクラス
-class TestAgent(CCAgentBase):
+# テスト用の具象エージェントクラス（pytestのwarning回避のため'Dummy'を使用）
+class DummyAgent(CCAgentBase):
     """テスト用の具象エージェントクラス"""
 
     async def handle_task(self, task: str) -> str:
@@ -49,7 +49,7 @@ class TestCCAgentBaseInit:
 
     def test_init_with_all_parameters(self, mock_cluster_manager, mock_logger):
         """全パラメータを指定した初期化が成功すること"""
-        agent = TestAgent(
+        agent = DummyAgent(
             name="test_agent",
             cluster_manager=mock_cluster_manager,
             logger=mock_logger,
@@ -63,7 +63,7 @@ class TestCCAgentBaseInit:
 
     def test_init_with_default_logger(self, mock_cluster_manager):
         """loggerを省略した場合、新規MessageLoggerが作成されること"""
-        agent = TestAgent(
+        agent = DummyAgent(
             name="test_agent",
             cluster_manager=mock_cluster_manager,
         )
@@ -75,22 +75,22 @@ class TestCCAgentBaseInit:
     def test_init_with_invalid_cluster_manager(self):
         """cluster_managerがCCClusterManagerでない場合、TypeErrorが発生すること"""
         with pytest.raises(TypeError, match="cluster_managerはCCClusterManagerのインスタンス"):
-            TestAgent(name="test_agent", cluster_manager="not_a_manager")
+            DummyAgent(name="test_agent", cluster_manager="not_a_manager")
 
     def test_init_with_empty_name(self, mock_cluster_manager):
         """nameが空の場合、ValueErrorが発生すること"""
         with pytest.raises(ValueError, match="nameは空であってはなりません"):
-            TestAgent(name="", cluster_manager=mock_cluster_manager)
+            DummyAgent(name="", cluster_manager=mock_cluster_manager)
 
     def test_init_with_negative_timeout(self, mock_cluster_manager):
         """default_timeoutが負の値の場合、ValueErrorが発生すること"""
         with pytest.raises(ValueError, match="default_timeoutは正の値である必要があります"):
-            TestAgent(name="test_agent", cluster_manager=mock_cluster_manager, default_timeout=-1.0)
+            DummyAgent(name="test_agent", cluster_manager=mock_cluster_manager, default_timeout=-1.0)
 
     def test_init_with_zero_timeout(self, mock_cluster_manager):
         """default_timeoutが0の場合、ValueErrorが発生すること"""
         with pytest.raises(ValueError, match="default_timeoutは正の値である必要があります"):
-            TestAgent(name="test_agent", cluster_manager=mock_cluster_manager, default_timeout=0.0)
+            DummyAgent(name="test_agent", cluster_manager=mock_cluster_manager, default_timeout=0.0)
 
 
 class TestCCAgentBaseSendTo:
@@ -112,9 +112,9 @@ class TestCCAgentBaseSendTo:
         return mock
 
     @pytest.fixture
-    def agent(self, mock_cluster_manager, mock_logger) -> TestAgent:
+    def agent(self, mock_cluster_manager, mock_logger) -> DummyAgent:
         """テスト用エージェントインスタンス"""
-        return TestAgent(
+        return DummyAgent(
             name="sender",
             cluster_manager=mock_cluster_manager,
             logger=mock_logger,
@@ -211,9 +211,9 @@ class TestCCAgentBaseErrorHandling:
         return mock
 
     @pytest.fixture
-    def agent(self, mock_cluster_manager, mock_logger) -> TestAgent:
+    def agent(self, mock_cluster_manager, mock_logger) -> DummyAgent:
         """テスト用エージェントインスタンス"""
-        return TestAgent(
+        return DummyAgent(
             name="sender",
             cluster_manager=mock_cluster_manager,
             logger=mock_logger,
@@ -282,7 +282,7 @@ class TestCCAgentBaseAbstractMethod:
 
     def test_concrete_class_can_be_instantiated(self):
         """具象クラスがインスタンス化できること"""
-        agent = TestAgent(
+        agent = DummyAgent(
             name="test",
             cluster_manager=MagicMock(spec=CCClusterManager),
         )
@@ -308,9 +308,9 @@ class TestCCAgentBaseLogging:
         return mock
 
     @pytest.fixture
-    def agent(self, mock_cluster_manager, mock_logger) -> TestAgent:
+    def agent(self, mock_cluster_manager, mock_logger) -> DummyAgent:
         """テスト用エージェントインスタンス"""
-        return TestAgent(
+        return DummyAgent(
             name="sender",
             cluster_manager=mock_cluster_manager,
             logger=mock_logger,
@@ -372,7 +372,7 @@ class TestCCAgentBaseGetName:
 
     def test_get_name_returns_correct_name(self):
         """正しいエージェント名が返されること"""
-        agent = TestAgent(
+        agent = DummyAgent(
             name="test_agent",
             cluster_manager=MagicMock(spec=CCClusterManager),
         )
@@ -380,11 +380,11 @@ class TestCCAgentBaseGetName:
 
     def test_get_name_returns_different_names(self):
         """異なるエージェント名が区別されること"""
-        agent1 = TestAgent(
+        agent1 = DummyAgent(
             name="agent_1",
             cluster_manager=MagicMock(spec=CCClusterManager),
         )
-        agent2 = TestAgent(
+        agent2 = DummyAgent(
             name="agent_2",
             cluster_manager=MagicMock(spec=CCClusterManager),
         )
