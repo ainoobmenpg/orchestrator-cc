@@ -211,6 +211,15 @@ class CCProcessLauncher:
 
         self._running = False
 
+    def mark_as_running(self) -> None:
+        """既存のプロセスが実行中としてマークします。
+
+        すでにtmuxペインで起動しているプロセスに接続する場合に使用します。
+        connect()メソッド経由で呼び出されます。
+        """
+        self._running = True
+        self._restart_count = 0
+
     def _load_personality_prompt(self) -> str:
         """性格プロンプトを読み込みます。
 

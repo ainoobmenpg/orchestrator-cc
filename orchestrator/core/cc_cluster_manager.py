@@ -125,6 +125,29 @@ class CCClusterManager:
             self._launchers[agent_config.name] = launcher
             await launcher.start()
 
+    def connect(self) -> None:
+        """既存のtmuxセッションに接続してランチャーを初期化します。
+
+        すでに起動しているクラスタに接続する場合に使用します。
+        セッションが存在しない場合はCCClusterConfigErrorを発生させます。
+
+        Raises:
+            CCClusterConfigError: セッションが存在しない場合
+        """
+        if not self._tmux.session_exists():
+            raise CCClusterConfigError(
+                f"セッション '{self._tmux._session_name}' が存在しません。"
+                f"まず start コマンドでクラスタを起動してください。"
+            )
+
+        # ランチャーを初期化（プロセスは起動済みと仮定）
+        for agent_config in self._config.agents:
+            launcher = CCProcessLauncher(
+                agent_config, agent_config.pane_index, self._tmux
+            )
+            launcher.mark_as_running()
+            self._launchers[agent_config.name] = launcher
+
     async def stop(self) -> None:
         """クラスタ全体を停止します。
 

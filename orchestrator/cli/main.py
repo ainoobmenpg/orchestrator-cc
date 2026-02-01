@@ -36,6 +36,8 @@ def execute_task(args: argparse.Namespace) -> None:
 
     async def _execute() -> None:
         cluster = CCClusterManager(args.config)
+        # 既存のクラスタに接続
+        cluster.connect()
         # Grand Bossにタスクを送信
         result = await cluster.send_message("grand_boss", args.task)
         print(result)

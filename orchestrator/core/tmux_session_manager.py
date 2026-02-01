@@ -207,13 +207,25 @@ class TmuxSessionManager:
             raise TmuxSessionNotFoundError(f"セッション '{self._session_name}' が存在しません")
 
         target = f"{self._session_name}:{self._window_index}.{pane_index}"
+
+        # メッセージを送信
         self._run_tmux_command(
             [
                 "send-keys",
                 "-t",
                 target,
+                "-l",  # リテラルモード（特殊文字をそのまま入力）
                 keys,
-                "C-m",  # Enterキーを送信（Carriage Return）
+            ]
+        )
+
+        # Enterキーを送信
+        self._run_tmux_command(
+            [
+                "send-keys",
+                "-t",
+                target,
+                "C-m",  # Enterキー（Carriage Return）
             ]
         )
 
