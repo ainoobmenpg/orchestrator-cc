@@ -4,6 +4,7 @@
 CCProcessLauncherクラスを定義します。
 """
 
+import shlex
 from pathlib import Path
 from typing import Final
 
@@ -66,7 +67,7 @@ class CCProcessLauncher:
         _tmux: TmuxSessionManagerインスタンス
         _pane_io: PaneIOインスタンス
         _running: プロセス実行中フラグ
-        _restart_count: 再起動回数
+        _restart_count: 再起動回数（TODO: auto_restart機能実装時に使用、Issue #11）
     """
 
     def __init__(
@@ -97,6 +98,7 @@ class CCProcessLauncher:
         self._tmux: TmuxSessionManager = tmux_manager
         self._pane_io: PaneIO = PaneIO(tmux_manager)
         self._running: bool = False
+        # TODO: auto_restart機能実装時に使用 (Issue #11)
         self._restart_count: int = 0
 
     async def start(self) -> None:
@@ -116,7 +118,9 @@ class CCProcessLauncher:
             return
 
         # 性格プロンプトを読み込み
-        # TODO: 性格プロンプトの適用方法を検証・実装
+        # TODO: 性格プロンプトの適用方法を検証・実装 (Issue #11)
+        # Phase 0の検証では--system-promptオプションは不可だったため
+        # 起動後に別の方法で設定する必要がある
         # try:
         #     _ = self._load_personality_prompt()
         # except (CCPersonalityPromptNotFoundError, CCPersonalityPromptReadError):
@@ -147,6 +151,7 @@ class CCProcessLauncher:
             ) from e
 
         self._running = True
+        # TODO: auto_restart機能実装時に使用 (Issue #11)
         self._restart_count = 0
 
     def is_running(self) -> bool:
@@ -258,12 +263,13 @@ class CCProcessLauncher:
         parts = []
 
         if self._config.work_dir:
-            parts.append(f"cd {self._config.work_dir}")
+            # shlex.quote()でパスをクォート（コマンドインジェクション対策）
+            parts.append(f"cd {shlex.quote(self._config.work_dir)}")
 
         # Claude Codeのパス
         claude_path = self._config.claude_path if self._config.claude_path else "claude"
 
-        # TODO: 性格プロンプトの渡し方を検証
+        # TODO: 性格プロンプトの渡し方を検証 (Issue #11)
         # Phase 0の検証では--system-promptオプションは不可だったため
         # 起動後に別の方法で設定する必要がある
         parts.append(claude_path)
