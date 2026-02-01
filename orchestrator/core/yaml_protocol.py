@@ -58,7 +58,7 @@ class TaskMessage:
 
     Attributes:
         id: メッセージID
-        from: 送信元エージェント名
+        from_agent: 送信元エージェント名（YAML上は 'from' として出力）
         to: 送信先エージェント名
         type: メッセージタイプ
         status: メッセージステータス
@@ -68,7 +68,7 @@ class TaskMessage:
     """
 
     id: str
-    from: str
+    from_agent: str  # 'from' は予約語なので from_agent にする
     to: str
     type: MessageType
     status: MessageStatus
@@ -79,12 +79,14 @@ class TaskMessage:
     def to_dict(self) -> dict[str, Any]:
         """辞書に変換します。
 
+        YAML出力用に 'from_agent' を 'from' に変換します。
+
         Returns:
             辞書形式のメッセージデータ
         """
         return {
             "id": self.id,
-            "from": self.from,
+            "from": self.from_agent,  # YAML上は 'from' とする
             "to": self.to,
             "type": self.type.value,
             "status": self.status.value,
@@ -116,14 +118,14 @@ class TaskMessage:
             TaskMessageインスタンス
         """
         return cls(
-            id=data["id"],
-            from=data["from"],
-            to=data["to"],
-            type=MessageType(data["type"]),
-            status=MessageStatus(data["status"]),
-            content=data["content"],
-            timestamp=data.get("timestamp", datetime.now().isoformat()),
-            metadata=data.get("metadata", {}),
+            data["id"],                          # id
+            data["from"],                        # from_agent (YAML上は 'from')
+            data["to"],                          # to
+            MessageType(data["type"]),           # type
+            MessageStatus(data["status"]),       # status
+            data["content"],                     # content
+            data.get("timestamp", datetime.now().isoformat()),  # timestamp
+            data.get("metadata", {}),            # metadata
         )
 
     @classmethod

@@ -30,7 +30,13 @@ CODING_SPECIALIST_NAME: Final[str] = "specialist_coding_writing"
 RESEARCH_SPECIALIST_NAME: Final[str] = "specialist_research_analysis"
 TESTING_SPECIALIST_NAME: Final[str] = "specialist_testing"
 MIDDLE_MANAGER_NAME: Final[str] = "middle_manager"
+DEFAULT_TASK_TIMEOUT: Final[float] = 120.0
 YAML_POLL_INTERVAL: Final[float] = 1.0  # YAML確認間隔（秒）
+
+# 合言葉（マーカー）
+CODING_MARKER: Final[str] = "CODING OK"
+RESEARCH_MARKER: Final[str] = "RESEARCH OK"
+TESTING_MARKER: Final[str] = "TESTING OK"
 
 
 class CodingWritingSpecialist(CCAgentBase):
@@ -133,6 +139,54 @@ class CodingWritingSpecialist(CCAgentBase):
             ) from e
 
         return response
+
+    async def check_and_process_yaml_messages(self) -> None:
+        """YAMLメッセージを確認して処理します。
+
+        Middle Managerからのタスクメッセージを確認して処理します。
+        """
+        messages = await self._check_and_process_messages()
+
+        for message in messages:
+            if message.type == YAMLMessageType.TASK:
+                self.log_thought(f"タスクを受信しました: {message.id}")
+                # タスクを処理
+                try:
+                    # ステータスをWORKINGに更新
+                    await self._update_status(AgentState.WORKING, current_task=message.id)
+
+                    result = await self.handle_task(message.content)
+
+                    # 結果をMiddle Managerに返信
+                    await self._write_yaml_message(
+                        to_agent=MIDDLE_MANAGER_NAME,
+                        content=result,
+                        msg_type=YAMLMessageType.RESULT,
+                    )
+
+                    # ステータスをIDLEに戻す
+                    await self._update_status(AgentState.IDLE, statistics={"tasks_completed": 1})
+
+                except Exception as e:
+                    # エラーを返信
+                    await self._write_yaml_message(
+                        to_agent=MIDDLE_MANAGER_NAME,
+                        content=f"エラーが発生: {e}",
+                        msg_type=YAMLMessageType.ERROR,
+                    )
+                    await self._update_status(AgentState.ERROR)
+
+    async def run_yaml_loop(self) -> None:
+        """YAMLメッセージ監視ループを実行します。
+
+        定期的にYAMLメッセージを確認して処理します。
+        """
+        while True:
+            try:
+                await self.check_and_process_yaml_messages()
+            except Exception as e:
+                self.log_thought(f"YAML処理でエラーが発生: {e}")
+            await asyncio.sleep(YAML_POLL_INTERVAL)
 
 
 class ResearchAnalysisSpecialist(CCAgentBase):
