@@ -249,13 +249,62 @@ class TestCCProcessLauncherStart:
         # モックの設定
         with patch.object(launcher, "_load_personality_prompt", return_value="Test prompt"):
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
             await launcher.start()
 
             assert launcher.is_running() is True
             launcher._pane_io.get_response.assert_called_once_with(
-                0, "TEST OK", timeout=INITIAL_TIMEOUT
+                0, "TEST OK", timeout=INITIAL_TIMEOUT, poll_interval=0.5
             )
+
+    @pytest.mark.asyncio
+    async def test_start_uses_custom_poll_interval(self):
+        """カスタムpoll_intervalが使用される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            poll_interval=0.3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        with patch.object(launcher, "_load_personality_prompt", return_value="Test prompt"):
+            launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
+
+            await launcher.start()
+
+            launcher._pane_io.get_response.assert_called_once_with(
+                0, "TEST OK", timeout=INITIAL_TIMEOUT, poll_interval=0.3
+            )
+
+    @pytest.mark.asyncio
+    async def test_start_waits_for_wait_time(self):
+        """wait_timeの分だけ追加待機する"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            wait_time=0.1,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        with patch.object(launcher, "_load_personality_prompt", return_value="Test prompt"):
+            launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
+
+            await launcher.start()
+
+            assert launcher.is_running() is True
 
     @pytest.mark.asyncio
     async def test_start_calls_send_keys(self):
@@ -274,6 +323,7 @@ class TestCCProcessLauncherStart:
 
         with patch.object(launcher, "_load_personality_prompt", return_value="Test prompt"):
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
             await launcher.start()
 
@@ -299,12 +349,13 @@ class TestCCProcessLauncherStart:
 
         with patch.object(launcher, "_load_personality_prompt", return_value="Test prompt"):
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
             await launcher.start()
 
             # get_responseがマーカー付きで呼ばれることを確認
             launcher._pane_io.get_response.assert_called_once_with(
-                0, "TEST OK", timeout=INITIAL_TIMEOUT
+                0, "TEST OK", timeout=INITIAL_TIMEOUT, poll_interval=0.5
             )
 
     @pytest.mark.asyncio
@@ -323,6 +374,7 @@ class TestCCProcessLauncherStart:
 
         with patch.object(launcher, "_load_personality_prompt", return_value="Test prompt"):
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
             await launcher.start()
 
@@ -764,3 +816,117 @@ class TestCCProcessLauncherErrorHandling:
 
         with pytest.raises(CCPersonalityPromptReadError):
             raise CCPersonalityPromptReadError("Test error")
+
+
+class TestCCProcessLauncherWaitForPromptReady:
+    """プロンプト準備完了待機のテスト"""
+
+    @pytest.mark.asyncio
+    async def test_wait_for_prompt_ready_success(self):
+        """プロンプト検出成功でTrueが返る"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            poll_interval=0.05,  # 短くしてテストを高速化
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        # プロンプトパターンを含む出力をモック（start_line引数を許容）
+        def mock_capture(pane_index, start_line):
+            return "Some output\n> "
+
+        mock_tmux.capture_pane = Mock(side_effect=mock_capture)
+
+        result = await launcher._wait_for_prompt_ready(timeout=0.5)
+
+        assert result is True
+        # capture_paneが呼ばれたことを確認
+        mock_tmux.capture_pane.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_wait_for_prompt_ready_timeout(self):
+        """プロンプト検出タイムアウトでFalseが返る"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            poll_interval=0.1,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        # プロンプトパターンを含まない出力をモック
+        def mock_capture(pane_index, start_line):
+            return "Some output without prompt"
+
+        mock_tmux.capture_pane = Mock(side_effect=mock_capture)
+
+        result = await launcher._wait_for_prompt_ready(timeout=0.3)
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_wait_for_prompt_ready_checks_last_lines(self):
+        """直近10行をチェックすることを確認"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            poll_interval=0.05,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        # 最後の行にプロンプトがある出力
+        output = "\n".join([f"Line {i}" for i in range(20)] + ["Last line > "])
+
+        def mock_capture(pane_index, start_line):
+            return output
+
+        mock_tmux.capture_pane = Mock(side_effect=mock_capture)
+
+        result = await launcher._wait_for_prompt_ready(timeout=0.5)
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_wait_for_prompt_ready_detects_prompt_pattern(self):
+        """プロンプトパターン"> "を正しく検出する"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            poll_interval=0.05,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        # 様々なプロンプトパターンをテスト
+        test_cases = [
+            ("Some text\n> ", True),           # 行末にプロンプト
+            ("Line 1\nLine 2\n> ", True),      # 複数行後にプロンプト
+            ("No prompt here", False),         # プロンプトなし
+            ("Prompt with spaces:  >  ", True),  # スペース付きプロンプト
+        ]
+
+        for output, expected in test_cases:
+            def mock_capture(pane_index, start_line):
+                return output
+
+            mock_tmux.capture_pane = Mock(side_effect=mock_capture)
+            result = await launcher._wait_for_prompt_ready(timeout=0.5)
+            assert result is expected, f"Failed for: {output!r}, expected {expected}, got {result}"

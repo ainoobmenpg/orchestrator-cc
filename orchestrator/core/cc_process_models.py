@@ -36,6 +36,8 @@ class CCProcessConfig:
         claude_path: Claude Code実行ファイルのパス
         auto_restart: 異常終了時に自動再起動するか
         max_restarts: 最大再起動回数（0以上）
+        wait_time: 初期起動時の追加待機時間（秒）
+        poll_interval: ポーリング間隔（秒）
     """
 
     name: str
@@ -47,6 +49,8 @@ class CCProcessConfig:
     claude_path: str = "claude"
     auto_restart: bool = True
     max_restarts: int = 3
+    wait_time: float = 5.0
+    poll_interval: float = 0.5
 
     def __post_init__(self) -> None:
         """バリデーション"""
@@ -54,6 +58,14 @@ class CCProcessConfig:
             raise ValueError("pane_indexは0以上である必要があります")
         if self.max_restarts < 0:
             raise ValueError("max_restartsは0以上である必要があります")
+        if self.wait_time < 0:
+            raise ValueError("wait_timeは0以上である必要があります")
+        if self.wait_time > 60.0:
+            raise ValueError("wait_timeは60秒以下である必要があります")
+        if self.poll_interval <= 0:
+            raise ValueError("poll_intervalは0より大きい必要があります")
+        if self.poll_interval > 10.0:
+            raise ValueError("poll_intervalは10秒以下である必要があります")
 
 
 @dataclass

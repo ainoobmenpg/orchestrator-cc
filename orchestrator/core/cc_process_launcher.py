@@ -4,7 +4,9 @@
 CCProcessLauncherクラスを定義します。
 """
 
+import asyncio
 import shlex
+import time
 from pathlib import Path
 from typing import Final
 
@@ -53,6 +55,7 @@ class CCPersonalityPromptReadError(CCProcessError):
 
 # 定数
 INITIAL_TIMEOUT: Final[float] = 60.0  # 初期化待機のタイムアウト（秒）
+CAPTURE_HISTORY_LINES: Final[int] = -100  # キャプチャ時に取得する履歴行数
 
 
 class CCProcessLauncher:
@@ -140,12 +143,22 @@ class CCProcessLauncher:
                 self._pane_index,
                 self._config.marker,
                 timeout=INITIAL_TIMEOUT,
+                poll_interval=self._config.poll_interval,
             )
         except PaneTimeoutError as e:
             raise CCProcessLaunchError(
                 f"プロセスの初期化がタイムアウトしました "
                 f"(marker={self._config.marker}, timeout={INITIAL_TIMEOUT}秒)"
             ) from e
+
+        # 起動後の追加待機（Claude Codeの完全な初期化を待つ）
+        await asyncio.sleep(self._config.wait_time)
+
+        # プロンプト準備完了を確認
+        if not await self._wait_for_prompt_ready(timeout=10.0):
+            raise CCProcessLaunchError(
+                f"プロセス '{self._config.name}' のプロンプト起動を確認できませんでした"
+            )
 
         self._running = True
         # TODO: auto_restart機能実装時に使用 (Issue #11)
@@ -219,6 +232,35 @@ class CCProcessLauncher:
         """
         self._running = True
         self._restart_count = 0
+
+    async def _wait_for_prompt_ready(self, timeout: float = 10.0) -> bool:
+        """Claude Codeのプロンプトが表示されていることを確認します。
+
+        Args:
+            timeout: タイムアウト時間（秒）
+
+        Returns:
+            プロンプト検出に成功した場合True
+        """
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            raw_output = self._tmux.capture_pane(
+                self._pane_index,
+                start_line=CAPTURE_HISTORY_LINES,
+            )
+
+            # Claude Codeのプロンプトパターンを検出
+            lines = raw_output.split("\n")
+            # 直近10行を確認
+            for line in reversed(lines[-10:]):
+                # 末尾のスペースを削除してチェック
+                if line.rstrip().endswith(">"):
+                    return True
+
+            await asyncio.sleep(self._config.poll_interval)
+
+        return False
 
     def _load_personality_prompt(self) -> str:
         """性格プロンプトを読み込みます。
