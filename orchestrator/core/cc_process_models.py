@@ -36,6 +36,7 @@ class CCProcessConfig:
         claude_path: Claude Code実行ファイルのパス
         auto_restart: 異常終了時に自動再起動するか
         max_restarts: 最大再起動回数（0以上）
+        skip_marker_validation: marker検証をスキップするか（YAML通信方式の場合True）
     """
 
     name: str
@@ -47,6 +48,7 @@ class CCProcessConfig:
     claude_path: str = "claude"
     auto_restart: bool = True
     max_restarts: int = 3
+    skip_marker_validation: bool = False
 
     def __post_init__(self) -> None:
         """バリデーション"""

@@ -4,6 +4,7 @@
 CCProcessLauncherクラスを定義します。
 """
 
+import asyncio
 import shlex
 from pathlib import Path
 from typing import Final
@@ -132,20 +133,25 @@ class CCProcessLauncher:
         except TmuxSessionNotFoundError as e:
             raise CCProcessLaunchError(f"セッションが存在しません: {e}") from e
 
-        # 初期化完了マーカーを待機
-        try:
-            # 空のメッセージを送信してプロンプトを表示（初期化完了確認）
-            # 実際にはClaude Codeの起動を待ってから最初のメッセージを送る
-            await self._pane_io.get_response(
-                self._pane_index,
-                self._config.marker,
-                timeout=INITIAL_TIMEOUT,
-            )
-        except PaneTimeoutError as e:
-            raise CCProcessLaunchError(
-                f"プロセスの初期化がタイムアウトしました "
-                f"(marker={self._config.marker}, timeout={INITIAL_TIMEOUT}秒)"
-            ) from e
+        # skip_marker_validationがFalseの場合のみmarker検証を行う
+        if not self._config.skip_marker_validation:
+            # 初期化完了マーカーを待機
+            try:
+                # 空のメッセージを送信してプロンプトを表示（初期化完了確認）
+                # 実際にはClaude Codeの起動を待ってから最初のメッセージを送る
+                await self._pane_io.get_response(
+                    self._pane_index,
+                    self._config.marker,
+                    timeout=INITIAL_TIMEOUT,
+                )
+            except PaneTimeoutError as e:
+                raise CCProcessLaunchError(
+                    f"プロセスの初期化がタイムアウトしました "
+                    f"(marker={self._config.marker}, timeout={INITIAL_TIMEOUT}秒)"
+                ) from e
+        else:
+            # YAML通信方式では、Claude Codeの起動を待ってから続行
+            await asyncio.sleep(5)  # 起動待機
 
         self._running = True
         # TODO: auto_restart機能実装時に使用 (Issue #11)
