@@ -15,7 +15,42 @@
 
 ---
 
-## 品質チェックコマンド
+## Makefileコマンド（推奨）
+
+**※ Makefileを使用すると、コマンド入力が大幅に簡素化されます。**
+
+```bash
+# ヘルプ表示（全コマンド確認）
+make help
+
+# 全品質チェック（型チェック+リント+フォーマット+単体テスト）
+make check
+
+# 全チェック+統合テスト（並列実行）
+make check-all
+
+# 自動フォーマットとリント修正
+make fmt
+
+# 個別チェック
+make lint        # リントチェックのみ
+make type-check  # 型チェックのみ
+make test        # 単体テストのみ
+make test-all    # 全テスト（統合テスト含む）
+make coverage    # カバレッジレポート
+
+# キャッシュ削除
+make clean
+
+# 開発依存関係インストール
+make install-dev
+```
+
+---
+
+## 品質チェックコマンド（直接実行）
+
+Makefileを使用しない場合、以下のコマンドを直接実行できます。
 
 ### 個別チェック
 
@@ -30,7 +65,7 @@ ruff check .
 ruff format --check .
 
 # テスト実行（単体テストのみ、高速）
-pytest tests/ -v
+pytest tests/ -v -m "not integration"
 
 # テスト実行（統合テスト含む、並列）
 pytest tests/ -v -n 4
@@ -45,15 +80,12 @@ pytest tests/ -v -n 4
 ### カバレッジレポートの確認方法
 
 ```bash
-# 単体テストのみ（高速）
-pytest --cov=. --cov-report=term-missing -m "not integration"
+# Makefile使用
+make coverage
 
-# 全テスト
-pytest --cov=. --override-ini="addopts=" --cov-report=term-missing
-
-# HTMLレポート生成
-pytest --cov=. --cov-report=html
-open htmlcov/index.html
+# 直接実行
+pytest --cov=. --cov-report=term-missing --cov-report=html
+# HTMLレポート: htmlcov/index.html
 ```
 
 ---
@@ -61,14 +93,12 @@ open htmlcov/index.html
 ## 問題の自動修正
 
 ```bash
-# ruff の自動修正（インポート順序等）
+# Makefile使用
+make fmt
+
+# 直接実行
 ruff check . --fix
-
-# ruff のフォーマット実行
 ruff format .
-
-# unsafe fix を含む自動修正
-ruff check . --fix --unsafe-fixes
 ```
 
 ---
@@ -78,11 +108,11 @@ ruff check . --fix --unsafe-fixes
 コミット・プッシュ前に以下のコマンドで全チェックを実行：
 
 ```bash
-# 全チェック一括実行（単体テストのみ）
-mypy . && ruff check . && ruff format --check . && pytest tests/ -v
+# Makefile使用（推奨）
+make check
 
-# 全チェック一括実行（統合テスト含む、並列）
-mypy . && ruff check . && ruff format --check . && pytest tests/ -v -n 4
+# 直接実行
+mypy . && ruff check . && ruff format --check . && pytest tests/ -v -m "not integration"
 ```
 
 ---
@@ -91,3 +121,6 @@ mypy . && ruff check . && ruff format --check . && pytest tests/ -v -n 4
 
 - [../workflows/review-process.md](../workflows/review-process.md) - レビュー運用フロー
 - [../workflows/development-process.md](../workflows/development-process.md) - 開発ワークフロー
+- [../../pyproject.toml](../../pyproject.toml) - ツール設定ファイル
+- [../../ruff.toml](../../ruff.toml) - リント・フォーマット設定
+

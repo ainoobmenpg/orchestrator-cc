@@ -13,7 +13,6 @@ from orchestrator.core.tmux_session_manager import (
     TmuxSessionManager,
 )
 
-
 # 定数
 DEFAULT_TIMEOUT: Final[float] = 30.0  # デフォルトタイムアウト（秒）
 DEFAULT_POLL_INTERVAL: Final[float] = 0.5  # デフォルトポーリング間隔（秒）
@@ -49,9 +48,7 @@ class PaneIO:
             TypeError: tmux_managerがTmuxSessionManagerでない場合
         """
         if not isinstance(tmux_manager, TmuxSessionManager):
-            raise TypeError(
-                "tmux_managerはTmuxSessionManagerのインスタンスである必要があります"
-            )
+            raise TypeError("tmux_managerはTmuxSessionManagerのインスタンスである必要があります")
         self._tmux: TmuxSessionManager = tmux_manager
 
     def send_message(self, pane_index: int, message: str) -> None:
