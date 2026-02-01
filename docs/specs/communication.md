@@ -1,461 +1,392 @@
-# 通信プロトコル仕様
+# 通信方式の設計（tmux方式）
 
-## 概要
+## 更新履歴
 
-orchestrator-cc は、MCP（Model Context Protocol）を使用してClaude Codeインスタンス間の通信を実現します。
+- **2026-02-01**: MCP方式からtmux方式へ全面切り替え
 
-## プロトコルスタック
+---
+
+## 決定したアーキテクチャ
+
+### エージェント構成（5エージェント）
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  アプリケーション層    │  orchestrator-cc メッセージ   │
-├─────────────────────────────────────────────────────────┤
-│  プレゼンテーション層  │  MCP (Model Context Protocol) │
-├─────────────────────────────────────────────────────────┤
-│  RPC層               │  JSON-RPC 2.0                  │
-├─────────────────────────────────────────────────────────┤
-│  トランスポート層     │  stdio (標準入出力)           │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────┐
+│    Grand Boss       │
+│  (ユーザーとの窓口)  │
+└──────────┬──────────┘
+           │
+┌──────────▼──────────┐
+│  Middle Manager     │
+│  (タスク分解・進捗管理) │
+└──────────┬──────────┘
+           │
+    ┌──────┴──────┬──────────────┬─────────────┐
+    │             │              │             │
+┌───▼────┐  ┌────▼──────┐  ┌────▼──────┐  ┌──▼─────────┐
+│Coding & │  │Research & │  │Testing    │  │(将来拡張用) │
+│Writing  │  │Analysis   │  │Specialist  │  │            │
+│Specialist│  │Specialist  │  │          │  │            │
+└────────┘  └───────────┘  └───────────┘  └────────────┘
 ```
 
-## JSON-RPC 2.0
+| エージェント | 役割 | 応答キーワード | プロンプトファイル |
+|-------------|------|--------------|-------------------|
+| Grand Boss | ユーザーとの窓口、最終責任者 | GRAND BOSS OK | `config/personalities/grand_boss.txt` |
+| Middle Manager | タスク分解、Specialistの取りまとめ、進捗管理 | MIDDLE MANAGER OK | `config/personalities/middle_manager.txt` |
+| Coding & Writing Specialist | コーディング + ドキュメント作成 | CODING OK | `config/personalities/coding_writing_specialist.txt` |
+| Research & Analysis Specialist | 調査・分析 | RESEARCH OK | `config/personalities/research_analysis_specialist.txt` |
+| Testing Specialist | テスト・品質保証 | TESTING OK | `config/personalities/testing_specialist.txt` |
 
-### 基本形式
+---
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "unique-request-id",
-  "method": "method_name",
-  "params": { ... }
-}
+## 通信方式：エージェント同士の直接通信
+
+### 採用方式：直接通信
+
+エージェント同士が直接通信を行う方式を採用します。
+
+```
+Grand Boss ─────直接────→ Middle Manager
+                           │
+                           ├────直接────→ Coding & Writing Specialist
+                           ├────直接────→ Research & Analysis Specialist
+                           └────直接────→ Testing Specialist
 ```
 
-### レスポンス形式
+### 実装イメージ
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "unique-request-id",
-  "result": { ... }
-}
+```python
+# 共通ロガー
+class MessageLogger:
+    """メッセージログを記録する共通クラス"""
+    def log(self, from_agent: str, to_agent: str, content: str):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] {from_agent} → {to_agent}: {content}")
+
+# エージェントの基底クラス
+class CCAgentBase:
+    def __init__(self, agent_id: str, cluster_manager: CCClusterManager):
+        self._agent_id = agent_id
+        self._cluster = cluster_manager
+        self._logger = MessageLogger()  # 共通ロガーを使用
+        self._pane_io = PaneIO(cluster_manager.tmux)
+
+    async def send_to(self, to_agent: str, content: str) -> None:
+        """他エージェントに直接メッセージを送信"""
+        # ログ記録
+        self._logger.log(self._agent_id, to_agent, content)
+
+        # 宛先のペインを取得して直接送信
+        target_pane = self._cluster.get_pane(to_agent)
+        self._pane_io.send_message(target_pane, content)
 ```
 
-### エラー形式
+### メリット
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "unique-request-id",
-  "error": {
-    "code": -32601,
-    "message": "Method not found",
-    "data": { ... }
-  }
-}
+| メリット | 説明 |
+|---------|------|
+| **シンプルな実装** | 宛先のペインに直接メッセージを送るだけ |
+| **通常のClaude Codeに近い** | ユーザーがClaude Codeを使うときの直接対話に近い |
+| **追従性が高い** | Claude Codeに新機能が追加されたとき、そのまま使える |
+| **エージェントの独立性** | 各エージェントが自律的に動作できる |
+| **ログは共通クラスで対応** | MessageLoggerクラスを全エージェントが使い回せる |
+
+### 通信フロー例
+
+```
+1. Grand BossからMiddle Managerへの送信
+   ┌─────────────────────────────────────────────┐
+   │ Grand Boss Agent                           │
+   │  └─> send_to("middle_manager", "タスク分解して") │
+   │      └─> logger.log("grand_boss", "middle_manager", ...) │
+   │      └─> pane_io.send_message(pane1, "タスク分解して") │
+   └─────────────────────────────────────────────┘
+
+2. tmuxペイン1（Middle Manager）にコマンド送信
+   ┌─────────────────────────────────────────────┐
+   │ tmux send-keys -t session:0.1 "タスク分解して" Enter │
+   └─────────────────────────────────────────────┘
+
+3. Middle Managerが応答
+   ┌─────────────────────────────────────────────┐
+   │ Middle Manager Agent                        │
+   │  └─> 応答生成（MIDDLE MANAGER OKを含む）      │
+   └─────────────────────────────────────────────┘
+
+4. orchestrator-ccが応答をキャプチャ
+   ┌─────────────────────────────────────────────┐
+   │ tmux capture-pane -t session:0.1 -p         │
+   │  └─> パースして応答を抽出                     │
+   └─────────────────────────────────────────────┘
 ```
 
-## MCP メソッド
+---
 
-### tools/list
+## 非同期通信の方式：マーカー検出方式
 
-利用可能なツールの一覧を取得します。
+### 採用方式：応答完了マーカー（合言葉）検出
 
-**リクエスト**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/list",
-  "params": {}
-}
+各エージェントの応答キーワードを「合言葉」として使用し、それが検出された時点で応答完了と判定します。
+
+### 合言葉（マーカー）一覧
+
+| エージェント | 合言葉 | 用途 |
+|-------------|--------|------|
+| Grand Boss | `GRAND BOSS OK` | Grand Bossの応答完了検出 |
+| Middle Manager | `MIDDLE MANAGER OK` | Middle Managerの応答完了検出 |
+| Coding & Writing Specialist | `CODING OK` | Coding & Writingの応答完了検出 |
+| Research & Analysis Specialist | `RESEARCH OK` | Research & Analysisの応答完了検出 |
+| Testing Specialist | `TESTING OK` | Testingの応答完了検出 |
+
+### 実装イメージ
+
+```python
+class PaneIO:
+    async def get_response(self, pane_index: int,
+                          expected_marker: str,
+                          timeout: float = 30.0) -> str:
+        """合言葉（マーカー）を検出して応答を取得"""
+        start_time = time.time()
+        previous_output = ""
+
+        while time.time() - start_time < timeout:
+            # ペインの出力を取得
+            current_output = self._tmux.capture_pane(pane_index)
+
+            # 出力が変化したか確認
+            if current_output != previous_output:
+                previous_output = current_output
+
+                # 合言葉を検出
+                if expected_marker in current_output:
+                    return self._extract_response(current_output, expected_marker)
+
+            await asyncio.sleep(0.5)  # 軽い待機
+
+        raise TimeoutError(f"合言葉 '{expected_marker}' がタイムアウトまでに検出されませんでした")
+
+    def _extract_response(self, output: str, marker: str) -> str:
+        """合言葉までの応答部分を抽出"""
+        # 合言葉以降を除去
+        lines = output.split('\n')
+        response_lines = []
+
+        for line in lines:
+            response_lines.append(line)
+            # 合言葉が見つかったらそこまで
+            if marker in line:
+                break
+
+        # プロンプト行を除去して返す
+        return self._remove_prompts('\n'.join(response_lines))
+
+# 使用例
+class CCAgentBase:
+    async def send_to(self, to_agent: str, content: str) -> str:
+        """他エージェントにメッセージを送信して応答を取得"""
+        # ログ記録
+        self._logger.log(self._agent_id, to_agent, content)
+
+        # 宛先のペインを取得
+        target_pane = self._cluster.get_pane(to_agent)
+
+        # 送信
+        self._pane_io.send_message(target_pane, content)
+
+        # 合言葉を使って応答を取得
+        expected_marker = self._cluster.get_marker(to_agent)
+        response = await self._pane_io.get_response(target_pane, expected_marker)
+
+        return response
 ```
 
-**レスポンス**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "tools": [
-      {
-        "name": "send_message",
-        "description": "別のエージェントにメッセージを送信します",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "to": { "type": "string" },
-            "content": { "type": "string" },
-            "thinking": { "type": "string" }
-          },
-          "required": ["to", "content"]
-        }
-      }
-    ]
-  }
-}
+### フロー図
+
+```
+送信 ──────────────────────────────────────────────→
+                                                          │
+┌─────────────────────────────────────────────────────┐ │
+│ 0.5秒ごとにペイン出力をチェック（tmux capture-pane）  │ │
+│  └─> 合言葉が含まれているか確認                       │ │
+│      └─> 含まれていれば応答完了                        │ │
+│      └─> 含まれていなければ継続                        │ │
+└─────────────────────────────────────────────────────┘ │
+                                                          │
+                                                          ▼
+合言葉検出 → 応答を抽出 → 返す
 ```
 
-### tools/call
+### メリット
 
-ツールを実行します。
+| メリット | 説明 |
+|---------|------|
+| **正確な検出** | 応答の完了を確実に判定できる |
+| **無駄のない待機** | 応答が完了した時点で即座に取得 |
+| **柔軟性** | 合言葉は各エージェントの性格プロンプトで定義済み |
+| **タイムアウト付き** | 無限に待たずにタイムアウトでエラー処理 |
 
-**リクエスト**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "method": "tools/call",
-  "params": {
-    "name": "send_message",
-    "arguments": {
-      "from": "grand_boss",
-      "to": "middle_manager",
-      "type": "task_request",
-      "content": "タスクの分解をお願い",
-      "thinking": "これは複雑なタスクだな...",
-      "metadata": {
-        "timestamp": "2026-02-01T14:32:10Z",
-        "priority": "normal"
-      }
-    }
-  }
-}
+### 合言葉のルール
+
+- 各エージェントの性格プロンプトに「返信には必ず「XXX OK」を含めてください」と記載
+- 合言葉は応答のどこに含まれていても良い（先頭、途中、末尾）
+- 合言葉が複数回含まれる場合、最初の検出で完了とみなす
+- タイムアウトデフォルト値は30秒（状況に応じて調整可能）
+
+### エラーハンドリング
+
+```python
+try:
+    response = await agent.send_to("middle_manager", "タスク分解して")
+except TimeoutError as e:
+    # 合言葉が検出されなかった場合の処理
+    print(f"エラー: {e}")
+    # リトライまたはエラー通知
 ```
 
-**レスポンス**:
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 2,
-  "result": {
-    "content": "タスクを受信しました。分解を開始します。",
-    "thinking": "了解。まず要件を整理しよう...",
-    "isError": false
-  }
-}
-```
+---
 
-## orchestrator-cc メッセージ形式
+## データモデル設計
 
-### メッセージ構造
+### 基本方針
+
+- **メッセージ**: シンプルに（tmuxで送る最小限の情報のみ）
+- **ログ**: 裏で別途記録（タイムスタンプ、ID、タイプ等のデバッグ情報）
+
+### メッセージモデル
 
 ```python
 @dataclass
 class CCMessage:
-    """orchestrator-cc メッセージ"""
-    # 基本フィールド
-    id: str                    # 一意なID
-    from_agent: str            # 送信元エージェントID
-    to_agent: str              # 送信先エージェントID
-    type: MessageType          # メッセージタイプ
-    content: str               # メッセージ内容
+    """エージェント間のメッセージ（シンプル版）"""
+    from_agent: str      # 送信元エージェント（例: "grand_boss"）
+    to_agent: str        # 送信先エージェント（例: "middle_manager"）
+    content: str         # メッセージ内容
+```
 
-    # オプションフィールド
-    thinking: str | None = None           # 思考ログ
-    metadata: dict[str, Any] = field(default_factory=dict)  # メタデータ
-    timestamp: datetime = field(default_factory=datetime.now)  # タイムスタンプ
-    reply_to: str | None = None          # 返信元メッセージID
+**設計思想**: メッセージはtmuxで送るための最小限の情報のみ持つ。デバッグ用のメタデータはログシステムで別途管理する。
+
+### ログモデル
+
+```python
+@dataclass
+class MessageLogEntry:
+    """メッセージログエントリ（裏で記録）"""
+    timestamp: str       # タイムスタンプ（ISO 8601形式）
+    id: str              # メッセージID（UUID）
+    from_agent: str      # 送信元エージェント
+    to_agent: str        # 送信先エージェント
+    type: str            # メッセージタイプ（task, info, result, error等）
+    content: str         # メッセージ内容
+```
+
+### ログシステム
+
+```python
+class MessageLogger:
+    """メッセージログを記録するクラス"""
+
+    def __init__(self, log_file: str = "logs/messages.jsonl"):
+        self._log_file = log_file
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
+    def log(self, message: CCMessage, msg_type: str) -> str:
+        """メッセージをログに記録"""
+        entry = MessageLogEntry(
+            timestamp=datetime.now().isoformat(),
+            id=str(uuid4()),
+            from_agent=message.from_agent,
+            to_agent=message.to_agent,
+            type=msg_type,
+            content=message.content
+        )
+
+        # コンソールに出力
+        print(f"[{entry.timestamp}] {entry.from_agent} → {entry.to_agent} ({entry.type}): {entry.content}")
+
+        # JSONL形式でファイルに保存
+        with open(self._log_file, "a") as f:
+            f.write(json.dumps(asdict(entry)) + "\n")
+
+        return entry.id
+```
+
+### ログファイル形式
+
+**JSONL形式**:
+```json
+{"timestamp":"2026-02-01T10:30:00.123456","id":"msg-001","from":"grand_boss","to":"middle_manager","type":"task","content":"タスク分解して"}
+{"timestamp":"2026-02-01T10:30:15.234567","id":"msg-002","from":"middle_manager","to":"coding_writing_specialist","type":"task","content":"実装して"}
+{"timestamp":"2026-02-01T10:31:00.345678","id":"msg-003","from":"coding_writing_specialist","to":"middle_manager","type":"result","content":"CODING OK\n実装完了しました。"}
 ```
 
 ### メッセージタイプ
 
-```python
-class MessageType(str, Enum):
-    """メッセージタイプ"""
-    # タスク関連
-    TASK_REQUEST = "task_request"      # タスク依頼
-    TASK_RESPONSE = "task_response"    # タスク応答
-    TASK_COMPLETE = "task_complete"    # タスク完了
-    TASK_FAILED = "task_failed"        # タスク失敗
+| タイプ | 説明 | 使用例 |
+|--------|------|--------|
+| `task` | タスク依頼 | Grand Boss → Middle Manager |
+| `info` | 情報通知 | 進捗報告、ステータス更新 |
+| `result` | 結果報告 | Specialist → Middle Manager |
+| `error` | エラー通知 | 例外発生時 |
 
-    # 情報通知
-    INFO = "info"                     # 一般情報
-    PROGRESS = "progress"             # 進捗報告
-    ERROR = "error"                   # エラー通知
-
-    # 制御
-    PING = "ping"                     # 死活監視
-    PONG = "pong"                     # 死活監視応答
-    SHUTDOWN = "shutdown"             # シャットダウン
-```
-
-### メタデータ
+### エージェント設定モデル
 
 ```python
+class CCProcessRole(str, Enum):
+    """エージェントの役割"""
+    GRAND_BOSS = "grand_boss"
+    MIDDLE_MANAGER = "middle_manager"
+    SPECIALIST_CODING_WRITING = "specialist_coding_writing"
+    SPECIALIST_RESEARCH_ANALYSIS = "specialist_research_analysis"
+    SPECIALIST_TESTING = "specialist_testing"
+
 @dataclass
-class MessageMetadata:
-    """メッセージメタデータ"""
-    timestamp: datetime              # タイムスタンプ
-    priority: Priority               # 優先度
-    task_id: str | None = None       # タスクID
-    correlation_id: str | None = None # 相関ID
-    retry_count: int = 0             # リトライ回数
-    ttl: int | None = None           # Time-To-Live
-
-class Priority(str, Enum):
-    """優先度"""
-    LOW = "low"
-    NORMAL = "normal"
-    HIGH = "high"
-    URGENT = "urgent"
+class CCProcessConfig:
+    """エージェントの設定情報"""
+    name: str                        # エージェント名
+    role: CCProcessRole              # 役割
+    personality_prompt_path: str     # 性格プロンプトファイルのパス
+    marker: str                      # 応答完了マーカー（合言葉）
+    pane_index: int                  # tmuxペイン番号
 ```
 
-## 通信フロー
+### YAML設定ファイル
 
-### 1. 初期化フロー（設定ファイル分離アプローチ）
+```yaml
+# config/cc-cluster.yaml
+cluster:
+  name: "orchestrator-cc"
+  session_name: "orchestrator-cc"
+  work_dir: ".>"
 
+agents:
+  - name: "grand_boss"
+    role: "grand_boss"
+    personality_prompt_path: "config/personalities/grand_boss.txt"
+    marker: "GRAND BOSS OK"
+    pane_index: 0
+
+  - name: "middle_manager"
+    role: "middle_manager"
+    personality_prompt_path: "config/personalities/middle_manager.txt"
+    marker: "MIDDLE MANAGER OK"
+    pane_index: 1
+
+  - name: "coding_writing_specialist"
+    role: "specialist_coding_writing"
+    personality_prompt_path: "config/personalities/coding_writing_specialist.txt"
+    marker: "CODING OK"
+    pane_index: 2
+
+  - name: "research_analysis_specialist"
+    role: "specialist_research_analysis"
+    personality_prompt_path: "config/personalities/research_analysis_specialist.txt"
+    marker: "RESEARCH OK"
+    pane_index: 3
+
+  - name: "testing_specialist"
+    role: "specialist_testing"
+    personality_prompt_path: "config/personalities/testing_specialist.txt"
+    marker: "TESTING OK"
+    pane_index: 4
 ```
-orchestrator-cc                  Claude Code (Grand Boss)
-      │                                  │
-      │ 1. 設定ファイル作成                │
-      │ /tmp/orchestrator-cc/agents/     │
-      │   grand_boss/.claude/settings.json
-      │                                  │
-      │ 2. HOME環境変数設定                │
-      │ HOME=/tmp/.../grand_boss         │
-      │                                  │
-      │ 3. プロセス起動                    │
-      │─────────────────────────────────>│
-      │                                  │
-      │ 4. Claude Codeが設定ファイル読み込み│
-      │    (性格プロンプト適用)            │
-      │                                  │
-      │ 5. tools/list                     │
-      │─────────────────────────────────>│
-      │                                  │
-      │ 6. tools/list レスポンス          │
-      │<─────────────────────────────────│
-      │                                  │
-      │ 7. 初期メッセージ（役割確認）      │
-      │─────────────────────────────────>│
-      │                                  │
-      │ 8. レスポンス（性格が反映されている）│
-      │<─────────────────────────────────│
-```
-
-**設定ファイル分離アプローチの詳細**:
-
-各エージェント専用のHOMEディレクトリを作成し、その中に `.claude/settings.json` を配置して性格設定を管理します。
-
-```json
-{
-  "agents": {
-    "grand_boss": {
-      "description": "Grand Boss - 組織のトップ",
-      "prompt": "あなたはGrand Bossです。組織のトップとして、穏やかですが決定力を持って行動してください。常に大局的な視点を持ち、部下を信頼して任せるスタイルです。思考プロセスを常に詳細に出力してください。"
-    }
-  }
-}
-```
-
-**起動コマンド例**:
-```bash
-# Grand Boss
-HOME=/tmp/orchestrator-cc/agents/grand_boss claude mcp serve
-
-# Middle Manager
-HOME=/tmp/orchestrator-cc/agents/middle_manager claude mcp serve
-
-# Coding Specialist
-HOME=/tmp/orchestrator-cc/agents/coding_specialist claude mcp serve
-```
-
-**メリット**:
-- ✅ 永続性: settings.jsonに保存される
-- ✅ プロンプト追従性: Claude Codeがネイティブに読み込む
-- ✅ 分離: 各エージェントが独立した設定を持てる
-- ✅ 再現性: プロセス再起動で設定が維持される
-
-### 2. メッセージ送信フロー
-
-```
-Grand Boss                    Middle Manager           orchestrator-cc
-     │                               │                        │
-     │ 1. メッセージ作成                │                        │
-     │────────────────────────────────>│                        │
-     │                               │                        │
-     │ 2. JSON-RPCリクエスト          │                        │
-     │────────────────────────────────>│                        │
-     │                               │                        │
-     │                               │ 3. 受信・ルーティング       │
-     │                               │───────────────────────>│
-     │                               │                        │
-     │                               │ 4. 処理                 │
-     │                               │<───────────────────────│
-     │                               │                        │
-     │ 5. JSON-RPCレスポンス         │                        │
-     │<───────────────────────────────│                        │
-     │                               │                        │
-     │ 6. メッセージ完了               │                        │
-     │<─────────────────────────────────│                        │
-```
-
-### 3. タスク実行フロー
-
-```
-ユーザー    Grand Boss    Middle Manager  Specialist
-  │           │              │              │
-  │ タスク入力  │              │              │
-  │──────────>│              │              │
-  │           │              │              │
-  │           │ タスク分解依頼  │              │
-  │           │─────────────>│              │
-  │           │              │              │
-  │           │              │ サブタスク割り振り│
-  │           │              │─────────────>│
-  │           │              │              │
-  │           │              │              │ 実行
-  │           │              │              │
-  │           │              │ 結果         │
-  │           │              │<─────────────│
-  │           │              │              │
-  │           │ 集約結果     │              │
-  │           │<─────────────│              │
-  │           │              │              │
-  │ 最終結果  │              │              │
-  │<──────────│              │              │
-```
-
-## エラーハンドリング
-
-### エラーコード
-
-| コード | 名前 | 説明 |
-|-------|------|------|
-| -32700 | Parse error | JSONパースエラー |
-| -32600 | Invalid Request | 無効なリクエスト |
-| -32601 | Method not found | メソッドが見つからない |
-| -32602 | Invalid params | 無効なパラメータ |
-| -32603 | Internal error | 内部エラー |
-| -32000 | Agent not found | エージェントが見つからない |
-| -32001 | Timeout | タイムアウト |
-| -32002 | Rate limit | レートリミット |
-
-### エラーレスポンス例
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 3,
-  "error": {
-    "code": -32001,
-    "message": "Timeout",
-    "data": {
-      "timeout_seconds": 30,
-      "agent_id": "middle_manager"
-    }
-  }
-}
-```
-
-## タイムアウト
-
-| 操作 | デフォルトタイムアウト | 説明 |
-|------|---------------------|------|
-| **プロセス起動** | 30秒 | プロセスが起動してreadyになるまで |
-| **メッセージ送信** | 10秒 | メッセージの送信が完了するまで |
-| **メッセージ受信** | 60秒 | レスポンスを受信するまで |
-| **タスク実行** | 300秒 | タスクが完了するまで |
-| **アイドル** | 120秒 | 通信がない場合の接続タイムアウト |
-
-## 再接続
-
-### 再接続ポリシー
-
-```python
-class ReconnectPolicy:
-    max_retries: int = 5              # 最大リトライ回数
-    initial_delay: float = 1.0        # 初期待機時間（秒）
-    max_delay: float = 60.0           # 最大待機時間（秒）
-    backoff_factor: float = 2.0       # 指数バックオフ係数
-```
-
-### 再接続フロー
-
-```
-orchestrator-cc             Claude Code
-      │                            │
-      │ 1. 通信試行                  │
-      │──────────────────────────>│
-      │                            │
-      │ 2. エラー（接続失敗）        │
-      │<──────────────────────────│
-      │                            │
-      │ 3. 1秒待機                  │
-      │                            │
-      │ 4. 再接続試行                │
-      │──────────────────────────>│
-      │                            │
-      │ 5. 成功                     │
-      │<──────────────────────────│
-```
-
-## セキュリティ
-
-### 認証
-
-現時点では認証は実装しません（ローカルプロセス間通信のため）。
-
-### データ検証
-
-- 受信メッセージのスキーマ検証
-- 不正なデータの拒否
-- メッセージサイズの制限
-
-### 権限
-
-- 各エージェントは通信相手を制限できます
-- Grand Bossのみがユーザーと通信できます
-
-## パフォーマンス
-
-### メッセージサイズ
-
-- 最大メッセージサイズ: 1MB
-- 思考ログの最大サイズ: 100KB
-
-### スループット
-
-- 目標スループット: 100メッセージ/秒
-- 実測値: （検証後に更新）
-
-### レイテンシ
-
-- 目標レイテンシ: < 100ms (P50)
-- 目標レイテンシ: < 500ms (P99)
-
-## ログ
-
-### 通信ログ
-
-```python
-@dataclass
-class CommunicationLog:
-    timestamp: datetime
-    from_agent: str
-    to_agent: str
-    message_type: MessageType
-    message_size: int
-    duration_ms: float | None
-    success: bool
-    error: str | None
-```
-
-### ログレベル
-
-| レベル | 説明 |
-|-------|------|
-| DEBUG | すべての通信ログ |
-| INFO | 送受信メッセージのサマリー |
-| WARN | 再接続、タイムアウト等 |
-| ERROR | 通信エラー |
-```
-
-## 今後の拡張
-
-1. **圧縮**: 大きいメッセージの圧縮
-2. **バッチ処理**: 複数メッセージの一括送信
-3. **ストリーミング**: 大きなデータのストリーミング転送
-4. **暗号化**: 通信の暗号化（必要な場合）
-5. **リモート通信**: ネットワーク経由の通信

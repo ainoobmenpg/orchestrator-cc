@@ -193,131 +193,148 @@ asyncio.run(test_thinking_log())
 
 ---
 
-## Phase 0.5: 中間検証（設定ファイル・複数プロセス）
+## Phase 0.5: 中間検証（tmux方式への切り替え）
 
-**目的**: 設定ファイル分離アプローチの実動確認と、複数プロセス同時起動の検証
+**目的**: tmux方式によるClaude Codeプロセス管理の実動確認
 
 ### 背景
 
-Phase 0 では基本的なMCP通信は確認できましたが、以下は未検証です：
+Phase 0 でMCPサーバーモードの基本動作は確認できましたが、以下の課題が判明しました：
 
-- 設定ファイル（`.claude/settings.json`）で性格設定が本当に機能するか
-- 複数の Claude Code プロセスを同時に起動できるか
-- 思考ログをどうやって出力させるか
+- `--system-prompt` オプションがMCPサーバーモードでは利用できない
+- 設定ファイル分離アプローチ（`.claude/settings.json`）でも性格設定が機能しない
 
-これらを本格実装前に確認することで、実装の失敗リスクを減らします。
+代替案として、**tmux方式**を採用することにしました：
 
----
-
-### V-101: 設定ファイルでの性格設定
-
-**目的**: `.claude/settings.json` で性格設定が機能するか確認
-
-**手順**:
-```bash
-# 1. テスト用設定ディレクトリを作成
-mkdir -p /tmp/test-agent/.claude
-
-# 2. settings.json を作成（agents プロパティを試す）
-cat > /tmp/test-agent/.claude/settings.json << 'EOF'
-{
-  "agents": {
-    "test_agent": {
-      "description": "テスト用エージェント",
-      "prompt": "あなたはテスト用エージェントです。返信には必ず「テストOK」と含めてください。"
-    }
-  }
-}
-EOF
-
-# 3. 環境変数 HOME を設定して起動
-HOME=/tmp/test-agent claude mcp serve
-
-# 4. 別の端末からリクエスト送信（インタラクティブに検証）
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | HOME=/tmp/test-agent claude mcp serve
+```
+tmuxセッション
+├── ペイン0: Grand Boss (claude --system-prompt "...")
+├── ペイン1: Middle Manager (claude --system-prompt "...")
+└── ペイン2: Coding Specialist (claude --system-prompt "...")
 ```
 
-**成功基準**:
-- [ ] 設定ファイルが読み込まれる
-- [ ] `agents` プロパティが機能する（または別の方法が見つかる）
-- [ ] 性格プロンプトが反映される
-
-**失敗時の対処**:
-- `agents` プロパティが機能しない: Claude Codeのドキュメントで別の設定方法を探す
-- 設定ファイルが読み込まれない: 別の設定場所を試す
+- **tmux send-keys**: orchestrator-ccから各ペインにコマンドを送信
+- **tmux capture-pane**: 各ペインの出力を取得して解析
+- **--system-prompt**: 通常モードで利用可能なシステムプロンプトオプション
 
 ---
 
-### V-102: 複数プロセス同時起動
+### V-101: tmuxで複数のClaude Codeプロセスを別ペインで起動できるか
 
-**目的**: 複数の Claude Code プロセスを同時に起動できるか確認
+**目的**: tmuxで複数のペインを作成し、それぞれで異なるsystem-promptを持つClaude Codeを起動できるか確認
 
-**手順**:
+**検証結果**: ✅ PASS（2026-02-01）
+
+**詳細**:
+- tmuxセッションの作成に成功
+- ペインの分割（水平分割）に成功
+- 各ペインで異なる`--system-prompt`を指定してClaude Codeを起動できることを確認
+- Grand Boss: 「GRAND BOSS OK」を含む応答
+- Middle Manager: 「MIDDLE MANAGER OK」を含む応答
+
+**検証コマンド**:
 ```bash
-# 1. 2つのエージェント用設定ディレクトリを作成
-mkdir -p /tmp/agent1/.claude /tmp/agent2/.claude
+# tmuxセッション作成とペイン分割
+tmux new-session -d -s test-orchestrator-cc
+tmux split-window -h -t test-orchestrator-cc
 
-# 2. それぞれに settings.json を作成
-echo '{}' > /tmp/agent1/.claude/settings.json
-echo '{}' > /tmp/agent2/.claude/settings.json
+# 各ペインでClaude Code起動（system-prompt付き）
+tmux send-keys -t test-orchestrator-cc:0.0 \
+  'claude --system-prompt "あなたはGrand Bossです..."' Enter
 
-# 3. バックグラウンドで同時に起動
-HOME=/tmp/agent1 claude mcp serve &
-PID1=$!
-HOME=/tmp/agent2 claude mcp serve &
-PID2=$!
-
-# 4. プロセスの状態を確認
-sleep 2
-ps aux | grep "claude mcp serve" | grep -v grep
-
-# 5. クリーンアップ
-kill $PID1 $PID2 2>/dev/null
+tmux send-keys -t test-orchestrator-cc:0.1 \
+  'claude --system-prompt "あなたはMiddle Managerです..."' Enter
 ```
 
-**成功基準**:
-- [ ] 2つのプロセスが同時に起動できる
-- [ ] ポート競合などのエラーが発生しない
-- [ ] 各プロセスが独立して動作する
-
-**失敗時の対処**:
-- ポート競合: ポート番号を明示的に指定する方法を探す
-- 起動失敗: 起動順序を変える or 遅延を入れる
-
 ---
 
-### V-103: 思考ログの出力方法
+### V-102: orchestrator-ccからtmuxペインにコマンドを送信できるか
 
-**目的**: Claude Codeが思考プロセスを出力する方法を特定する
+**目的**: Pythonプログラムからsubprocess経由でtmuxコマンドを実行し、ペインにコマンドを送信できるか確認
 
-**手順**:
-```bash
-# 1. Claude Codeのオプションを確認
-claude --help | grep -i think
-claude --help | grep -i reason
-claude --help | grep -i verbose
+**検証結果**: ✅ PASS（2026-02-01）
 
-# 2. 設定ファイルでの思考ログ設定を確認
-# → settings.json に思考ログ関連のプロパティがあるか
+**詳細**:
+- Pythonから`tmux send-keys`コマンドを実行できる
+- Pythonから`tmux capture-pane`コマンドを実行できる
+- 複数のペインに個別にコマンドを送信できる
+- 各ペインの出力を個別にキャプチャできる
 
-# 3. 実際に試して確認
+**検証コード**:
+```python
+import subprocess
+
+# コマンド送信
+subprocess.run([
+    "tmux", "send-keys", "-t", "session:0.0",
+    "echo 'test'", "Enter"
+])
+
+# 出力キャプチャ
+result = subprocess.run([
+    "tmux", "capture-pane", "-t", "session:0.0", "-p"
+], capture_output=True, text=True)
+output = result.stdout
 ```
 
-**成功基準**:
-- [ ] 思考ログを出力する方法を特定できる
-- [ ] 出力形式（stdout, ファイル, etc.）を確認できる
+---
 
-**失敗時の対処**:
-- 思考ログ機能がない: メッセージ内にカスタムフィールドを追加する方式を検討
-- 出力先が不明: 複数の出力先を試す
+### V-103: tmux capture-paneでペインの出力を適切にパースできるか
+
+**目的**: キャプチャした出力から、プロンプト行を除去し、Claude Codeの応答だけを抽出できるか確認
+
+**検証結果**: ✅ PASS（条件付き）（2026-02-01）
+
+**詳細**:
+- tmux capture-paneでペインの完全な出力を取得できる
+- プロンプトパターン（`ユーザー名@ホスト名`）でパースして応答を抽出できる
+- **課題**: パース処理の改善が必要（現在はコマンドライン部分も含まれるため）
+- **改善案**: 正規表現でプロンプト行をより厳密に検出、または応答開始マーカーを使用
+
+**検証コード**:
+```python
+import re
+
+# 出力を行ごとに解析
+lines = output.split('\n')
+response_lines = []
+in_response = False
+
+for line in lines:
+    # プロンプト行を検出
+    if '@' in line and '%' in line:
+        in_response = False
+        continue
+    # 応答部分を抽出
+    if in_response or 'TEST OK' in line:
+        in_response = True
+        response_lines.append(line)
+
+response_text = '\n'.join(response_lines)
+```
 
 ---
 
-### 完了条件
+### 完了状況サマリー（Phase 0.5）
 
-- [ ] V-101: 設定ファイルでの性格設定方法を確立
-- [ ] V-102: 複数プロセス同時起動が可能であることを確認
-- [ ] V-103: 思考ログの出力方法を特定
+- [x] V-101: tmuxで複数のClaude Codeプロセスを別ペインで起動できる (2026-02-01)
+- [x] V-102: Pythonからtmuxペインにコマンドを送信できる (2026-02-01)
+- [x] V-103: tmux capture-paneで出力をキャプチャ・パースできる (2026-02-01)
+
+### アーキテクチャ変更の決定
+
+設定ファイル分離アプローチを破棄し、**tmux方式**を採用することにしました。
+
+| 検証項目 | 旧方式（設定ファイル分離） | 新方式（tmux方式） |
+|---------|--------------------------|-------------------|
+| 性格設定 | ❌ settings.jsonでは機能しない | ✅ `--system-prompt`で機能する |
+| 複数プロセス起動 | ⚠️ 検証未完了 | ✅ tmuxペインで同時起動可能 |
+| プログラム制御 | ✅ stdin/stdoutで可能 | ✅ tmuxコマンドで可能 |
+| 出力取得 | ✅ stdoutから取得 | ✅ capture-paneで取得 |
+
+### 次のステップ
+
+tmux方式のアーキテクチャでPhase 1以降を再設計・実装します。
 
 ---
 
@@ -430,20 +447,18 @@ assert launcher.get_restart_count() == 1
 
 ---
 
-## Phase 2: MCP通信検証
+## Phase 2: エージェント間通信検証（tmux方式）
 
-### V-201: メッセージ送信
+**目的**: tmux方式でエージェント間のメッセージ送受信ができることを確認
 
-**目的**: MCP経由でメッセージを送信できることを確認
+**検証項目**: 実装後に検証予定（Phase 2で実装）
 
-**手順**:
-```python
-from orchestrator.core.mcp_message_bridge import MCPMessageBridge
+**検証内容（予定）**:
+- V-201: エージェント間でメッセージを送信できる
+- V-202: 合言葉（マーカー）を検出して応答を取得できる
+- V-203: エンドツーエンドの通信（Grand Boss → Middle Manager → Specialist）
 
-bridge = MCPMessageBridge()
-
-# プロセス起動
-await bridge.connect("test_agent")
+**詳細は実装時に記載**
 
 # メッセージ送信
 message = CCMessage(
