@@ -463,6 +463,42 @@ class TestCCClusterManagerGetAgent:
         ):
             manager.get_agent("invalid")
 
+    def test_get_launcher_returns_same_as_get_agent(self, tmp_path):
+        """get_launcher()はget_agent()と同じ結果を返す"""
+        config_data = {
+            "cluster": {
+                "name": "test-cluster",
+                "session_name": "test-session",
+                "work_dir": "/tmp/test",
+            },
+            "agents": [
+                {
+                    "name": "agent1",
+                    "role": "grand_boss",
+                    "personality_prompt_path": "test.txt",
+                    "marker": "OK",
+                    "pane_index": 0,
+                }
+            ],
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_data, f)
+
+        manager = CCClusterManager(str(config_file))
+
+        # モックランチャーを追加
+        mock_launcher = Mock()
+        manager._launchers["agent1"] = mock_launcher
+
+        # 両方のメソッドで同じ結果が得られることを確認
+        result_get_agent = manager.get_agent("agent1")
+        result_get_launcher = manager.get_launcher("agent1")
+
+        assert result_get_agent is mock_launcher
+        assert result_get_launcher is mock_launcher
+        assert result_get_agent is result_get_launcher
+
 
 class TestCCClusterManagerSendMessage:
     """メッセージ送信のテスト"""

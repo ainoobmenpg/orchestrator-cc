@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING, Final
 
 from orchestrator.agents.cc_agent_base import (
     CCAgentBase,
+    CCAgentTimeoutError,
 )
+from orchestrator.core.pane_io import PaneTimeoutError
 
 if TYPE_CHECKING:
     from orchestrator.core.cc_cluster_manager import CCClusterManager
@@ -74,9 +76,7 @@ class CodingWritingSpecialist(CCAgentBase):
         """タスクを処理します。
 
         コーディング・ドキュメント作成のタスクを受領し、処理結果を返します。
-
-        現在の実装は簡易版で、合言葉を返します。
-        将来的には、tmuxペインでClaude Codeプロセスと通信して実装を行います。
+        tmuxペインでClaude Codeプロセスと通信して実装を行います。
 
         Args:
             task: タスク内容（コーディング・ドキュメント作成の指示）
@@ -86,34 +86,48 @@ class CodingWritingSpecialist(CCAgentBase):
 
         Raises:
             ValueError: taskが空の場合
+            CCAgentTimeoutError: タスク処理がタイムアウトした場合
 
         Note:
             - タスクは空であってはなりません
-            - 将来の拡張ポイント: Claude Codeプロセスとの通信
+            - 実際のClaude Codeプロセスと通信してタスクを実行します
         """
         if not task or not task.strip():
             raise ValueError("taskは空であってはなりません")
 
         return await self._process_task(task)
 
-    async def _process_task(self, task: str) -> str:  # noqa: ARG002
-        """タスクを処理して結果を返します（簡易版）。
+    async def _process_task(self, task: str) -> str:
+        """タスクを処理して結果を返します（完全版）。
 
-        将来の拡張ポイント:
-        - tmuxペインでClaude Codeプロセスと通信
-        - 実際のコーディング・ドキュメント作成を実行
-        - 実行結果をキャプチャして返す
+        CCClusterManager経由で自分のCCProcessLauncherを取得し、
+        tmuxペインでClaude Codeと通信してタスクを実行します。
 
         Args:
             task: タスク内容
 
         Returns:
             処理結果（合言葉を含む）
+
+        Raises:
+            CCAgentTimeoutError: タスク処理がタイムアウトした場合
         """
-        # TODO: 将来の実装ではtmuxペイン経由でClaude Codeと通信
-        # response = await self._send_to_pane_and_capture(task)
-        # return response
-        return f"{CODING_MARKER}\nタスクを完了しました"
+        # CCClusterManager経由で自分のCCProcessLauncherを取得
+        launcher = self._cluster_manager.get_launcher(self._name)
+
+        # 自分のペインにタスクを送信（Claude Codeに作業指示）
+        try:
+            response = await launcher.send_message(
+                message=task,
+                timeout=self._default_timeout,
+            )
+        except PaneTimeoutError as e:
+            raise CCAgentTimeoutError(
+                f"Coding Specialistのタスク処理がタイムアウトしました "
+                f"(timeout={self._default_timeout}秒): {e}"
+            ) from e
+
+        return response
 
 
 class ResearchAnalysisSpecialist(CCAgentBase):
@@ -164,9 +178,7 @@ class ResearchAnalysisSpecialist(CCAgentBase):
         """タスクを処理します。
 
         調査・分析のタスクを受領し、処理結果を返します。
-
-        現在の実装は簡易版で、合言葉を返します。
-        将来的には、tmuxペインでClaude Codeプロセスと通信して調査を行います。
+        tmuxペインでClaude Codeプロセスと通信して調査を行います。
 
         Args:
             task: タスク内容（調査・分析の指示）
@@ -176,34 +188,48 @@ class ResearchAnalysisSpecialist(CCAgentBase):
 
         Raises:
             ValueError: taskが空の場合
+            CCAgentTimeoutError: タスク処理がタイムアウトした場合
 
         Note:
             - タスクは空であってはなりません
-            - 将来の拡張ポイント: Claude Codeプロセスとの通信
+            - 実際のClaude Codeプロセスと通信してタスクを実行します
         """
         if not task or not task.strip():
             raise ValueError("taskは空であってはなりません")
 
         return await self._process_task(task)
 
-    async def _process_task(self, task: str) -> str:  # noqa: ARG002
-        """タスクを処理して結果を返します（簡易版）。
+    async def _process_task(self, task: str) -> str:
+        """タスクを処理して結果を返します（完全版）。
 
-        将来の拡張ポイント:
-        - tmuxペインでClaude Codeプロセスと通信
-        - Web検索・ドキュメント参照などの調査を実行
-        - 分析結果をキャプチャして返す
+        CCClusterManager経由で自分のCCProcessLauncherを取得し、
+        tmuxペインでClaude Codeと通信してタスクを実行します。
 
         Args:
             task: タスク内容
 
         Returns:
             処理結果（合言葉を含む）
+
+        Raises:
+            CCAgentTimeoutError: タスク処理がタイムアウトした場合
         """
-        # TODO: 将来の実装ではtmuxペイン経由でClaude Codeと通信
-        # response = await self._send_to_pane_and_capture(task)
-        # return response
-        return f"{RESEARCH_MARKER}\nタスクを完了しました"
+        # CCClusterManager経由で自分のCCProcessLauncherを取得
+        launcher = self._cluster_manager.get_launcher(self._name)
+
+        # 自分のペインにタスクを送信（Claude Codeに作業指示）
+        try:
+            response = await launcher.send_message(
+                message=task,
+                timeout=self._default_timeout,
+            )
+        except PaneTimeoutError as e:
+            raise CCAgentTimeoutError(
+                f"Research Specialistのタスク処理がタイムアウトしました "
+                f"(timeout={self._default_timeout}秒): {e}"
+            ) from e
+
+        return response
 
 
 class TestingSpecialist(CCAgentBase):
@@ -254,9 +280,7 @@ class TestingSpecialist(CCAgentBase):
         """タスクを処理します。
 
         テスト・品質保証のタスクを受領し、処理結果を返します。
-
-        現在の実装は簡易版で、合言葉を返します。
-        将来的には、tmuxペインでClaude Codeプロセスと通信してテストを実行します。
+        tmuxペインでClaude Codeプロセスと通信してテストを実行します。
 
         Args:
             task: タスク内容（テスト・品質保証の指示）
@@ -266,31 +290,45 @@ class TestingSpecialist(CCAgentBase):
 
         Raises:
             ValueError: taskが空の場合
+            CCAgentTimeoutError: タスク処理がタイムアウトした場合
 
         Note:
             - タスクは空であってはなりません
-            - 将来の拡張ポイント: Claude Codeプロセスとの通信
+            - 実際のClaude Codeプロセスと通信してタスクを実行します
         """
         if not task or not task.strip():
             raise ValueError("taskは空であってはなりません")
 
         return await self._process_task(task)
 
-    async def _process_task(self, task: str) -> str:  # noqa: ARG002
-        """タスクを処理して結果を返します（簡易版）。
+    async def _process_task(self, task: str) -> str:
+        """タスクを処理して結果を返します（完全版）。
 
-        将来の拡張ポイント:
-        - tmuxペインでClaude Codeプロセスと通信
-        - pytest実行・カバレッジ計測などのテストを実行
-        - テスト結果をキャプチャして返す
+        CCClusterManager経由で自分のCCProcessLauncherを取得し、
+        tmuxペインでClaude Codeと通信してタスクを実行します。
 
         Args:
             task: タスク内容
 
         Returns:
             処理結果（合言葉を含む）
+
+        Raises:
+            CCAgentTimeoutError: タスク処理がタイムアウトした場合
         """
-        # TODO: 将来の実装ではtmuxペイン経由でClaude Codeと通信
-        # response = await self._send_to_pane_and_capture(task)
-        # return response
-        return f"{TESTING_MARKER}\nタスクを完了しました"
+        # CCClusterManager経由で自分のCCProcessLauncherを取得
+        launcher = self._cluster_manager.get_launcher(self._name)
+
+        # 自分のペインにタスクを送信（Claude Codeに作業指示）
+        try:
+            response = await launcher.send_message(
+                message=task,
+                timeout=self._default_timeout,
+            )
+        except PaneTimeoutError as e:
+            raise CCAgentTimeoutError(
+                f"Testing Specialistのタスク処理がタイムアウトしました "
+                f"(timeout={self._default_timeout}秒): {e}"
+            ) from e
+
+        return response

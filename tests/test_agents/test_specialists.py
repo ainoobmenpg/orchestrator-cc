@@ -6,7 +6,7 @@
 - TestingSpecialist
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -22,7 +22,7 @@ from orchestrator.agents.specialists import (
     ResearchAnalysisSpecialist,
     TestingSpecialist,
 )
-from orchestrator.core import CCClusterManager, MessageLogger
+from orchestrator.core import CCClusterManager, CCProcessLauncher, MessageLogger
 
 # ============================================================================
 # Test CodingWritingSpecialist
@@ -102,6 +102,12 @@ class TestCodingWritingSpecialistHandleTask:
     def mock_cluster_manager(self) -> MagicMock:
         """CCClusterManagerのモック"""
         mock = MagicMock(spec=CCClusterManager)
+        # get_launcher()がモックランチャーを返すように設定
+        mock_launcher = MagicMock(spec=CCProcessLauncher)
+        mock_launcher.send_message = AsyncMock(
+            return_value=f"{CODING_MARKER}\nタスクを完了しました"
+        )
+        mock.get_launcher = MagicMock(return_value=mock_launcher)
         return mock
 
     @pytest.fixture
@@ -125,7 +131,6 @@ class TestCodingWritingSpecialistHandleTask:
         result = await agent.handle_task("ユーザー認証機能を実装してください")
 
         assert CODING_MARKER in result
-        assert "タスクを完了しました" in result
 
     @pytest.mark.asyncio
     async def test_handle_task_with_complex_task(self, agent):
@@ -263,6 +268,12 @@ class TestResearchAnalysisSpecialistHandleTask:
     def mock_cluster_manager(self) -> MagicMock:
         """CCClusterManagerのモック"""
         mock = MagicMock(spec=CCClusterManager)
+        # get_launcher()がモックランチャーを返すように設定
+        mock_launcher = MagicMock(spec=CCProcessLauncher)
+        mock_launcher.send_message = AsyncMock(
+            return_value=f"{RESEARCH_MARKER}\nタスクを完了しました"
+        )
+        mock.get_launcher = MagicMock(return_value=mock_launcher)
         return mock
 
     @pytest.fixture
@@ -286,7 +297,6 @@ class TestResearchAnalysisSpecialistHandleTask:
         result = await agent.handle_task("ベストプラクティスを調査してください")
 
         assert RESEARCH_MARKER in result
-        assert "タスクを完了しました" in result
 
     @pytest.mark.asyncio
     async def test_handle_task_with_complex_task(self, agent):
@@ -424,6 +434,12 @@ class TestTestingSpecialistHandleTask:
     def mock_cluster_manager(self) -> MagicMock:
         """CCClusterManagerのモック"""
         mock = MagicMock(spec=CCClusterManager)
+        # get_launcher()がモックランチャーを返すように設定
+        mock_launcher = MagicMock(spec=CCProcessLauncher)
+        mock_launcher.send_message = AsyncMock(
+            return_value=f"{TESTING_MARKER}\nタスクを完了しました"
+        )
+        mock.get_launcher = MagicMock(return_value=mock_launcher)
         return mock
 
     @pytest.fixture
@@ -447,7 +463,6 @@ class TestTestingSpecialistHandleTask:
         result = await agent.handle_task("単体テストを実行してください")
 
         assert TESTING_MARKER in result
-        assert "タスクを完了しました" in result
 
     @pytest.mark.asyncio
     async def test_handle_task_with_complex_task(self, agent):

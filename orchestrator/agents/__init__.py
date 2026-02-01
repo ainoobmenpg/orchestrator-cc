@@ -15,10 +15,12 @@ from orchestrator.agents.specialists import (
     RESEARCH_SPECIALIST_NAME,
     TESTING_MARKER,
     TESTING_SPECIALIST_NAME,
-    DEFAULT_TASK_TIMEOUT as SPECIALIST_DEFAULT_TASK_TIMEOUT,
     CodingWritingSpecialist,
     ResearchAnalysisSpecialist,
     TestingSpecialist,
+)
+from orchestrator.agents.specialists import (
+    DEFAULT_TASK_TIMEOUT as SPECIALIST_DEFAULT_TASK_TIMEOUT,
 )
 
 __all__ = [

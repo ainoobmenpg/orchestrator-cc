@@ -117,14 +117,11 @@ class CCProcessLauncher:
         if self._running:
             return
 
-        # 性格プロンプトを読み込み
-        # TODO: 性格プロンプトの適用方法を検証・実装 (Issue #11)
-        # Phase 0の検証では--system-promptオプションは不可だったため
-        # 起動後に別の方法で設定する必要がある
-        # try:
-        #     _ = self._load_personality_prompt()
-        # except (CCPersonalityPromptNotFoundError, CCPersonalityPromptReadError):
-        #     raise
+        # 性格プロンプトを読み込み（ファイルの存在チェック）
+        try:
+            _ = self._load_personality_prompt()
+        except (CCPersonalityPromptNotFoundError, CCPersonalityPromptReadError):
+            raise
 
         # 起動コマンドを構築
         launch_command = self._build_launch_command()
@@ -269,9 +266,11 @@ class CCProcessLauncher:
         # Claude Codeのパス
         claude_path = self._config.claude_path if self._config.claude_path else "claude"
 
-        # TODO: 性格プロンプトの渡し方を検証 (Issue #11)
-        # Phase 0の検証では--system-promptオプションは不可だったため
-        # 起動後に別の方法で設定する必要がある
-        parts.append(claude_path)
+        # 性格プロンプトを読み込んで--system-promptに渡す
+        # Phase 0.5の検証により、tmux方式では--system-promptが使用可能
+        personality_prompt = self._load_personality_prompt()
+        # シングルクォートをエスケープ
+        escaped_prompt = personality_prompt.replace("'", "'\\''")
+        parts.append(f"{claude_path} --system-prompt '{escaped_prompt}'")
 
         return " && ".join(parts)

@@ -328,7 +328,6 @@ class TestCCProcessLauncherStart:
 
             assert launcher._running is True
 
-    @pytest.mark.skip(reason="プロンプト読み込み処理はまだ実装されていません")
     @pytest.mark.asyncio
     async def test_start_prompt_not_found_raises_error(self):
         """プロンプトファイル不在でエラーが送出される"""
@@ -619,31 +618,41 @@ class TestCCProcessLauncherStop:
 class TestCCProcessLauncherBuildCommand:
     """コマンド構築のテスト"""
 
-    def test_build_command_default(self):
-        """デフォルト設定でclaudeコマンドが構築される"""
+    def test_build_command_includes_system_prompt(self, tmp_path):
+        """--system-promptオプションが含まれる"""
         mock_tmux = Mock(spec=TmuxSessionManager)
+
+        # テスト用プロンプトファイルを作成
+        prompt_file = tmp_path / "test_prompt.txt"
+        prompt_file.write_text("You are a test agent.", encoding="utf-8")
+
         config = CCProcessConfig(
             name="test_agent",
             role=CCProcessRole.GRAND_BOSS,
-            personality_prompt_path="config/personalities/test.txt",
+            personality_prompt_path=str(prompt_file),
             marker="TEST OK",
             pane_index=0,
-            work_dir="",
         )
 
         launcher = CCProcessLauncher(config, 0, mock_tmux)
 
         command = launcher._build_launch_command()
 
-        assert command == "claude"
+        assert "--system-prompt" in command
+        assert "You are a test agent." in command
 
-    def test_build_command_with_work_dir(self):
+    def test_build_command_with_work_dir(self, tmp_path):
         """作業ディレクトリ指定でcdコマンドが含まれる"""
         mock_tmux = Mock(spec=TmuxSessionManager)
+
+        # テスト用プロンプトファイルを作成
+        prompt_file = tmp_path / "test_prompt.txt"
+        prompt_file.write_text("Test prompt", encoding="utf-8")
+
         config = CCProcessConfig(
             name="test_agent",
             role=CCProcessRole.GRAND_BOSS,
-            personality_prompt_path="config/personalities/test.txt",
+            personality_prompt_path=str(prompt_file),
             marker="TEST OK",
             pane_index=0,
             work_dir="/tmp/test",
@@ -654,15 +663,20 @@ class TestCCProcessLauncherBuildCommand:
         command = launcher._build_launch_command()
 
         assert "cd /tmp/test" in command
-        assert "claude" in command
+        assert "--system-prompt" in command
 
-    def test_build_command_with_custom_path(self):
+    def test_build_command_with_custom_path(self, tmp_path):
         """カスタムclaudeパスが使用される"""
         mock_tmux = Mock(spec=TmuxSessionManager)
+
+        # テスト用プロンプトファイルを作成
+        prompt_file = tmp_path / "test_prompt.txt"
+        prompt_file.write_text("Test prompt", encoding="utf-8")
+
         config = CCProcessConfig(
             name="test_agent",
             role=CCProcessRole.GRAND_BOSS,
-            personality_prompt_path="config/personalities/test.txt",
+            personality_prompt_path=str(prompt_file),
             marker="TEST OK",
             pane_index=0,
             claude_path="/custom/path/to/claude",
@@ -673,14 +687,20 @@ class TestCCProcessLauncherBuildCommand:
         command = launcher._build_launch_command()
 
         assert "/custom/path/to/claude" in command
+        assert "--system-prompt" in command
 
-    def test_build_command_with_both_work_dir_and_custom_path(self):
+    def test_build_command_with_both_work_dir_and_custom_path(self, tmp_path):
         """作業ディレクトリとカスタムパスの両方が含まれる"""
         mock_tmux = Mock(spec=TmuxSessionManager)
+
+        # テスト用プロンプトファイルを作成
+        prompt_file = tmp_path / "test_prompt.txt"
+        prompt_file.write_text("Test prompt", encoding="utf-8")
+
         config = CCProcessConfig(
             name="test_agent",
             role=CCProcessRole.GRAND_BOSS,
-            personality_prompt_path="config/personalities/test.txt",
+            personality_prompt_path=str(prompt_file),
             marker="TEST OK",
             pane_index=0,
             work_dir="/tmp/test",
@@ -691,7 +711,32 @@ class TestCCProcessLauncherBuildCommand:
 
         command = launcher._build_launch_command()
 
-        assert command == "cd /tmp/test && /custom/path/to/claude"
+        assert "cd /tmp/test" in command
+        assert "/custom/path/to/claude" in command
+        assert "--system-prompt" in command
+
+    def test_build_command_escapes_single_quotes_in_prompt(self, tmp_path):
+        """プロンプト内のシングルクォートがエスケープされる"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+
+        # シングルクォートを含むプロンプトファイル
+        prompt_file = tmp_path / "test_prompt.txt"
+        prompt_file.write_text("I'm a test agent's prompt.", encoding="utf-8")
+
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path=str(prompt_file),
+            marker="TEST OK",
+            pane_index=0,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        command = launcher._build_launch_command()
+
+        # シングルクォートがエスケープされていることを確認
+        assert "'\\''" in command or "I\\'m" in command
 
 
 class TestCCProcessLauncherErrorHandling:
