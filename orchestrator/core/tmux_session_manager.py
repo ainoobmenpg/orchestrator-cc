@@ -1,0 +1,299 @@
+"""tmuxセッション管理モジュール
+
+このモジュールでは、tmuxセッションの作成・管理を行うTmuxSessionManagerクラスを定義します。
+"""
+
+import re
+import subprocess
+from typing import Final
+
+
+# 定数
+COMMAND_TIMEOUT: Final[int] = 10  # tmuxコマンドのタイムアウト（秒）
+
+
+class TmuxError(RuntimeError):
+    """tmux操作に関する基本例外クラス"""
+
+    pass
+
+
+class TmuxSessionNotFoundError(TmuxError):
+    """セッションが見つからない場合の例外"""
+
+    pass
+
+
+class TmuxCommandError(TmuxError):
+    """tmuxコマンド実行失敗時の例外"""
+
+    pass
+
+
+class TmuxTimeoutError(TmuxError):
+    """tmuxコマンドタイムアウト時の例外"""
+
+    pass
+
+
+class TmuxSessionManager:
+    """tmuxセッションの作成・管理を行うクラス
+
+    tmuxセッションの作成、ペインの分割、コマンド送信、出力キャプチャなどの機能を提供します。
+
+    Attributes:
+        _session_name: tmuxセッション名
+        _window_index: ウィンドウインデックス（デフォルト: 0）
+        _next_pane_index: 次に作成するペイン番号
+    """
+
+    def __init__(self, session_name: str) -> None:
+        """TmuxSessionManagerを初期化します。
+
+        Args:
+            session_name: tmuxセッション名
+
+        Raises:
+            ValueError: セッション名が空の場合、または無効な文字を含む場合
+        """
+        if not session_name:
+            raise ValueError("セッション名は空であってはなりません")
+
+        # tmuxのセッション名に使用できる文字は英数字、ハイフン、アンダースコアのみ
+        if not re.match(r'^[a-zA-Z0-9_-]+$', session_name):
+            raise ValueError(
+                "セッション名は英数字、ハイフン、アンダースコアのみ使用できます"
+            )
+
+        self._session_name: str = session_name
+        self._window_index: int = 0
+        self._next_pane_index: int = 0
+
+    def _run_tmux_command(self, args: list[str]) -> str:
+        """tmuxコマンドを実行し、出力を返します。
+
+        Args:
+            args: tmuxコマンドの引数リスト
+
+        Returns:
+            コマンドの標準出力
+
+        Raises:
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+            TmuxCommandError: コマンドが失敗した場合
+        """
+        try:
+            result = subprocess.run(
+                ["tmux"] + args,
+                capture_output=True,
+                text=True,
+                timeout=COMMAND_TIMEOUT,
+                check=True,
+            )
+            return result.stdout
+        except subprocess.TimeoutExpired as e:
+            raise TmuxTimeoutError(
+                f"tmuxコマンドがタイムアウトしました: {e}"
+            ) from e
+        except subprocess.CalledProcessError as e:
+            raise TmuxCommandError(
+                f"tmuxコマンドが失敗しました: {e.stderr}"
+            ) from e
+        except FileNotFoundError as e:
+            raise TmuxCommandError(
+                "tmuxがインストールされていません"
+            ) from e
+
+    def session_exists(self) -> bool:
+        """セッションが存在するか確認します。
+
+        Returns:
+            セッションが存在すればTrue、なければFalse
+        """
+        try:
+            self._run_tmux_command(["has-session", "-t", self._session_name])
+            return True
+        except TmuxCommandError:
+            return False
+
+    def create_session(self) -> None:
+        """新しいtmuxセッションを作成します。
+
+        Raises:
+            RuntimeError: セッションが既に存在する場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+        """
+        if self.session_exists():
+            raise RuntimeError(
+                f"セッション '{self._session_name}' は既に存在します"
+            )
+
+        self._run_tmux_command([
+            "new-session",
+            "-d",
+            "-s",
+            self._session_name,
+        ])
+
+        # セッションが正常に作成されたことを確認
+        if not self.session_exists():
+            raise TmuxError(
+                f"セッション '{self._session_name}' の作成に失敗しました"
+            )
+
+    def create_pane(self, split: str = "h") -> int:
+        """新しいペインを作成し、ペイン番号を返します。
+
+        Args:
+            split: 分割方向（"h": 水平分割/左右、 "v": 垂直分割/上下）
+
+        Returns:
+            作成されたペイン番号（0, 1, 2, ...）
+
+        Raises:
+            ValueError: splitが"h"または"v"でない場合
+            RuntimeError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+        """
+        if split not in ("h", "v"):
+            raise ValueError("splitは'h'または'v'でなければなりません")
+
+        if not self.session_exists():
+            raise TmuxSessionNotFoundError(
+                f"セッション '{self._session_name}' が存在しません"
+            )
+
+        target = f"{self._session_name}:{self._window_index}"
+        self._run_tmux_command([
+            "split-window",
+            f"-{split}",
+            "-t",
+            target,
+        ])
+
+        pane_index = self._next_pane_index
+        self._next_pane_index += 1
+        return pane_index
+
+    def send_keys(self, pane_index: int, keys: str) -> None:
+        """指定したペインにキー入力を送信します。
+
+        Args:
+            pane_index: ペイン番号（0以上）
+            keys: 送信するキー文字列
+
+        Raises:
+            ValueError: pane_indexが負の値の場合
+            RuntimeError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+        """
+        if pane_index < 0:
+            raise ValueError("pane_indexは0以上でなければなりません")
+
+        if not self.session_exists():
+            raise TmuxSessionNotFoundError(
+                f"セッション '{self._session_name}' が存在しません"
+            )
+
+        target = f"{self._session_name}:{self._window_index}.{pane_index}"
+        self._run_tmux_command([
+            "send-keys",
+            "-t",
+            target,
+            keys,
+            "Enter",
+        ])
+
+    def capture_pane(self, pane_index: int) -> str:
+        """指定したペインの出力をキャプチャします。
+
+        Args:
+            pane_index: ペイン番号（0以上）
+
+        Returns:
+            ペインの出力（改行区切りの文字列）
+
+        Raises:
+            ValueError: pane_indexが負の値の場合
+            RuntimeError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+        """
+        if pane_index < 0:
+            raise ValueError("pane_indexは0以上でなければなりません")
+
+        if not self.session_exists():
+            raise TmuxSessionNotFoundError(
+                f"セッション '{self._session_name}' が存在しません"
+            )
+
+        target = f"{self._session_name}:{self._window_index}.{pane_index}"
+        output = self._run_tmux_command([
+            "capture-pane",
+            "-t",
+            target,
+            "-p",
+        ])
+
+        return output
+
+    def get_pane_count(self) -> int:
+        """現在のペイン数を取得します。
+
+        Returns:
+            現在のペイン数
+
+        Raises:
+            RuntimeError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+            ValueError: 出力を整数に変換できない場合
+        """
+        if not self.session_exists():
+            raise TmuxSessionNotFoundError(
+                f"セッション '{self._session_name}' が存在しません"
+            )
+
+        target = f"{self._session_name}:{self._window_index}"
+        output = self._run_tmux_command([
+            "display-message",
+            "-t",
+            target,
+            "-p",
+            "#{window_panes}",
+        ])
+
+        try:
+            return int(output.strip())
+        except ValueError as e:
+            raise ValueError(
+                f"ペイン数を整数に変換できません: {output}"
+            ) from e
+
+    def kill_session(self) -> None:
+        """tmuxセッションを破棄します。
+
+        Raises:
+            RuntimeError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+        """
+        if not self.session_exists():
+            raise TmuxSessionNotFoundError(
+                f"セッション '{self._session_name}' が存在しません"
+            )
+
+        self._run_tmux_command([
+            "kill-session",
+            "-t",
+            self._session_name,
+        ])
+
+        # セッションが正常に破棄されたことを確認
+        if self.session_exists():
+            raise TmuxError(
+                f"セッション '{self._session_name}' の破棄に失敗しました"
+            )
