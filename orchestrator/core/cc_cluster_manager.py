@@ -306,6 +306,10 @@ class CCClusterManager:
                     f"無効な役割が指定されました: {role_str}"
                 ) from e
 
+            # オプションフィールドの取得
+            wait_time = float(agent_data.get("wait_time", 5.0))
+            poll_interval = float(agent_data.get("poll_interval", 0.5))
+
             # エージェント設定を作成
             agent_config = CCProcessConfig(
                 name=name,
@@ -314,6 +318,8 @@ class CCClusterManager:
                 marker=marker,
                 pane_index=pane_index,
                 work_dir=work_dir,
+                wait_time=wait_time,
+                poll_interval=poll_interval,
             )
             agents.append(agent_config)
 

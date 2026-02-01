@@ -173,6 +173,62 @@ class TestCCClusterManagerLoadConfig:
         assert manager._config.agents[0].name == "agent1"
         assert manager._config.agents[1].name == "agent2"
 
+    def test_load_config_with_wait_time_and_poll_interval(self, tmp_path):
+        """wait_timeとpoll_intervalを読み込める"""
+        config_data = {
+            "cluster": {
+                "name": "test-cluster",
+                "session_name": "test-session",
+                "work_dir": "/tmp/test",
+            },
+            "agents": [
+                {
+                    "name": "agent1",
+                    "role": "grand_boss",
+                    "personality_prompt_path": "test.txt",
+                    "marker": "OK",
+                    "pane_index": 0,
+                    "wait_time": 3.0,
+                    "poll_interval": 0.3,
+                },
+            ],
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_data, f)
+
+        manager = CCClusterManager(str(config_file))
+
+        assert manager._config.agents[0].wait_time == 3.0
+        assert manager._config.agents[0].poll_interval == 0.3
+
+    def test_load_config_with_default_wait_time_and_poll_interval(self, tmp_path):
+        """wait_timeとpoll_intervalのデフォルト値が適用される"""
+        config_data = {
+            "cluster": {
+                "name": "test-cluster",
+                "session_name": "test-session",
+                "work_dir": "/tmp/test",
+            },
+            "agents": [
+                {
+                    "name": "agent1",
+                    "role": "grand_boss",
+                    "personality_prompt_path": "test.txt",
+                    "marker": "OK",
+                    "pane_index": 0,
+                },
+            ],
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_data, f)
+
+        manager = CCClusterManager(str(config_file))
+
+        assert manager._config.agents[0].wait_time == 5.0
+        assert manager._config.agents[0].poll_interval == 0.5
+
 
 class TestCCClusterManagerStart:
     """クラスタ起動のテスト"""
@@ -302,16 +358,19 @@ class TestCCClusterManagerStart:
         manager._tmux.create_session = Mock()
         manager._tmux.create_pane = Mock()
 
-        # エージェントのモック
+        # エージェントのモック（WaitForPromptReadyを含む完全なモック）
         with patch("orchestrator.core.cc_cluster_manager.CCProcessLauncher") as MockLauncher:
             mock_launcher = Mock()
             mock_launcher.start = AsyncMock()
+            # mark_as_running を呼ばないようにする
+            mock_launcher.mark_as_running = Mock()
             MockLauncher.return_value = mock_launcher
 
             await manager.start()
 
-            # 2つの追加ペインが作成される（3エージェント - 1）
-            assert manager._tmux.create_pane.call_count == 2
+            # クラスタレイアウトは固定で4つのペイン（0〜3）を作成
+            # create_paneは4回呼ばれる
+            assert manager._tmux.create_pane.call_count == 4
 
     @pytest.mark.asyncio
     async def test_start_launches_all_agents(self, tmp_path):

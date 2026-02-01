@@ -77,6 +77,116 @@ class TestCCProcessConfig:
         assert config.claude_path == "claude"
         assert config.auto_restart is True
         assert config.max_restarts == 3
+        assert config.wait_time == 5.0
+        assert config.poll_interval == 0.5
+
+    def test_validation_wait_time_negative(self):
+        """wait_timeが負の値の場合にValueErrorを送出"""
+        with pytest.raises(ValueError, match="wait_timeは0以上である必要があります"):
+            CCProcessConfig(
+                name="test",
+                role=CCProcessRole.MIDDLE_MANAGER,
+                personality_prompt_path="test.txt",
+                marker="OK",
+                pane_index=1,
+                wait_time=-1.0,
+            )
+
+    def test_validation_wait_time_too_large(self):
+        """wait_timeが上限超過の場合にValueErrorを送出"""
+        with pytest.raises(ValueError, match="wait_timeは60秒以下である必要があります"):
+            CCProcessConfig(
+                name="test",
+                role=CCProcessRole.MIDDLE_MANAGER,
+                personality_prompt_path="test.txt",
+                marker="OK",
+                pane_index=1,
+                wait_time=61.0,
+            )
+
+    def test_validation_wait_time_boundary(self):
+        """wait_timeの境界値テスト"""
+        # 0はOK
+        config = CCProcessConfig(
+            name="test",
+            role=CCProcessRole.MIDDLE_MANAGER,
+            personality_prompt_path="test.txt",
+            marker="OK",
+            pane_index=1,
+            wait_time=0.0,
+        )
+        assert config.wait_time == 0.0
+
+        # 60.0はOK
+        config = CCProcessConfig(
+            name="test",
+            role=CCProcessRole.MIDDLE_MANAGER,
+            personality_prompt_path="test.txt",
+            marker="OK",
+            pane_index=1,
+            wait_time=60.0,
+        )
+        assert config.wait_time == 60.0
+
+    def test_validation_poll_interval_zero(self):
+        """poll_intervalが0の場合にValueErrorを送出"""
+        with pytest.raises(ValueError, match="poll_intervalは0より大きい必要があります"):
+            CCProcessConfig(
+                name="test",
+                role=CCProcessRole.MIDDLE_MANAGER,
+                personality_prompt_path="test.txt",
+                marker="OK",
+                pane_index=1,
+                poll_interval=0.0,
+            )
+
+    def test_validation_poll_interval_negative(self):
+        """poll_intervalが負の値の場合にValueErrorを送出"""
+        with pytest.raises(ValueError, match="poll_intervalは0より大きい必要があります"):
+            CCProcessConfig(
+                name="test",
+                role=CCProcessRole.MIDDLE_MANAGER,
+                personality_prompt_path="test.txt",
+                marker="OK",
+                pane_index=1,
+                poll_interval=-0.1,
+            )
+
+    def test_validation_poll_interval_too_large(self):
+        """poll_intervalが上限超過の場合にValueErrorを送出"""
+        with pytest.raises(ValueError, match="poll_intervalは10秒以下である必要があります"):
+            CCProcessConfig(
+                name="test",
+                role=CCProcessRole.MIDDLE_MANAGER,
+                personality_prompt_path="test.txt",
+                marker="OK",
+                pane_index=1,
+                poll_interval=10.1,
+            )
+
+    def test_validation_poll_interval_boundary(self):
+        """poll_intervalの境界値テスト"""
+        # 0.1はOK
+        config = CCProcessConfig(
+            name="test",
+            role=CCProcessRole.MIDDLE_MANAGER,
+            personality_prompt_path="test.txt",
+            marker="OK",
+            pane_index=1,
+            poll_interval=0.1,
+        )
+        assert config.poll_interval == 0.1
+
+        # 10.0はOK
+        config = CCProcessConfig(
+            name="test",
+            role=CCProcessRole.MIDDLE_MANAGER,
+            personality_prompt_path="test.txt",
+            marker="OK",
+            pane_index=1,
+            poll_interval=10.0,
+        )
+        assert config.poll_interval == 10.0
 
     def test_validation_pane_index_negative(self):
         """pane_indexが負の値の場合にValueErrorを送出"""
