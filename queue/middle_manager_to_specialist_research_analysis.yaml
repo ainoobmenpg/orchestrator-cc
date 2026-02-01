@@ -1,0 +1,10 @@
+# Middle Manager から Research Specialist への通信YAML
+id: "msg-000"
+from: "middle_manager"
+to: "specialist_research_analysis"
+type: "task"
+status: "pending"
+content: |
+  サブタスク内容
+timestamp: "2026-02-02T00:00:00"
+metadata: {}

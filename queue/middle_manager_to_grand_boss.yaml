@@ -1,0 +1,10 @@
+# Middle Manager から Grand Boss への通信YAML
+id: "msg-000"
+from: "middle_manager"
+to: "grand_boss"
+type: "result"
+status: "pending"
+content: |
+  結果内容
+timestamp: "2026-02-02T00:00:00"
+metadata: {}
