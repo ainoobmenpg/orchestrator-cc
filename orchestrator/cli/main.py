@@ -6,6 +6,7 @@
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 
 
 def start_cluster(args: argparse.Namespace) -> None:
@@ -15,6 +16,7 @@ def start_cluster(args: argparse.Namespace) -> None:
         args: コマンドライン引数
     """
     from orchestrator.core.cc_cluster_manager import CCClusterManager
+    from orchestrator.core.yaml_monitor import YAMLMonitor
 
     async def _start() -> None:
         cluster = CCClusterManager(args.config)
@@ -22,6 +24,28 @@ def start_cluster(args: argparse.Namespace) -> None:
         print(f"クラスタ '{cluster._config.name}' を起動しました")
         print(f"tmuxセッション: {cluster._config.session_name}")
         print(f"tmux attach -t {cluster._config.session_name} で確認できます")
+
+        # YAML監視を開始
+        queue_dir = Path(cluster._config.work_dir) / "queue"
+        queue_dir.mkdir(parents=True, exist_ok=True)
+
+        def yaml_callback(file_path: str) -> None:
+            """YAMLファイル変更時のコールバック"""
+            print(f"[YAML Monitor] 変更検知: {file_path}")
+            # 実際のエージェント通知はNotificationServiceで行う
+
+        monitor = YAMLMonitor(str(queue_dir), yaml_callback)
+        monitor.start()
+        print(f"[YAML Monitor] {queue_dir} の監視を開始しました")
+
+        # 監視を続ける（無限ループ）
+        try:
+            while monitor.is_running():
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            print("\nクラスタを停止します...")
+            monitor.stop()
+            await cluster.stop()
 
     asyncio.run(_start())
 
