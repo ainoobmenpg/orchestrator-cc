@@ -6,10 +6,12 @@ from orchestrator.agents.cc_agent_base import (
     CCAgentSendError,
     CCAgentTimeoutError,
 )
+from orchestrator.agents.grand_boss import GrandBossAgent
 
 __all__ = [
     "CCAgentBase",
     "CCAgentError",
     "CCAgentSendError",
     "CCAgentTimeoutError",
+    "GrandBossAgent",
 ]
