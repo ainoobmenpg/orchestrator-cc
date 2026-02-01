@@ -48,7 +48,7 @@ class CCProcessConfig:
     auto_restart: bool = True
     max_restarts: int = 3
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """バリデーション"""
         if self.pane_index < 0:
             raise ValueError("pane_indexは0以上である必要があります")
