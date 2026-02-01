@@ -1,5 +1,11 @@
 """orchestrator.core パッケージ"""
 
+from orchestrator.core.cc_cluster_manager import (
+    CCClusterAgentNotFoundError,
+    CCClusterConfigError,
+    CCClusterError,
+    CCClusterManager,
+)
 from orchestrator.core.cc_process_launcher import (
     CCPersonalityPromptNotFoundError,
     CCPersonalityPromptReadError,
@@ -33,4 +39,9 @@ __all__ = [
     "CCProcessNotRunningError",
     "CCPersonalityPromptNotFoundError",
     "CCPersonalityPromptReadError",
+    # CCClusterManager
+    "CCClusterManager",
+    "CCClusterError",
+    "CCClusterConfigError",
+    "CCClusterAgentNotFoundError",
 ]
