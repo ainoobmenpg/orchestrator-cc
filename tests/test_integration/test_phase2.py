@@ -6,6 +6,7 @@
 - V-201: エージェント間でメッセージを送信できる
 - V-202: 合言葉（マーカー）を検出して応答を取得できる
 - V-203: エンドツーエンドの通信ができる
+- V-204: SpecialistがCCProcessLauncher経由で通信する（完全版）
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -36,6 +37,7 @@ from orchestrator.core import (
     MessageType,
     PaneTimeoutError,
 )
+from orchestrator.core.cc_process_launcher import CCProcessLauncher
 
 # ============================================================================
 # TestPhase2AgentCommunication（正常系）
@@ -419,18 +421,27 @@ class TestPhase2EndToEnd:
         self, mock_cluster_manager, mock_logger
     ):
         """全Specialistが正しい合言葉で応答する"""
-        # 各Specialistの応答をモック
+        # 各Specialistのランチャーモックを設定
+        # 完全版ではget_launcher()→send_message()を使う
         responses = {
             CODING_SPECIALIST_NAME: f"{CODING_MARKER}\n実装完了",
             RESEARCH_SPECIALIST_NAME: f"{RESEARCH_MARKER}\n調査完了",
             TESTING_SPECIALIST_NAME: f"{TESTING_MARKER}\nテスト完了",
         }
 
-        def side_effect(*args, **kwargs):
-            agent_name = kwargs["agent_name"]
-            return responses.get(agent_name, "Unknown response")
+        # ランチャーモックを作成
+        mock_launcher = MagicMock(spec=CCProcessLauncher)
 
-        mock_cluster_manager.send_message = AsyncMock(side_effect=side_effect)
+        def launcher_side_effect(*args, **kwargs):
+            # 現在のSpecialist名を取得して応答を返す
+            # kwargs["message"]にはタスクが含まれる
+            for marker in responses.values():
+                if marker in str(kwargs):
+                    return marker
+            return f"{CODING_MARKER}\nデフォルト応答"
+
+        mock_launcher.send_message = AsyncMock(side_effect=launcher_side_effect)
+        mock_cluster_manager.get_launcher = MagicMock(return_value=mock_launcher)
 
         # 各Specialistを直接テスト
         specialists = [
@@ -440,6 +451,14 @@ class TestPhase2EndToEnd:
         ]
 
         for specialist_class, name, expected_marker in specialists:
+            # 各Specialist用のランチャーを設定
+            def make_launcher(marker):
+                launcher = MagicMock(spec=CCProcessLauncher)
+                launcher.send_message = AsyncMock(return_value=f"{marker}\n完了")
+                return launcher
+
+            mock_cluster_manager.get_launcher = MagicMock(return_value=make_launcher(expected_marker))
+
             specialist = specialist_class(
                 name=name,
                 cluster_manager=mock_cluster_manager,
@@ -485,3 +504,184 @@ class TestPhase2EndToEnd:
         assert recv_kwargs["from_agent"] == "middle_manager"
         assert recv_kwargs["to_agent"] == "grand_boss"
         assert recv_kwargs["msg_type"] == MessageType.RESULT
+
+
+# ============================================================================
+# TestPhase2SpecialistCompleteImpl（完全版Specialist実装）
+# ============================================================================
+
+class TestPhase2SpecialistCompleteImpl:
+    """Phase 2 完全版Specialistエージェントのテスト
+
+    CCClusterManager経由で自分のCCProcessLauncherを取得し、
+    tmuxペインでClaude Codeと通信してタスクを実行する機能をテストします。
+    """
+
+    @pytest.fixture
+    def mock_cluster_manager(self) -> MagicMock:
+        """CCClusterManagerのモック"""
+        mock = MagicMock(spec=CCClusterManager)
+        return mock
+
+    @pytest.fixture
+    def mock_launcher(self) -> MagicMock:
+        """CCProcessLauncherのモック"""
+        mock = MagicMock(spec=CCProcessLauncher)
+        mock.send_message = AsyncMock(
+            return_value=f"{CODING_MARKER}\n実際にコードを書きました"
+        )
+        return mock
+
+    @pytest.fixture
+    def mock_logger(self) -> MagicMock:
+        """MessageLoggerのモック"""
+        mock = MagicMock(spec=MessageLogger)
+        mock.log_send = MagicMock(return_value="msg-id-send")
+        mock.log_receive = MagicMock(return_value="msg-id-recv")
+        return mock
+
+    @pytest.mark.asyncio
+    async def test_coding_specialist_uses_launcher(
+        self, mock_cluster_manager, mock_launcher, mock_logger
+    ):
+        """V-204: CodingWritingSpecialistがCCProcessLauncher経由で通信する"""
+        # get_launcher()がモックを返すように設定
+        mock_cluster_manager.get_launcher = MagicMock(return_value=mock_launcher)
+
+        # CodingWritingSpecialistを作成
+        specialist = CodingWritingSpecialist(
+            name=CODING_SPECIALIST_NAME,
+            cluster_manager=mock_cluster_manager,
+            logger=mock_logger,
+        )
+
+        # タスクを実行
+        result = await specialist.handle_task("新しい関数を実装してください")
+
+        # get_launcherが呼ばれていること
+        mock_cluster_manager.get_launcher.assert_called_once_with(CODING_SPECIALIST_NAME)
+
+        # launcherのsend_messageが呼ばれていること
+        mock_launcher.send_message.assert_called_once()
+        call_kwargs = mock_launcher.send_message.call_args.kwargs
+        assert call_kwargs["message"] == "新しい関数を実装してください"
+
+        # CODING OKマーカーが含まれていること
+        assert CODING_MARKER in result
+
+    @pytest.mark.asyncio
+    async def test_research_specialist_uses_launcher(
+        self, mock_cluster_manager, mock_launcher, mock_logger
+    ):
+        """V-204: ResearchAnalysisSpecialistがCCProcessLauncher経由で通信する"""
+        # Research Specialist用の応答を設定
+        mock_launcher.send_message = AsyncMock(
+            return_value=f"{RESEARCH_MARKER}\n調査結果をまとめました"
+        )
+
+        # get_launcher()がモックを返すように設定
+        mock_cluster_manager.get_launcher = MagicMock(return_value=mock_launcher)
+
+        # ResearchAnalysisSpecialistを作成
+        specialist = ResearchAnalysisSpecialist(
+            name=RESEARCH_SPECIALIST_NAME,
+            cluster_manager=mock_cluster_manager,
+            logger=mock_logger,
+        )
+
+        # タスクを実行
+        result = await specialist.handle_task("ベストプラクティスを調査してください")
+
+        # get_launcherが呼ばれていること
+        mock_cluster_manager.get_launcher.assert_called_once_with(RESEARCH_SPECIALIST_NAME)
+
+        # launcherのsend_messageが呼ばれていること
+        mock_launcher.send_message.assert_called_once()
+        call_kwargs = mock_launcher.send_message.call_args.kwargs
+        assert call_kwargs["message"] == "ベストプラクティスを調査してください"
+
+        # RESEARCH OKマーカーが含まれていること
+        assert RESEARCH_MARKER in result
+
+    @pytest.mark.asyncio
+    async def test_testing_specialist_uses_launcher(
+        self, mock_cluster_manager, mock_launcher, mock_logger
+    ):
+        """V-204: TestingSpecialistがCCProcessLauncher経由で通信する"""
+        # Testing Specialist用の応答を設定
+        mock_launcher.send_message = AsyncMock(
+            return_value=f"{TESTING_MARKER}\nテストを実行しました"
+        )
+
+        # get_launcher()がモックを返すように設定
+        mock_cluster_manager.get_launcher = MagicMock(return_value=mock_launcher)
+
+        # TestingSpecialistを作成
+        specialist = TestingSpecialist(
+            name=TESTING_SPECIALIST_NAME,
+            cluster_manager=mock_cluster_manager,
+            logger=mock_logger,
+        )
+
+        # タスクを実行
+        result = await specialist.handle_task("単体テストを実行してください")
+
+        # get_launcherが呼ばれていること
+        mock_cluster_manager.get_launcher.assert_called_once_with(TESTING_SPECIALIST_NAME)
+
+        # launcherのsend_messageが呼ばれていること
+        mock_launcher.send_message.assert_called_once()
+        call_kwargs = mock_launcher.send_message.call_args.kwargs
+        assert call_kwargs["message"] == "単体テストを実行してください"
+
+        # TESTING OKマーカーが含まれていること
+        assert TESTING_MARKER in result
+
+    @pytest.mark.asyncio
+    async def test_specialist_timeout_handling(
+        self, mock_cluster_manager, mock_launcher, mock_logger
+    ):
+        """Specialistのタイムアウト処理"""
+        # タイムアウトをシミュレート
+        mock_launcher.send_message = AsyncMock(
+            side_effect=PaneTimeoutError("応答がありません")
+        )
+
+        # get_launcher()がモックを返すように設定
+        mock_cluster_manager.get_launcher = MagicMock(return_value=mock_launcher)
+
+        # CodingWritingSpecialistを作成
+        specialist = CodingWritingSpecialist(
+            name=CODING_SPECIALIST_NAME,
+            cluster_manager=mock_cluster_manager,
+            logger=mock_logger,
+        )
+
+        # CCAgentTimeoutErrorが発生すること
+        with pytest.raises(CCAgentTimeoutError, match="タスク処理がタイムアウトしました"):
+            await specialist.handle_task("テストタスク")
+
+    @pytest.mark.asyncio
+    async def test_specialist_custom_timeout(
+        self, mock_cluster_manager, mock_launcher, mock_logger
+    ):
+        """カスタムタイムアウトの指定"""
+        # カスタムタイムアウトでSpecialistを作成
+        custom_timeout = 180.0
+        specialist = CodingWritingSpecialist(
+            name=CODING_SPECIALIST_NAME,
+            cluster_manager=mock_cluster_manager,
+            logger=mock_logger,
+            default_timeout=custom_timeout,
+        )
+
+        # get_launcher()がモックを返すように設定
+        mock_cluster_manager.get_launcher = MagicMock(return_value=mock_launcher)
+
+        # タスクを実行
+        await specialist.handle_task("長時間タスク")
+
+        # カスタムタイムアウトが使用されていること
+        mock_launcher.send_message.assert_called_once()
+        call_kwargs = mock_launcher.send_message.call_args.kwargs
+        assert call_kwargs["timeout"] == custom_timeout

@@ -146,6 +146,22 @@ class CCClusterManager:
             )
         return self._launchers[name]
 
+    def get_launcher(self, agent_name: str) -> CCProcessLauncher:
+        """エージェント名に対応するCCProcessLauncherを取得します。
+
+        get_agent()のエイリアスメソッドです。
+
+        Args:
+            agent_name: エージェント名
+
+        Returns:
+            指定されたエージェントのCCProcessLauncherインスタンス
+
+        Raises:
+            CCClusterAgentNotFoundError: 指定されたエージェントが存在しない場合
+        """
+        return self.get_agent(agent_name)
+
     async def send_message(
         self, agent_name: str, message: str, timeout: float = 30.0
     ) -> str:
