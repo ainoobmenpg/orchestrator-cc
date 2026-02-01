@@ -1,0 +1,59 @@
+.PHONY: help check fmt lint test test-all coverage clean install-dev
+
+help: ## ヘルプを表示
+	@echo "使用可能なコマンド:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+check: ## 全品質チェックを実行（型チェック+リント+フォーマットチェック+単体テスト）
+	@echo "=== 型チェック ==="
+	{{TYPE_CHECK_COMMAND}}
+	@echo ""
+	@echo "=== リントチェック ==="
+	{{LINT_COMMAND}}
+	@echo ""
+	@echo "=== フォーマットチェック ==="
+	{{FORMAT_CHECK_COMMAND}}
+	@echo ""
+	@echo "=== 単体テスト ==="
+	{{TEST_COMMAND_UNIT}}
+
+check-all: check ## 全チェック+統合テスト（並列実行）
+	@echo ""
+	@echo "=== 統合テスト（並列実行） ==="
+	{{TEST_COMMAND_ALL}}
+
+fmt: ## コードの自動フォーマットとリント修正
+	@echo "=== リント自動修正 ==="
+	{{LINT_FIX_COMMAND}}
+	@echo ""
+	@echo "=== フォーマット実行 ==="
+	{{FORMAT_COMMAND}}
+
+lint: ## リントチェックのみ
+	{{LINT_COMMAND}}
+
+type-check: ## 型チェックのみ
+	{{TYPE_CHECK_COMMAND}}
+
+test: ## 単体テストのみ
+	{{TEST_COMMAND_UNIT}}
+
+test-all: ## 全テスト（統合テスト含む、並列実行）
+	{{TEST_COMMAND_ALL}}
+
+coverage: ## カバレッジレポート生成
+	{{COVERAGE_COMMAND}}
+	@echo "HTMLレポート: {{COVERAGE_HTML_REPORT}}"
+
+clean: ## キャッシュファイルを削除
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".hypothesis" -exec rm -rf {} + 2>/dev/null || true
+	rm -rf .coverage htmlcov/
+
+install-dev: ## 開発依存関係をインストール
+	{{INSTALL_DEV_COMMAND}}
+
+pre-commit: fmt check ## プリコミットチェック（フォーマット+全チェック）
