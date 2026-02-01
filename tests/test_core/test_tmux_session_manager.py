@@ -258,6 +258,7 @@ class TestTmuxSessionManagerCapturePane:
 
             # 少し待ってからキャプチャ（コマンド実行を待つ）
             import time
+
             time.sleep(0.2)
 
             output = manager.capture_pane(0)
@@ -276,6 +277,7 @@ class TestTmuxSessionManagerCapturePane:
                 manager.send_keys(0, f"echo line-{i}")
 
             import time
+
             time.sleep(0.2)
 
             # 後ろから3行目からキャプチャ
@@ -293,6 +295,7 @@ class TestTmuxSessionManagerCapturePane:
             manager.send_keys(0, "echo test")
 
             import time
+
             time.sleep(0.2)
 
             # 先頭から10行目までキャプチャ
@@ -310,6 +313,7 @@ class TestTmuxSessionManagerCapturePane:
             manager.send_keys(0, "echo test")
 
             import time
+
             time.sleep(0.2)
 
             # 開始行と終了行の両方を指定
@@ -404,9 +408,7 @@ class TestTmuxSessionManagerErrorHandling:
     def test_tmux_command_error_raised_on_failure(self, mock_run):
         """tmuxコマンド失敗時TmuxCommandErrorが送出される"""
         # subprocess.runをモックしてCalledProcessErrorを投げる
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, "tmux", stderr="invalid option"
-        )
+        mock_run.side_effect = subprocess.CalledProcessError(1, "tmux", stderr="invalid option")
 
         manager = TmuxSessionManager("test-command-error")
 

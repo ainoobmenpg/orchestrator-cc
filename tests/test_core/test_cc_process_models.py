@@ -3,9 +3,9 @@
 import pytest
 
 from orchestrator.core.cc_process_models import (
+    CCClusterConfig,
     CCProcessConfig,
     CCProcessRole,
-    CCClusterConfig,
 )
 
 
@@ -16,13 +16,8 @@ class TestCCProcessRole:
         """各役割の値が正しいことを確認"""
         assert CCProcessRole.GRAND_BOSS.value == "grand_boss"
         assert CCProcessRole.MIDDLE_MANAGER.value == "middle_manager"
-        assert (
-            CCProcessRole.SPECIALIST_CODING_WRITING.value == "specialist_coding_writing"
-        )
-        assert (
-            CCProcessRole.SPECIALIST_RESEARCH_ANALYSIS.value
-            == "specialist_research_analysis"
-        )
+        assert CCProcessRole.SPECIALIST_CODING_WRITING.value == "specialist_coding_writing"
+        assert CCProcessRole.SPECIALIST_RESEARCH_ANALYSIS.value == "specialist_research_analysis"
         assert CCProcessRole.SPECIALIST_TESTING.value == "specialist_testing"
 
     def test_role_is_string_enum(self):

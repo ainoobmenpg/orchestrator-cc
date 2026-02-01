@@ -29,7 +29,7 @@ class TestPaneIOInit:
     def test_init_with_invalid_type(self):
         """無効な型でTypeErrorが送出される"""
         with pytest.raises(TypeError, match="TmuxSessionManagerのインスタンス"):
-            PaneIO("not_a_manager")
+            PaneIO("not_a_manager")  # type: ignore[arg-type]
 
     def test_init_stores_tmux_reference(self):
         """TmuxSessionManagerが正しく保存される"""
@@ -65,7 +65,7 @@ class TestPaneIOSendMessage:
         mock_tmux = Mock(spec=TmuxSessionManager)
         pane_io = PaneIO(mock_tmux)
 
-        quoted_message = 'test with "double" and \'single\' quotes'
+        quoted_message = "test with \"double\" and 'single' quotes"
         pane_io.send_message(0, quoted_message)
 
         mock_tmux.send_keys.assert_called_once_with(0, quoted_message)
