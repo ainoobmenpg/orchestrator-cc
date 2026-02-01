@@ -25,3 +25,7 @@ build/
 /tmp/orchestrator-cc/
 *.log
 /reviews/
+
+# テストカバレッジ
+.coverage
+htmlcov/
