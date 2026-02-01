@@ -195,3 +195,25 @@ class MessageLogger:
         # 例: logs/messages.jsonl -> logs/messages.1.jsonl
         path = Path(self._log_file)
         return str(path.with_stem(f"{path.stem}.{counter}"))
+
+    def log_thought(
+        self, agent: str, thought: str, log_level: LogLevel = LogLevel.DEBUG
+    ) -> str:
+        """エージェントの思考プロセスをログに記録します。
+
+        Args:
+            agent: エージェント名
+            thought: 思考内容
+            log_level: ログレベル（デフォルト: DEBUG）
+
+        Returns:
+            メッセージID（UUID）
+        """
+        from orchestrator.core.message_models import MessageType
+
+        # 自分自身へのログとして記録（思考ログ）
+        return self._log(
+            CCMessage(from_agent=agent, to_agent=agent, content=thought),
+            MessageType.THOUGHT,
+            log_level,
+        )

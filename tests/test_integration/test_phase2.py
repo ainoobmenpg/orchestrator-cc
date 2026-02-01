@@ -86,8 +86,13 @@ class TestPhase2AgentCommunication:
         assert call_kwargs["agent_name"] == "middle_manager"
         assert call_kwargs["message"] == "新しい機能を実装してください"
 
-        # 応答が返ってきていること
-        assert result == "MIDDLE MANAGER OK\nタスクを完了しました"
+        # 新しいフォーマットで応答が返ってきていること
+        assert "タスク実行結果" in result
+        assert "元のタスク" in result
+        assert "新しい機能を実装してください" in result
+        assert "Middle Managerによる集約結果" in result
+        assert "MIDDLE MANAGER OK" in result
+        assert "Grand Boss as Executive" in result
 
     @pytest.mark.asyncio
     async def test_middle_manager_to_specialists(

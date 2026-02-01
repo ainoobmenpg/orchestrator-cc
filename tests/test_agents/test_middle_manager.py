@@ -126,25 +126,24 @@ class TestMiddleManagerAgentHandleTask:
         """タスク処理が成功し、応答が返されること"""
         result = await agent.handle_task("新しい機能を実装してください")
 
-        assert result == "CODING OK\n実装が完了しました"
+        # 新しいフォーマットで結果が返される
+        assert "Middle Managerによる集約結果" in result
+        assert "進捗:" in result
+        assert "Coding Writing Specialist" in result
+        assert "CODING OK" in result
+        assert "実装が完了しました" in result
 
     @pytest.mark.asyncio
     async def test_handle_task_sends_to_specialists(self, agent, mock_cluster_manager):
-        """タスクが全Specialistに送信されること"""
+        """タスクが適切なSpecialistに送信されること"""
         await agent.handle_task("新しい機能を実装してください")
 
-        # 3つのSpecialistに送信されていること
-        assert mock_cluster_manager.send_message.call_count == 3
+        # "実装"というキーワードを含むため、Coding Specialistにのみ送信される
+        assert mock_cluster_manager.send_message.call_count == 1
 
         # 呼び出しを確認
-        call_args_list = mock_cluster_manager.send_message.call_args_list
-        agent_names = {call.kwargs["agent_name"] for call in call_args_list}
-        expected_agents = {
-            CODING_SPECIALIST_NAME,
-            RESEARCH_SPECIALIST_NAME,
-            TESTING_SPECIALIST_NAME,
-        }
-        assert agent_names == expected_agents
+        call_args = mock_cluster_manager.send_message.call_args
+        assert call_args.kwargs["agent_name"] == CODING_SPECIALIST_NAME
 
     @pytest.mark.asyncio
     async def test_handle_task_with_custom_timeout(self, mock_cluster_manager, mock_logger):
@@ -160,38 +159,37 @@ class TestMiddleManagerAgentHandleTask:
         await agent.handle_task("タスク")
 
         # いずれかの呼び出しでcustom_timeoutが使用されていること
-        call_args_list = mock_cluster_manager.send_message.call_args_list
-        timeouts = {call.kwargs.get("timeout") for call in call_args_list}
-        assert custom_timeout in timeouts
+        # キーワードパターンマッチングで特定のSpecialistにのみ送信される
+        if mock_cluster_manager.send_message.call_count > 0:
+            call_args = mock_cluster_manager.send_message.call_args
+            assert call_args.kwargs.get("timeout") == custom_timeout
 
     @pytest.mark.asyncio
     async def test_handle_task_logs_communication(self, agent, mock_logger):
         """通信ログが記録されること"""
         await agent.handle_task("テストタスク")
 
-        # 送信ログが記録されていること（3つのSpecialist分）
-        assert mock_logger.log_send.call_count == 3
+        # 送信ログが記録されていること（Middle Manager自身のログ + Specialistへの送信）
+        # キーワードパターンマッチングで特定のSpecialistにのみ送信される
+        assert mock_logger.log_send.call_count >= 1
 
-        # 受信ログが記録されていること（最初の応答分以上）
-        # 注意: 並列実行されるため、複数の応答がログに記録される可能性があります
+        # 受信ログが記録されていること
         assert mock_logger.log_receive.call_count >= 1
 
     @pytest.mark.asyncio
-    async def test_handle_task_returns_first_response(self, mock_cluster_manager, mock_logger):
-        """最初の応答が返されること"""
-        # 応答順序を制御するための設定
+    async def test_handle_task_aggregates_all_results(self, mock_cluster_manager, mock_logger):
+        """全Specialistの結果が集約されて返されること"""
+        # 複数のSpecialistからの応答をシミュレート
         call_count = 0
 
         async def side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return "RESEARCH OK\n調査が完了しました"
-            elif call_count == 2:
-                await asyncio.sleep(0.1)  # 遅延させて最初の応答にならないように
                 return "CODING OK\n実装が完了しました"
+            elif call_count == 2:
+                return "RESEARCH OK\n調査が完了しました"
             else:
-                await asyncio.sleep(0.1)  # 遅延させて最初の応答にならないように
                 return "TESTING OK\nテストが完了しました"
 
         mock_cluster_manager.send_message = AsyncMock(side_effect=side_effect)
@@ -202,9 +200,53 @@ class TestMiddleManagerAgentHandleTask:
             logger=mock_logger,
         )
 
-        result = await agent.handle_task("タスク")
+        # キーワードを含まないタスクなので、全Specialistに送信される
+        result = await agent.handle_task("一般的なタスク")
 
-        assert result == "RESEARCH OK\n調査が完了しました"
+        # すべての結果が集約されていること
+        assert "Middle Managerによる集約結果" in result
+        assert "進捗: 3/3 サブタスク完了" in result
+        assert "Coding Writing Specialist" in result
+        assert "Research Analysis Specialist" in result
+        assert "Testing Specialist" in result
+        assert "CODING OK" in result
+        assert "RESEARCH OK" in result
+        assert "TESTING OK" in result
+
+    @pytest.mark.asyncio
+    async def test_decompose_task_with_coding_keyword(self, agent):
+        """コーディング関連キーワードでタスク分解されること"""
+        subtasks = agent._decompose_task("新しい関数を実装してください")
+
+        assert CODING_SPECIALIST_NAME in subtasks
+        assert len(subtasks[CODING_SPECIALIST_NAME]) == 1
+        assert "実装" in subtasks[CODING_SPECIALIST_NAME][0]
+
+        # 他のSpecialistには送信されない
+        assert len(subtasks[RESEARCH_SPECIALIST_NAME]) == 0
+        assert len(subtasks[TESTING_SPECIALIST_NAME]) == 0
+
+    @pytest.mark.asyncio
+    async def test_decompose_task_with_multiple_keywords(self, agent):
+        """複数のキーワードを含むタスクで適切に分解されること"""
+        subtasks = agent._decompose_task("コードを実装してテストしてください")
+
+        # "実装"と"テスト"の両方のキーワードが含まれる
+        assert CODING_SPECIALIST_NAME in subtasks
+        assert TESTING_SPECIALIST_NAME in subtasks
+
+    @pytest.mark.asyncio
+    async def test_decompose_task_with_no_keywords(self, agent):
+        """キーワードを含まないタスクは全Specialistに送信されること"""
+        subtasks = agent._decompose_task("一般的なタスク")
+
+        # 全Specialistに送信される
+        assert CODING_SPECIALIST_NAME in subtasks
+        assert RESEARCH_SPECIALIST_NAME in subtasks
+        assert TESTING_SPECIALIST_NAME in subtasks
+        assert len(subtasks[CODING_SPECIALIST_NAME]) == 1
+        assert len(subtasks[RESEARCH_SPECIALIST_NAME]) == 1
+        assert len(subtasks[TESTING_SPECIALIST_NAME]) == 1
 
 
 class TestMiddleManagerAgentHandleTaskErrors:

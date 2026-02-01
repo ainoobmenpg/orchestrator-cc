@@ -125,7 +125,13 @@ class TestGrandBossAgentHandleTask:
         """タスク処理が成功し、応答が返されること"""
         result = await agent.handle_task("新しい機能を実装してください")
 
-        assert result == "MIDDLE MANAGER OK\nタスクを完了しました"
+        # 新しいフォーマットで結果が返される
+        assert "タスク実行結果" in result
+        assert "元のタスク" in result
+        assert "新しい機能を実装してください" in result
+        assert "Middle Managerによる集約結果" in result
+        assert "MIDDLE MANAGER OK" in result
+        assert "Grand Boss as Executive" in result
 
     @pytest.mark.asyncio
     async def test_handle_task_sends_to_middle_manager(self, agent, mock_cluster_manager):
@@ -283,7 +289,13 @@ class TestGrandBossAgentMiddleManagerCommunication:
 
         result = await agent.handle_task("テストタスク")
 
-        assert result == response
+        # 新しいフォーマットで結果が返される
+        assert "タスク実行結果" in result
+        assert "元のタスク" in result
+        assert "テストタスク" in result
+        assert "Middle Managerによる集約結果" in result
+        assert response in result  # 元のレスポンスが含まれている
+        assert "Grand Boss as Executive" in result
 
     @pytest.mark.asyncio
     async def test_middle_manager_not_found_error(self, agent, mock_cluster_manager):

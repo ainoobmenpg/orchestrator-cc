@@ -176,3 +176,18 @@ class CCAgentBase(ABC):
             エージェント名
         """
         return self._name
+
+    def log_thought(self, thought: str, level: LogLevel = LogLevel.DEBUG) -> None:
+        """エージェントの思考プロセスをログに出力します。
+
+        Args:
+            thought: 思考内容
+            level: ログレベル（デフォルト: DEBUG）
+        """
+        from orchestrator.core.message_models import LogLevel
+
+        # LogLevelのバリデーション
+        if not isinstance(level, LogLevel):
+            level = LogLevel.DEBUG
+
+        self._logger.log_thought(self._name, thought, level)

@@ -67,16 +67,13 @@ class GrandBossAgent(CCAgentBase):
     async def handle_task(self, task: str) -> str:
         """タスクを処理します。
 
-        ユーザーからのタスクを受領し、Middle Managerに委任して結果を返します。
-
-        現在の実装は簡易版で、タスクをそのままMiddle Managerに転送します。
-        将来的には、タスク分解、進捗管理、品質確認などの機能を追加予定です。
+        ユーザーからのタスクを受領し、Middle Managerに委任して結果を整形して返します。
 
         Args:
             task: ユーザーからのタスク内容
 
         Returns:
-            処理結果（Middle Managerからの応答）
+            処理結果（Middle Managerからの応答を整形したもの）
 
         Raises:
             ValueError: taskが空の場合
@@ -87,6 +84,7 @@ class GrandBossAgent(CCAgentBase):
         Note:
             - タスクは空であってはなりません
             - タイムアウトはインスタンスのdefault_timeoutを使用します
+            - Middle Managerからの結果を整形して返します
         """
         if not task or not task.strip():
             raise ValueError("taskは空であってはなりません")
@@ -98,4 +96,26 @@ class GrandBossAgent(CCAgentBase):
             timeout=self._default_timeout,
         )
 
-        return response
+        # 結果を整形して返す
+        return self._format_final_result(response, task)
+
+    def _format_final_result(self, middle_manager_result: str, original_task: str) -> str:
+        """Middle Managerからの結果を最終成果物として整形します。
+
+        Args:
+            middle_manager_result: Middle Managerからの結果
+            original_task: ユーザーからの元のタスク
+
+        Returns:
+            整形された最終成果物
+        """
+        return f"""# タスク実行結果
+
+## 元のタスク
+{original_task}
+
+## Middle Managerによる集約結果
+{middle_manager_result}
+
+---
+Grand Boss as Executive"""

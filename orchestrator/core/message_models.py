@@ -29,6 +29,7 @@ class MessageType(str, Enum):
     INFO = "info"  # 情報通知
     RESULT = "result"  # 結果報告
     ERROR = "error"  # エラー通知
+    THOUGHT = "thought"  # 思考ログ
 
 
 @dataclass
