@@ -24,13 +24,14 @@ Claude Code C (上司、プロセス3)
 ## 主な特徴
 
 - **プロセスベースのアーキテクチャ**: 各Claude Codeインスタンスは独立したプロセス
-- **MCPプロトコル**: Claude Code Model Context Protocolを使用した通信
-- **生のやり取り**: UI操作、ファイルベース通信、WebSocket等の多彩な通信手段
+- **tmux方式**: tmuxセッション内の各ペインでClaude Codeを起動・管理
+- **プログラム制御**: `tmux send-keys`でコマンド送信、`tmux capture-pane`で出力取得
+- **性格設定**: `--system-prompt`で各エージェントに異なる役割・性格を設定
 - **LLM分散**: 各インスタンスが独立してLLMを呼び出し（レートリミット回避）
 
 ## 現在の状態
 
-### Phase 0: 事前検証 ✅ 完了（2026-02-01
+### Phase 0: 事前検証 ✅ 完了（2026-02-01）
 
 **Phase 0**では「Claude Codeをプログラムから制御できるか？」を検証しました。
 
@@ -39,37 +40,43 @@ Claude Code C (上司、プロセス3)
 | 項目 | 結果 | 説明 |
 |------|------|------|
 | V-001 | ✅ 成功 | Claude CodeがMCPサーバーとして動くことを確認 |
-| V-002 | ⚠️ 代替案採用 | コマンドオプションでのプロンプト設定は不可 → **設定ファイル方式**を採用 |
+| V-002 | ⚠️ 代替案採用 | コマンドオプションでのプロンプト設定は不可 → **tmux方式**を採用 |
 | V-003 | ✅ 成功 | Pythonからプロセス起動・通信が可能 |
 
-#### 採用した方式: 設定ファイル分離アプローチ
+### Phase 0.5: 中間検証 ✅ 完了（2026-02-01）
 
-各エージェント（Grand Boss、Middle Manager、etc.）専用の「ホームディレクトリ」を作り、そこに設定ファイルを置く方式です。
+**Phase 0.5**では「tmux方式でClaude Codeを制御できるか？」を検証しました。
+
+#### 検証結果
+
+| 項目 | 結果 | 説明 |
+|------|------|------|
+| V-101 | ✅ 成功 | tmuxで複数のClaude Codeプロセスを別ペインで起動できる |
+| V-102 | ✅ 成功 | Pythonからtmuxペインにコマンドを送信できる |
+| V-103 | ✅ 成功 | tmux capture-paneで出力をキャプチャ・パースできる |
+
+#### 採用した方式: tmux方式
+
+tmuxセッション内の各ペインでClaude Codeを起動し、プログラムから制御します。
 
 ```
-/tmp/orchestrator-cc/
-├── agents/
-│   ├── grand_boss/
-│   │   └── .claude/
-│   │       └── settings.json  ← Grand Bossの性格設定
-│   ├── middle_manager/
-│   │   └── .claude/
-│   │       └── settings.json  ← Middle Managerの性格設定
-│   └── coding_specialist/
-│       └── .claude/
-│           └── settings.json  ← Coding Specialistの性格設定
+tmuxセッション (orchestrator-cc)
+├── ペイン0: Grand Boss
+│   └── claude --system-prompt "あなたはGrand Bossです..."
+├── ペイン1: Middle Manager
+│   └── claude --system-prompt "あなたはMiddle Managerです..."
+└── ペイン2: Coding Specialist
+    └── claude --system-prompt "あなたはCoding Specialistです..."
 ```
 
-起動時は、環境変数 `HOME` を設定してからClaude Codeを起動します：
-
-```bash
-HOME=/tmp/orchestrator-cc/agents/grand_boss claude mcp serve
-```
+**制御方法**:
+- `tmux send-keys -t session:0.0 "コマンド" Enter` → ペインにコマンド送信
+- `tmux capture-pane -t session:0.0 -p` → ペインの出力を取得
 
 この方式の良いところ：
-- ✅ **永続性**: 設定がファイルに保存される
-- ✅ **追従性**: Claude Codeが元々の仕組みで設定を読み込む
-- ✅ **分離**: 各エージェントが独立した性格を持てる
+- ✅ **性格設定**: `--system-prompt`で各エージェントに異なる役割を設定できる
+- ✅ **独立性**: 各ペインが独立したClaude Codeプロセスとして動作
+- ✅ **可視性**: tmux attachで各エージェントの状態を直接確認できる
 
 ---
 
@@ -82,10 +89,9 @@ HOME=/tmp/orchestrator-cc/agents/grand_boss claude mcp serve
 | 用語 | 読み方 | 意味 |
 |------|--------|------|
 | **プロセス** | ぷろせす | コンピュータ上で動いているプログラムの「実体」。例えば、ブラウザを2つ開けると2つのプロセスが動いています。orchestrator-ccでは、各エージェントが別々のプロセスとして動きます。 |
-| **MCP** | えむしーぴー | Model Context Protocolの略。AI（Claude）と外部ツールが会話するための決まり事のようなもの。 |
-| **JSON-RPC** | じぇいそんあーるぴーしー | コンピュータ同士がデータをやり取りする形式の1つ。人間が読める書き方で書かれています。 |
+| **tmux** | てぃーまっくす | ターミナルマルチプレクサー。1つのターミナルウィンドウで複数の端末（ペイン）を管理できるツール。 |
+| **ペイン** | ぺいん | tmuxで分割された1つ1つの端末画面のこと。各ペインで独立したClaude Codeプロセスを動かします。 |
 | **環境変数** | かんきょうへんすう | プログラムが起動するときに参照できる設定値のこと。`HOME=xxx` のように指定します。 |
-| **stdio** | すたんだーどいんぷっと / あうとぷっと | standard input/outputの略。キーボードからの入力と画面への出力のこと。 |
 | **設定ファイル** | せっていふぁいる | プログラムの動作設定を書いたテキストファイルのこと。 |
 | **ブランチ** | ぶらんち | Gitで作業する際の「分岐点」。機能ごとにブランチを作って作業することで、元のコードを安全に保てます。 |
 | **コミット** | こみっと | 変更内容をGitに記録すること。「変更を保存」のようなイメージです。 |
@@ -156,15 +162,17 @@ orchestrator-cc/
 
 ## 次のステップ: Phase 1
 
-**Phase 1**では「Claude Codeのプロセスを起動・管理する機能」を実装します。
+**Phase 1**では「tmux方式でClaude Codeのプロセスを起動・管理する機能」を実装します。
 
 ### 作成するファイル
 
 | ファイル | 役割 | 初学者向けの説明 |
 |---------|------|------------------|
-| `orchestrator/core/cc_process_models.py` | データモデル | エージェントの設定情報（名前、役割、ポート番号など）を決めるための設計図 |
-| `orchestrator/core/cc_process_launcher.py` | プロセス起動 | Claude Codeを実際に起動・停止するための仕組み |
+| `orchestrator/core/tmux_session_manager.py` | tmuxセッション管理 | tmuxセッションの作成・ペイン分割を管理するクラス |
+| `orchestrator/core/cc_process_launcher.py` | プロセス起動 | 各ペインでClaude Codeを起動・監視する仕組み |
+| `orchestrator/core/pane_io.py` | ペイン入出力 | ペインへのコマンド送信・出力取得を行うクラス |
 | `config/personalities/*.txt` | 性格プロンプト | 各エージェントの性格（「あなたは〇〇です...」）を書いたテキストファイル |
+| `config/cc-cluster.yaml` | クラスタ設定 | エージェント構成やペイン番号などを定義するYAMLファイル |
 
 ### 終わったら
 
