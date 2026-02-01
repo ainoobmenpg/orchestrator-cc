@@ -1,5 +1,9 @@
 """orchestrator.core パッケージ"""
 
+from orchestrator.core.pane_io import (
+    PaneIO,
+    PaneTimeoutError,
+)
 from orchestrator.core.tmux_session_manager import (
     TmuxCommandError,
     TmuxSessionManager,
@@ -13,4 +17,7 @@ __all__ = [
     "TmuxSessionNotFoundError",
     "TmuxCommandError",
     "TmuxTimeoutError",
+    # PaneIO
+    "PaneIO",
+    "PaneTimeoutError",
 ]
