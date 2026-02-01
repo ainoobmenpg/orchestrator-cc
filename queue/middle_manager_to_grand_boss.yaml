@@ -1,0 +1,12 @@
+# Middle Manager -> Grand Boss 通信YAMLテンプレート
+#
+# このファイルはMiddle ManagerからGrand Bossへのメッセージを伝達します。
+
+id: "msg-000"
+from: "middle_manager"
+to: "grand_boss"
+type: "result"
+status: "pending"
+content: |
+  結果内容をここに記述してください
+timestamp: "2026-02-01T10:00:00"

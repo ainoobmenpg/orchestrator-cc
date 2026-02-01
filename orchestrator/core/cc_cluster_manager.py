@@ -198,25 +198,6 @@ class CCClusterManager:
         """
         return self.get_agent(agent_name)
 
-    async def send_message(
-        self, agent_name: str, message: str, timeout: float = 30.0
-    ) -> str:
-        """指定されたエージェントにメッセージを送信し、応答を取得します。
-
-        Args:
-            agent_name: 送信先エージェント名
-            message: 送信するメッセージ
-            timeout: タイムアウト時間（秒）
-
-        Returns:
-            エージェントからの応答
-
-        Raises:
-            CCClusterAgentNotFoundError: 指定されたエージェントが存在しない場合
-            PaneTimeoutError: 応答がタイムアウトした場合
-        """
-        launcher = self.get_agent(agent_name)
-        return await launcher.send_message(message, timeout=timeout)
 
     def _load_config(self, path: str) -> CCClusterConfig:
         """YAML設定ファイルを読み込みます。

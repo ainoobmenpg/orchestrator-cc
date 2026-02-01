@@ -81,28 +81,55 @@ Claude Code C (上司、プロセス3)
 | V-102 | ✅ 成功 | Pythonからtmuxペインにコマンドを送信できる |
 | V-103 | ✅ 成功 | tmux capture-paneで出力をキャプチャ・パースできる |
 
-#### 採用した方式: tmux方式
+### Phase 1: プロセス起動・管理 ✅ 完了
 
-tmuxセッション内の各ペインでClaude Codeを起動し、プログラムから制御します。
+**Phase 1**では「tmux方式でClaude Codeのプロセスを起動・管理する機能」を実装しました。
+
+### Phase 2: エージェントクラス方式 ✅ 完了（削除済み）
+
+**Phase 2**では「Pythonエージェントクラス方式」でタスク分解・集約機能を実装しましたが、Phase 3で削除されました。
+
+### Phase 3: YAML通信方式 ✅ 完了（2026-02-01）
+
+**Phase 3**では「YAMLベースの通信方式」へのアーキテクチャ変更を実施しました。
+
+#### 新アーキテクチャ: YAML通信 + Python完全自動化
+
+- **各エージェントは自律動作**: tmuxペインで動くClaude Codeプロセスそのものがエージェント
+- **YAMLファイルで通信**: 各エージェントがYAMLを書き、他エージェントが読み取る
+- **Python側で完全自動化**: YAMLファイルの変更を監視（watchdog）、自動通知、ダッシュボード更新
+
+#### 実装したコンポーネント
+
+| コンポーネント | 説明 |
+|---------------|------|
+| `orchestrator/core/yaml_protocol.py` | YAML通信プロトコル定義（TaskMessage, AgentStatus） |
+| `orchestrator/core/yaml_monitor.py` | YAMLファイル監視（watchdog使用） |
+| `orchestrator/core/notification_service.py` | エージェント通知サービス（tmux send-keys） |
+| `orchestrator/core/dashboard_manager.py` | ダッシュボード自動更新 |
+| `queue/*.yaml` | 通信YAMLテンプレート（8ファイル） |
+| `status/agents/*.yaml` | ステータステンプレート（5ファイル） |
+
+#### 採用した方式: YAML通信方式
 
 ```
-tmuxセッション (orchestrator-cc)
-├── ペイン0: Grand Boss
-│   └── claude --system-prompt "あなたはGrand Bossです..."
-├── ペイン1: Middle Manager
-│   └── claude --system-prompt "あなたはMiddle Managerです..."
-└── ペイン2: Coding Specialist
-    └── claude --system-prompt "あなたはCoding Specialistです..."
+[ユーザー]
+    ↓ tmux attach
+[Grand Boss (Claude Code)]
+    ↓ YAML作成
+[queue/grand_boss_to_middle_manager.yaml]
+    ↓ Python監視 (YAMLMonitor)
+[NotificationService] → tmux send-keys
+[Middle Manager (Claude Code)]
+    ↓ YAML読み込み & タスク分解
+[queue/middle_manager_to_*.yaml] (x3)
+    ↓ Python監視 & 自動通知
+[Specialists (Claude Code)]
+    ↓ YAML作成
+[queue/*_to_middle_manager.yaml]
+    ↓ Python監視 & ダッシュボード更新
+[status/dashboard.md]
 ```
-
-**制御方法**:
-- `tmux send-keys -t session:0.0 "コマンド" Enter` → ペインにコマンド送信
-- `tmux capture-pane -t session:0.0 -p` → ペインの出力を取得
-
-この方式の良いところ：
-- ✅ **性格設定**: `--system-prompt`で各エージェントに異なる役割を設定できる
-- ✅ **独立性**: 各ペインが独立したClaude Codeプロセスとして動作
-- ✅ **可視性**: tmux attachで各エージェントの状態を直接確認できる
 
 ---
 
@@ -145,17 +172,31 @@ orchestrator-cc/
 │   │   └── post-merge-workflow.md
 │   ├── quality/           ← 品質管理関連ドキュメント
 │   │   └── quality-management.md
-│   └── documentation/     ← ドキュメント管理関連
-│       └── documentation-update-process.md
+│   ├── documentation/     ← ドキュメント管理関連
+│   │   └── documentation-update-process.md
 │   └── specs/             ← 仕様書
-│       ├── communication.md  ← 通信方式の決まり
-│       └── personality.md    ← 性格設定の決まり
-├── orchestrator/          ← メインのコード（これから作る）
-│   ├── core/              ← 基本的な処理
-│   └── agents/            ← 各エージェントの処理
-├── config/                ← 設定ファイル（これから作る）
+│       ├── yaml-communication.md  ← YAML通信プロトコル詳細
+│       └── agent-behavior.md      ← エージェント動作仕様
+├── orchestrator/          ← メインのコード
+│   └── core/              ← 基本的な処理
+│       ├── tmux_session_manager.py
+│       ├── cc_process_launcher.py
+│       ├── cc_cluster_manager.py
+│       ├── pane_io.py
+│       ├── yaml_protocol.py       ← YAML通信プロトコル
+│       ├── yaml_monitor.py        ← YAMLファイル監視
+│       ├── notification_service.py ← 通知サービス
+│       └── dashboard_manager.py    ← ダッシュボード管理
+├── config/                ← 設定ファイル
 │   ├── personalities/     ← 性格プロンプトのテキスト
 │   └── cc-cluster.yaml    ← クラスタの設定
+├── queue/                 ← 通信YAMLファイル（自動生成・監視）
+│   ├── grand_boss_to_middle_manager.yaml
+│   ├── middle_manager_to_*.yaml
+│   └── *_to_middle_manager.yaml
+├── status/                ← ステータスファイル
+│   ├── agents/            ← 各エージェントのステータスYAML
+│   └── dashboard.md       ← ダッシュボード（自動更新）
 └── tests/                 ← テストコード
 ```
 
@@ -194,19 +235,64 @@ orchestrator-cc/
 
 ---
 
-## 次のステップ: Phase 1
+## YAML通信方式の使い方
 
-**Phase 1**では「tmux方式でClaude Codeのプロセスを起動・管理する機能」を実装します。
+### 基本的なフロー
 
-### 作成するファイル
+1. **クラスタを起動する**
+   ```bash
+   python3 -m orchestrator.cli start --config config/cc-cluster.yaml
+   ```
 
-| ファイル | 役割 | 初学者向けの説明 |
-|---------|------|------------------|
-| `orchestrator/core/tmux_session_manager.py` | tmuxセッション管理 | tmuxセッションの作成・ペイン分割を管理するクラス |
-| `orchestrator/core/cc_process_launcher.py` | プロセス起動 | 各ペインでClaude Codeを起動・監視する仕組み |
-| `orchestrator/core/pane_io.py` | ペイン入出力 | ペインへのコマンド送信・出力取得を行うクラス |
-| `config/personalities/*.txt` | 性格プロンプト | 各エージェントの性格（「あなたは〇〇です...」）を書いたテキストファイル |
-| `config/cc-cluster.yaml` | クラスタ設定 | エージェント構成やペイン番号などを定義するYAMLファイル |
+2. **Grand Bossにタスクを送信する**
+   ```bash
+   tmux attach-session -t orchestrator-cc
+   ```
+   ペイン0（Grand Boss）でタスクを入力します。
+
+3. **Grand BossがYAMLファイルを作成する**
+   Grand Bossは `queue/grand_boss_to_middle_manager.yaml` を編集してタスクを定義します。
+
+4. **Python監視プロセスが自動通知する**
+   YAMLファイルの変更を検知すると、自動でMiddle Managerに通知します。
+
+5. **各エージェントが自律的に動作する**
+   各エージェントはYAMLファイルを読み込み、処理を行い、結果をYAMLに書き込みます。
+
+6. **ダッシュボードで進捗を確認する**
+   ```bash
+   cat status/dashboard.md
+   ```
+
+### YAMLファイルのフォーマット
+
+#### 通信YAML (queue/*.yaml)
+
+```yaml
+id: "msg-001"
+from: "grand_boss"
+to: "middle_manager"
+type: "task"  # task, info, result, error
+status: "pending"  # pending, in_progress, completed, failed
+content: |
+  タスク内容
+timestamp: "2026-02-01T10:00:00"
+metadata:  # オプション
+  key: value
+```
+
+#### ステータスYAML (status/agents/*.yaml)
+
+```yaml
+agent_name: "grand_boss"
+state: "idle"  # idle, working, completed, error
+current_task: null
+last_updated: "2026-02-01T10:00:00"
+statistics:
+  tasks_completed: 0
+```
+
+---
 
 ### 開発完了チェックリスト（PR作成時）
 

@@ -26,25 +26,6 @@ def start_cluster(args: argparse.Namespace) -> None:
     asyncio.run(_start())
 
 
-def execute_task(args: argparse.Namespace) -> None:
-    """タスクを実行します。
-
-    Args:
-        args: コマンドライン引数
-    """
-    from orchestrator.core.cc_cluster_manager import CCClusterManager
-
-    async def _execute() -> None:
-        cluster = CCClusterManager(args.config)
-        # 既存のクラスタに接続
-        cluster.connect()
-        # Grand Bossにタスクを送信
-        result = await cluster.send_message("grand_boss", args.task)
-        print(result)
-
-    asyncio.run(_execute())
-
-
 def stop_cluster(args: argparse.Namespace) -> None:
     """クラスタを停止します。
 
@@ -74,15 +55,6 @@ def main() -> None:
         help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
     )
 
-    # executeコマンド
-    execute_parser = subparsers.add_parser("execute", help="タスクを実行")
-    execute_parser.add_argument("task", help="実行するタスク")
-    execute_parser.add_argument(
-        "--config",
-        default="config/cc-cluster.yaml",
-        help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
-    )
-
     # stopコマンド
     stop_parser = subparsers.add_parser("stop", help="クラスタを停止")
     stop_parser.add_argument(
@@ -97,8 +69,6 @@ def main() -> None:
     # コマンドを実行
     if args.command == "start":
         start_cluster(args)
-    elif args.command == "execute":
-        execute_task(args)
     elif args.command == "stop":
         stop_cluster(args)
     else:

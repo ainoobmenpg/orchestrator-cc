@@ -1,0 +1,12 @@
+# Middle Manager -> Research & Analysis Specialist 通信YAMLテンプレート
+#
+# このファイルはMiddle ManagerからResearch & Analysis Specialistへのメッセージを伝達します。
+
+id: "msg-000"
+from: "middle_manager"
+to: "research_analysis_specialist"
+type: "task"
+status: "pending"
+content: |
+  タスク内容をここに記述してください
+timestamp: "2026-02-01T10:00:00"

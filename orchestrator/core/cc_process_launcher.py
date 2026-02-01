@@ -159,40 +159,6 @@ class CCProcessLauncher:
         """
         return self._running
 
-    async def send_message(self, message: str, timeout: float = 30.0) -> str:
-        """メッセージを送信して応答を取得します。
-
-        Args:
-            message: 送信するメッセージ
-            timeout: タイムアウト時間（秒）
-
-        Returns:
-            エージェントからの応答
-
-        Raises:
-            ValueError: messageが空の場合
-            CCProcessNotRunningError: プロセスが実行されていない場合
-            PaneTimeoutError: 応答がタイムアウトした場合
-        """
-        if not message:
-            raise ValueError("messageは空であってはなりません")
-
-        if not self._running:
-            raise CCProcessNotRunningError(
-                f"プロセス '{self._config.name}' は実行されていません。先にstart()を呼び出してください"
-            )
-
-        # メッセージを送信
-        self._pane_io.send_message(self._pane_index, message)
-
-        # 応答を取得
-        response = await self._pane_io.get_response(
-            self._pane_index,
-            self._config.marker,
-            timeout=timeout,
-        )
-
-        return response
 
     async def stop(self) -> None:
         """プロセスを停止します。

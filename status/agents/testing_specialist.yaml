@@ -1,0 +1,10 @@
+# Testing Specialist ステータステンプレート
+#
+# このファイルはTesting Specialistの現在の状態を表します。
+
+agent_name: "testing_specialist"
+state: "idle"
+current_task: null
+last_updated: "2026-02-01T10:00:00"
+statistics:
+  tasks_completed: 0

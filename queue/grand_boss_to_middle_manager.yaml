@@ -1,0 +1,22 @@
+# Grand Boss -> Middle Manager 通信YAMLテンプレート
+#
+# このファイルはGrand BossからMiddle Managerへのメッセージを伝達します。
+#
+# フォーマット:
+# id: メッセージID（一意な値）
+# from: 送信元エージェント名
+# to: 送信先エージェント名
+# type: メッセージタイプ (task, info, result, error)
+# status: ステータス (pending, in_progress, completed, failed)
+# content: メッセージ内容（複数行可）
+# timestamp: タイムスタンプ (ISO 8601形式)
+# metadata: 追加メタデータ（オプション）
+
+id: "msg-000"
+from: "grand_boss"
+to: "middle_manager"
+type: "task"
+status: "pending"
+content: |
+  タスク内容をここに記述してください
+timestamp: "2026-02-01T10:00:00"

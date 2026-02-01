@@ -1,0 +1,17 @@
+# Grand Boss ステータステンプレート
+#
+# このファイルはGrand Bossの現在の状態を表します。
+#
+# フォーマット:
+# agent_name: エージェント名
+# state: 状態 (idle, working, completed, error)
+# current_task: 現在のタスク（オプション）
+# last_updated: 最終更新時刻 (ISO 8601形式)
+# statistics: 統計情報
+
+agent_name: "grand_boss"
+state: "idle"
+current_task: null
+last_updated: "2026-02-01T10:00:00"
+statistics:
+  tasks_completed: 0
