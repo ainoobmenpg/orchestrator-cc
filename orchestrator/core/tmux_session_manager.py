@@ -47,11 +47,13 @@ class TmuxSessionManager:
         _next_pane_index: 次に作成するペイン番号
     """
 
-    def __init__(self, session_name: str) -> None:
+    def __init__(self, session_name: str, window_index: int = 0) -> None:
         """TmuxSessionManagerを初期化します。
 
         Args:
             session_name: tmuxセッション名
+            window_index: ウィンドウインデックス（デフォルト: 0）
+                         将来の複数ウィンドウ対応時に使用
 
         Raises:
             ValueError: セッション名が空の場合、または無効な文字を含む場合
@@ -66,7 +68,7 @@ class TmuxSessionManager:
             )
 
         self._session_name: str = session_name
-        self._window_index: int = 0
+        self._window_index: int = window_index
         self._next_pane_index: int = 0
 
     def _run_tmux_command(self, args: list[str]) -> str:
@@ -180,6 +182,11 @@ class TmuxSessionManager:
     def send_keys(self, pane_index: int, keys: str) -> None:
         """指定したペインにキー入力を送信します。
 
+        注意:
+            tmux send-keysはシェルを介さずに直接キー入力を送信するため、
+            シェルインジェクションのリスクはありません。スペース、クォート、
+            その他の特殊文字はそのままペインに入力されます。
+
         Args:
             pane_index: ペイン番号（0以上）
             keys: 送信するキー文字列
@@ -207,11 +214,15 @@ class TmuxSessionManager:
             "Enter",
         ])
 
-    def capture_pane(self, pane_index: int) -> str:
+    def capture_pane(self, pane_index: int, start_line: int | None = None, end_line: int | None = None) -> str:
         """指定したペインの出力をキャプチャします。
 
         Args:
             pane_index: ペイン番号（0以上）
+            start_line: 開始行（負の値で後ろから数える、例: -100で後ろから100行目から）
+                        Noneの場合、tmuxのデフォルト（履歴の先頭）を使用
+            end_line: 終了行（正の値で先頭から数える、例: +100で先頭から100行目まで）
+                     Noneの場合、tmuxのデフォルト（現在の行）を使用
 
         Returns:
             ペインの出力（改行区切りの文字列）
@@ -231,12 +242,20 @@ class TmuxSessionManager:
             )
 
         target = f"{self._session_name}:{self._window_index}.{pane_index}"
-        output = self._run_tmux_command([
+        args = [
             "capture-pane",
             "-t",
             target,
             "-p",
-        ])
+        ]
+
+        # オプション引数を追加
+        if start_line is not None:
+            args.extend(["-S", str(start_line)])
+        if end_line is not None:
+            args.extend(["-E", str(end_line)])
+
+        output = self._run_tmux_command(args)
 
         return output
 

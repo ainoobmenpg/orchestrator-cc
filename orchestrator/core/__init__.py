@@ -2,7 +2,6 @@
 
 from orchestrator.core.tmux_session_manager import (
     TmuxCommandError,
-    TmuxError,
     TmuxSessionManager,
     TmuxSessionNotFoundError,
     TmuxTimeoutError,
@@ -10,7 +9,7 @@ from orchestrator.core.tmux_session_manager import (
 
 __all__ = [
     "TmuxSessionManager",
-    "TmuxError",
+    # TmuxErrorは基底クラスとしてのみ使用されるため、公開APIには含めない
     "TmuxSessionNotFoundError",
     "TmuxCommandError",
     "TmuxTimeoutError",

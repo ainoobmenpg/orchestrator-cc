@@ -43,6 +43,16 @@ class TestTmuxSessionManagerInit:
         manager = TmuxSessionManager("test-session_123")
         assert manager._session_name == "test-session_123"
 
+    def test_init_with_default_window_index(self):
+        """デフォルトのウィンドウインデックスは0"""
+        manager = TmuxSessionManager("test-session")
+        assert manager._window_index == 0
+
+    def test_init_with_custom_window_index(self):
+        """カスタムのウィンドウインデックスを設定できる"""
+        manager = TmuxSessionManager("test-session", window_index=2)
+        assert manager._window_index == 2
+
 
 class TestTmuxSessionManagerCreateSession:
     """セッション作成のテスト"""
@@ -252,6 +262,59 @@ class TestTmuxSessionManagerCapturePane:
 
             output = manager.capture_pane(0)
             assert test_text in output
+        finally:
+            if manager.session_exists():
+                manager.kill_session()
+
+    def test_capture_pane_with_start_line(self):
+        """開始行を指定してキャプチャできる"""
+        manager = TmuxSessionManager("test-start-line")
+        try:
+            manager.create_session()
+            # 複数行の出力を生成
+            for i in range(5):
+                manager.send_keys(0, f"echo line-{i}")
+
+            import time
+            time.sleep(0.2)
+
+            # 後ろから3行目からキャプチャ
+            output = manager.capture_pane(0, start_line=-3)
+            assert isinstance(output, str)
+        finally:
+            if manager.session_exists():
+                manager.kill_session()
+
+    def test_capture_pane_with_end_line(self):
+        """終了行を指定してキャプチャできる"""
+        manager = TmuxSessionManager("test-end-line")
+        try:
+            manager.create_session()
+            manager.send_keys(0, "echo test")
+
+            import time
+            time.sleep(0.2)
+
+            # 先頭から10行目までキャプチャ
+            output = manager.capture_pane(0, end_line=+10)
+            assert isinstance(output, str)
+        finally:
+            if manager.session_exists():
+                manager.kill_session()
+
+    def test_capture_pane_with_both_limits(self):
+        """開始行と終了行の両方を指定してキャプチャできる"""
+        manager = TmuxSessionManager("test-both-limits")
+        try:
+            manager.create_session()
+            manager.send_keys(0, "echo test")
+
+            import time
+            time.sleep(0.2)
+
+            # 開始行と終了行の両方を指定
+            output = manager.capture_pane(0, start_line=-5, end_line=+10)
+            assert isinstance(output, str)
         finally:
             if manager.session_exists():
                 manager.kill_session()
