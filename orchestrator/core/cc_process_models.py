@@ -5,7 +5,6 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 
 class CCProcessRole(str, Enum):
@@ -30,22 +29,31 @@ class CCProcessConfig:
     Attributes:
         name: エージェント名（例: "grand_boss"）
         role: エージェントの役割
-        personality_prompt_path: 性格プロンプトファイルのパス
+        personality_prompt_path: 性格プロンプトファイルのパス（必須）
+        marker: 応答完了マーカー（合言葉、必須）
+        pane_index: tmuxペイン番号（0以上、必須）
         work_dir: 作業ディレクトリ
         claude_path: Claude Code実行ファイルのパス
         auto_restart: 異常終了時に自動再起動するか
-        max_restarts: 最大再起動回数
-        marker: 応答完了マーカー（合言葉）
+        max_restarts: 最大再起動回数（0以上）
     """
 
     name: str
     role: CCProcessRole
-    personality_prompt_path: Optional[str] = None
+    personality_prompt_path: str
+    marker: str
+    pane_index: int
     work_dir: str = "/tmp/orchestrator-cc"
     claude_path: str = "claude"
     auto_restart: bool = True
     max_restarts: int = 3
-    marker: str = ""
+
+    def __post_init__(self):
+        """バリデーション"""
+        if self.pane_index < 0:
+            raise ValueError("pane_indexは0以上である必要があります")
+        if self.max_restarts < 0:
+            raise ValueError("max_restartsは0以上である必要があります")
 
 
 @dataclass
