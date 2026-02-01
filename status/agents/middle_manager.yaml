@@ -1,8 +1,7 @@
-# Middle Manager のステータスYAML
-agent_name: "middle_manager"
-state: "idle"
-current_task: null
-last_updated: "2026-02-02T00:00:00"
+agent_name: middle_manager
+current_task: grand_boss_task
+last_updated: '2026-02-02T08:49:27.151702'
+state: working
 statistics:
-  tasks_completed: 0
   subtasks_delegated: 0
+  tasks_completed: 0

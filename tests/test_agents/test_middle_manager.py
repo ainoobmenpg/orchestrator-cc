@@ -4,6 +4,7 @@
 """
 
 import asyncio
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -383,15 +384,15 @@ class TestMiddleManagerAgentConstants:
 
     def test_coding_specialist_name_constant(self):
         """CODING_SPECIALIST_NAME定数が正しいこと"""
-        assert CODING_SPECIALIST_NAME == "coding_writing_specialist"
+        assert CODING_SPECIALIST_NAME == "specialist_coding_writing"
 
     def test_research_specialist_name_constant(self):
         """RESEARCH_SPECIALIST_NAME定数が正しいこと"""
-        assert RESEARCH_SPECIALIST_NAME == "research_analysis_specialist"
+        assert RESEARCH_SPECIALIST_NAME == "specialist_research_analysis"
 
     def test_testing_specialist_name_constant(self):
         """TESTING_SPECIALIST_NAME定数が正しいこと"""
-        assert TESTING_SPECIALIST_NAME == "testing_specialist"
+        assert TESTING_SPECIALIST_NAME == "specialist_testing"
 
     def test_default_task_timeout_constant(self):
         """DEFAULT_TASK_TIMEOUT定数が正しいこと"""

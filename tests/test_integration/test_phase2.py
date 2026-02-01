@@ -9,6 +9,7 @@
 - V-204: SpecialistがCCProcessLauncher経由で通信する（完全版）
 """
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -38,6 +39,7 @@ from orchestrator.core import (
     PaneTimeoutError,
 )
 from orchestrator.core.cc_process_launcher import CCProcessLauncher
+from orchestrator.core.yaml_protocol import read_message_async
 
 # ============================================================================
 # TestPhase2AgentCommunication（正常系）

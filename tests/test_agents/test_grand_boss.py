@@ -3,6 +3,7 @@
 このモジュールでは、GrandBossAgentクラスの単体テストを実装します。
 """
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
