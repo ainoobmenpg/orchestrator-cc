@@ -25,6 +25,7 @@ build/
 /tmp/orchestrator-cc/
 *.log
 /reviews/
+/.claude/skills/
 
 # テストカバレッジ
 .coverage
