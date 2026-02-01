@@ -280,7 +280,7 @@ class CCAgentBase(ABC):
 
         message = TaskMessage(
             id=message_id,
-            from=self._name,
+            from_agent=self._name,  # from_agent
             to=to_agent,
             type=msg_type,
             status=MessageStatus.PENDING,
