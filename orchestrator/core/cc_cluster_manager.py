@@ -96,9 +96,22 @@ class CCClusterManager:
             try:
                 self._tmux.create_session()
                 # 最初のペインはセッション作成時に自動的に作成される
-                # 追加のペインを作成（必要な数 - 1）
-                for _ in range(len(self._config.agents) - 1):
-                    self._tmux.create_pane(split="v")  # 垂直分割でペイン追加
+                # 5つのペインを作成するため、適切な分割パターンを使用
+                # ┌─────┬─────┐
+                # │  0  │  1  │
+                # ├─────┼─────┤
+                # │  2  │  3  │
+                # ├─────┴─────┤
+                # │     4      │
+                # └───────────┘
+                # 垂直分割で2つに
+                self._tmux.create_pane(split="h")  # Pane 1
+                # 左側を上下分割
+                self._tmux.create_pane(split="v", target_pane=0)  # Pane 2
+                # 右側を上下分割
+                self._tmux.create_pane(split="v", target_pane=1)  # Pane 3
+                # 下部を左右統合して1つのペインに
+                self._tmux.create_pane(split="v", target_pane=2)  # Pane 4
             except TmuxError as e:
                 raise CCClusterConfigError(
                     f"セッションの作成に失敗しました: {e}"

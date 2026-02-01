@@ -109,8 +109,12 @@ class TmuxSessionManager:
         except TmuxCommandError:
             return False
 
-    def create_session(self) -> None:
+    def create_session(self, width: int = 200, height: int = 50) -> None:
         """新しいtmuxセッションを作成します。
+
+        Args:
+            width: セッションの幅（文字数、デフォルト: 200）
+            height: セッションの高さ（行数、デフォルト: 50）
 
         Raises:
             RuntimeError: セッションが既に存在する場合
@@ -126,6 +130,10 @@ class TmuxSessionManager:
                 "-d",
                 "-s",
                 self._session_name,
+                "-x",
+                str(width),
+                "-y",
+                str(height),
             ]
         )
 
@@ -133,11 +141,12 @@ class TmuxSessionManager:
         if not self.session_exists():
             raise TmuxError(f"セッション '{self._session_name}' の作成に失敗しました")
 
-    def create_pane(self, split: str = "h") -> int:
+    def create_pane(self, split: str = "h", target_pane: int | None = None) -> int:
         """新しいペインを作成し、ペイン番号を返します。
 
         Args:
             split: 分割方向（"h": 水平分割/左右、 "v": 垂直分割/上下）
+            target_pane: 分割対象のペイン番号（Noneの場合はウィンドウ全体）
 
         Returns:
             作成されたペイン番号（0, 1, 2, ...）
@@ -154,7 +163,12 @@ class TmuxSessionManager:
         if not self.session_exists():
             raise TmuxSessionNotFoundError(f"セッション '{self._session_name}' が存在しません")
 
-        target = f"{self._session_name}:{self._window_index}"
+        # ターゲットを設定
+        if target_pane is not None:
+            target = f"{self._session_name}:{self._window_index}.{target_pane}"
+        else:
+            target = f"{self._session_name}:{self._window_index}"
+
         self._run_tmux_command(
             [
                 "split-window",
@@ -199,7 +213,7 @@ class TmuxSessionManager:
                 "-t",
                 target,
                 keys,
-                "Enter",
+                "C-m",  # Enterキーを送信（Carriage Return）
             ]
         )
 

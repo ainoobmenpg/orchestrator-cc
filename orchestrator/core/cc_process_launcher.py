@@ -269,8 +269,10 @@ class CCProcessLauncher:
         # 性格プロンプトを読み込んで--system-promptに渡す
         # Phase 0.5の検証により、tmux方式では--system-promptが使用可能
         personality_prompt = self._load_personality_prompt()
+        # 改行をスペースに置換（1行のコマンドとして渡すため）
+        single_line_prompt = personality_prompt.replace("\n", " ").replace("\r", " ")
         # シングルクォートをエスケープ
-        escaped_prompt = personality_prompt.replace("'", "'\\''")
-        parts.append(f"{claude_path} --system-prompt '{escaped_prompt}'")
+        escaped_prompt = single_line_prompt.replace("'", "'\\''")
+        parts.append(f"{claude_path} --dangerously-skip-permissions --system-prompt '{escaped_prompt}'")
 
         return " && ".join(parts)
