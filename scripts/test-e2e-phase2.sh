@@ -35,8 +35,8 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# セッション名
-SESSION_NAME="orchestrator-cc-test"
+# セッション名（config/cc-cluster.yamlと一致させる）
+SESSION_NAME="orchestrator-cc"
 
 # クリーンアップ関数
 cleanup() {
