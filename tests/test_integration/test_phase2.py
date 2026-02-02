@@ -67,43 +67,38 @@ class TestPhase2AgentCommunication:
         self, mock_cluster_manager, mock_logger
     ):
         """V-201: Grand Boss → Middle Manager 送信"""
-        # YAMLプロトコル対応: Middle ManagerのYAMLメソッドをモック
+        # YAMLプロトコル対応: GrandBossとMiddleManagerのYAMLメソッドをモック
         from unittest.mock import patch
 
-        # Middle Managerからの応答をモック
-        mock_cluster_manager.send_message = AsyncMock(
-            return_value="MIDDLE MANAGER OK\nタスクを完了しました"
-        )
+        # GrandBossの_wait_for_resultをモック
+        with patch.object(GrandBossAgent, '_wait_for_result', new_callable=AsyncMock) as mock_gb_wait:
+            with patch.object(MiddleManagerAgent, '_write_yaml_message', new_callable=AsyncMock) as mock_mm_write:
+                with patch.object(MiddleManagerAgent, '_wait_for_result', new_callable=AsyncMock) as mock_mm_wait:
+                    # モックの設定
+                    mock_gb_wait.return_value = "MIDDLE MANAGER OK\nタスクを完了しました"
+                    mock_mm_write.return_value = "msg-id-gb-mm"
+                    mock_mm_wait.return_value = "MIDDLE MANAGER OK\nタスクを完了しました"
 
-        with patch.object(MiddleManagerAgent, '_write_yaml_message', new_callable=AsyncMock) as mock_write:
-            with patch.object(MiddleManagerAgent, '_wait_for_result', new_callable=AsyncMock) as mock_wait:
-                # モックの設定
-                mock_write.return_value = "msg-id-gb-mm"
-                mock_wait.return_value = "MIDDLE MANAGER OK\nタスクを完了しました"
+                    # Grand Boss Agentを作成
+                    grand_boss = GrandBossAgent(
+                        name="grand_boss",
+                        cluster_manager=mock_cluster_manager,
+                        logger=mock_logger,
+                    )
 
-                # Grand Boss Agentを作成
-                grand_boss = GrandBossAgent(
-                    name="grand_boss",
-                    cluster_manager=mock_cluster_manager,
-                    logger=mock_logger,
-                )
+                    # タスクを実行
+                    result = await grand_boss.handle_task("新しい機能を実装してください")
 
-                # タスクを実行
-                result = await grand_boss.handle_task("新しい機能を実装してください")
+                    # GrandBossの_wait_for_resultが呼ばれたこと
+                    mock_gb_wait.assert_called_once()
 
-                # Middle Managerに送信されていること
-                mock_cluster_manager.send_message.assert_called_once()
-                call_kwargs = mock_cluster_manager.send_message.call_args.kwargs
-                assert call_kwargs["agent_name"] == "middle_manager"
-                assert call_kwargs["message"] == "新しい機能を実装してください"
-
-                # 新しいフォーマットで応答が返ってきていること
-                assert "タスク実行結果" in result
-                assert "元のタスク" in result
-                assert "新しい機能を実装してください" in result
-                assert "Middle Managerによる集約結果" in result
-                assert "MIDDLE MANAGER OK" in result
-                assert "Grand Boss as Executive" in result
+                    # 新しいフォーマットで応答が返ってきていること
+                    assert "タスク実行結果" in result
+                    assert "元のタスク" in result
+                    assert "新しい機能を実装してください" in result
+                    assert "Middle Managerによる集約結果" in result
+                    assert "MIDDLE MANAGER OK" in result
+                    assert "Grand Boss as Executive" in result
 
     @pytest.mark.asyncio
     async def test_middle_manager_to_specialists(
@@ -221,38 +216,35 @@ class TestPhase2AgentCommunication:
         self, mock_cluster_manager, mock_logger
     ):
         """V-203: 完全な通信フロー"""
-        # YAMLプロトコル対応: Middle ManagerのYAMLメソッドをモック
+        # YAMLプロトコル対応: GrandBossとMiddleManagerのYAMLメソッドをモック
         from unittest.mock import patch
 
         # Middle Manager → Coding Specialist → Grand Boss というフローをシミュレート
-        mock_cluster_manager.send_message = AsyncMock(
-            return_value=f"{CODING_MARKER}\n実装が完了しました"
-        )
 
-        # Middle ManagerのYAMLメソッドをモック
-        with patch.object(MiddleManagerAgent, '_write_yaml_message', new_callable=AsyncMock) as mock_write:
-            with patch.object(MiddleManagerAgent, '_wait_for_result', new_callable=AsyncMock) as mock_wait:
-                # モックの設定
-                mock_write.return_value = "msg-id-full"
-                mock_wait.return_value = f"{CODING_MARKER}\n実装が完了しました"
+        # GrandBossの_wait_for_resultをモック
+        with patch.object(GrandBossAgent, '_wait_for_result', new_callable=AsyncMock) as mock_gb_wait:
+            with patch.object(MiddleManagerAgent, '_write_yaml_message', new_callable=AsyncMock) as mock_mm_write:
+                with patch.object(MiddleManagerAgent, '_wait_for_result', new_callable=AsyncMock) as mock_mm_wait:
+                    # モックの設定
+                    mock_gb_wait.return_value = f"{CODING_MARKER}\n実装が完了しました"
+                    mock_mm_write.return_value = "msg-id-full"
+                    mock_mm_wait.return_value = f"{CODING_MARKER}\n実装が完了しました"
 
-                # Grand Boss Agentを作成
-                grand_boss = GrandBossAgent(
-                    name="grand_boss",
-                    cluster_manager=mock_cluster_manager,
-                    logger=mock_logger,
-                )
+                    # Grand Boss Agentを作成
+                    grand_boss = GrandBossAgent(
+                        name="grand_boss",
+                        cluster_manager=mock_cluster_manager,
+                        logger=mock_logger,
+                    )
 
-                # タスクを実行
-                result = await grand_boss.handle_task("新しい機能を実装してください")
+                    # タスクを実行
+                    result = await grand_boss.handle_task("新しい機能を実装してください")
 
-                # Middle Managerに送信されていること
-                mock_cluster_manager.send_message.assert_called_once()
-                call_kwargs = mock_cluster_manager.send_message.call_args.kwargs
-                assert call_kwargs["agent_name"] == "middle_manager"
+                    # GrandBossの_wait_for_resultが呼ばれたこと
+                    mock_gb_wait.assert_called_once()
 
-                # 最終的にCODING OKマーカーが返ってきていること
-                assert CODING_MARKER in result
+                    # 最終的にCODING OKマーカーが返ってきていること
+                    assert CODING_MARKER in result
 
     @pytest.mark.asyncio
     async def test_parallel_specialist_communication(
