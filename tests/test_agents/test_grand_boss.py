@@ -1,10 +1,12 @@
 """GrandBossAgentの単体テスト
 
 このモジュールでは、GrandBossAgentクラスの単体テストを実装します。
+YAMLプロトコルに対応したテストです。
 """
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
 
 import pytest
 
@@ -24,6 +26,12 @@ from orchestrator.core import (
     MessageLogger,
     MessageType,
     PaneTimeoutError,
+)
+from orchestrator.core.yaml_protocol import (
+    AgentState,
+    MessageStatus,
+    MessageType as YAMLMessageType,
+    TaskMessage,
 )
 
 
@@ -95,36 +103,38 @@ class TestGrandBossAgentInit:
 
 
 class TestGrandBossAgentHandleTask:
-    """handle_task正常系のテスト"""
+    """handle_task正常系のテスト（YAMLプロトコル対応）"""
 
     @pytest.fixture
     def mock_cluster_manager(self) -> MagicMock:
         """CCClusterManagerのモック"""
         mock = MagicMock(spec=CCClusterManager)
-        mock.send_message = AsyncMock(return_value="MIDDLE MANAGER OK\nタスクを完了しました")
         return mock
 
     @pytest.fixture
     def mock_logger(self) -> MagicMock:
         """MessageLoggerのモック"""
         mock = MagicMock(spec=MessageLogger)
-        mock.log_send = MagicMock(return_value="msg-id-1")
-        mock.log_receive = MagicMock(return_value="msg-id-2")
         return mock
 
     @pytest.fixture
     def agent(self, mock_cluster_manager, mock_logger) -> GrandBossAgent:
-        """GrandBossAgentインスタンス"""
-        return GrandBossAgent(
+        """GrandBossAgentインスタンス（YAMLメソッドをモック）"""
+        agent = GrandBossAgent(
             name="grand_boss",
             cluster_manager=mock_cluster_manager,
             logger=mock_logger,
         )
+        return agent
 
     @pytest.mark.asyncio
     async def test_handle_task_returns_response(self, agent):
         """タスク処理が成功し、応答が返されること"""
-        result = await agent.handle_task("新しい機能を実装してください")
+        # YAMLメソッドをモック
+        with patch.object(agent, '_update_status', new_callable=AsyncMock):
+            with patch.object(agent, '_write_yaml_message', new_callable=AsyncMock, return_value="msg-test-001"):
+                with patch.object(agent, '_wait_for_result', new_callable=AsyncMock, return_value="MIDDLE MANAGER OK\nタスクを完了しました"):
+                    result = await agent.handle_task("新しい機能を実装してください")
 
         # 新しいフォーマットで結果が返される
         assert "タスク実行結果" in result
@@ -135,15 +145,20 @@ class TestGrandBossAgentHandleTask:
         assert "Grand Boss as Executive" in result
 
     @pytest.mark.asyncio
-    async def test_handle_task_sends_to_middle_manager(self, agent, mock_cluster_manager):
-        """タスクがMiddle Managerに送信されること"""
-        await agent.handle_task("新しい機能を実装してください")
+    async def test_handle_task_sends_to_middle_manager(self, agent):
+        """タスクがYAMLメッセージとしてMiddle Managerに送信されること"""
+        # YAMLメソッドをモック
+        with patch.object(agent, '_update_status', new_callable=AsyncMock):
+            with patch.object(agent, '_write_yaml_message', new_callable=AsyncMock, return_value="msg-test-002") as mock_write:
+                with patch.object(agent, '_wait_for_result', new_callable=AsyncMock, return_value="OK"):
+                    await agent.handle_task("新しい機能を実装してください")
 
-        mock_cluster_manager.send_message.assert_called_once_with(
-            agent_name=MIDDLE_MANAGER_NAME,
-            message="新しい機能を実装してください",
-            timeout=DEFAULT_TASK_TIMEOUT,
-        )
+        # _write_yaml_messageが正しく呼ばれたことを確認
+        mock_write.assert_called_once()
+        call_kwargs = mock_write.call_args.kwargs
+        assert call_kwargs["to_agent"] == MIDDLE_MANAGER_NAME
+        assert call_kwargs["content"] == "新しい機能を実装してください"
+        assert call_kwargs["msg_type"] == YAMLMessageType.TASK
 
     @pytest.mark.asyncio
     async def test_handle_task_with_custom_timeout(self, mock_cluster_manager, mock_logger):
@@ -156,51 +171,47 @@ class TestGrandBossAgentHandleTask:
             default_timeout=custom_timeout,
         )
 
-        await agent.handle_task("タスク")
+        # YAMLメソッドをモック
+        with patch.object(agent, '_update_status', new_callable=AsyncMock):
+            with patch.object(agent, '_write_yaml_message', new_callable=AsyncMock, return_value="msg-test-003"):
+                with patch.object(agent, '_wait_for_result', new_callable=AsyncMock, return_value="OK") as mock_wait:
+                    await agent.handle_task("タスク")
 
-        mock_cluster_manager.send_message.assert_called_once_with(
-            agent_name=MIDDLE_MANAGER_NAME,
-            message="タスク",
-            timeout=custom_timeout,
-        )
+        # _wait_for_resultがカスタムタイムアウトで呼ばれたことを確認
+        mock_wait.assert_called_once_with("msg-test-003", timeout=custom_timeout)
 
     @pytest.mark.asyncio
-    async def test_handle_task_logs_communication(self, agent, mock_logger):
-        """通信ログが記録されること"""
-        await agent.handle_task("テストタスク")
+    async def test_handle_task_updates_status(self, agent):
+        """ステータス更新が正しく行われること"""
+        # YAMLメソッドをモック
+        with patch.object(agent, '_update_status', new_callable=AsyncMock) as mock_status:
+            with patch.object(agent, '_write_yaml_message', new_callable=AsyncMock, return_value="msg-test-004"):
+                with patch.object(agent, '_wait_for_result', new_callable=AsyncMock, return_value="OK"):
+                    await agent.handle_task("テストタスク")
 
-        # 送信ログが記録されていること
-        mock_logger.log_send.assert_called_once()
-        call_kwargs = mock_logger.log_send.call_args.kwargs
-        assert call_kwargs["from_agent"] == "grand_boss"
-        assert call_kwargs["to_agent"] == MIDDLE_MANAGER_NAME
-        assert call_kwargs["content"] == "テストタスク"
-        assert call_kwargs["msg_type"] == MessageType.TASK
-        assert call_kwargs["log_level"] == LogLevel.INFO
-
-        # 受信ログが記録されていること
-        mock_logger.log_receive.assert_called_once()
-        call_kwargs = mock_logger.log_receive.call_args.kwargs
-        assert call_kwargs["from_agent"] == MIDDLE_MANAGER_NAME
-        assert call_kwargs["to_agent"] == "grand_boss"
-        assert call_kwargs["msg_type"] == MessageType.RESULT
+        # ステータスが2回更新されることを確認（WORKING -> IDLE）
+        assert mock_status.call_count == 2
+        # 1回目はWORKING（位置引数）
+        first_call_args = mock_status.call_args_list[0].args
+        assert first_call_args[0] == AgentState.WORKING
+        # 2回目はIDLE（位置引数）
+        second_call_args = mock_status.call_args_list[1].args
+        assert second_call_args[0] == AgentState.IDLE
 
 
 class TestGrandBossAgentHandleTaskErrors:
-    """handle_task異常系のテスト"""
+    """handle_task異常系のテスト（YAMLプロトコル対応）"""
 
     @pytest.fixture
     def mock_cluster_manager(self) -> MagicMock:
         """CCClusterManagerのモック"""
         mock = MagicMock(spec=CCClusterManager)
-        mock.send_message = AsyncMock()
         return mock
 
     @pytest.fixture
     def mock_logger(self) -> MagicMock:
         """MessageLoggerのモック"""
         mock = MagicMock(spec=MessageLogger)
-        mock.log_send = MagicMock(return_value="msg-id-1")
         return mock
 
     @pytest.fixture
@@ -225,40 +236,30 @@ class TestGrandBossAgentHandleTaskErrors:
             await agent.handle_task("   ")
 
     @pytest.mark.asyncio
-    async def test_handle_task_propagates_send_error(self, agent, mock_cluster_manager):
-        """CCAgentSendErrorがそのまま再送出されること"""
-        mock_cluster_manager.send_message.side_effect = RuntimeError("送信エラー")
-
-        # 親クラスのsend_toでRuntimeErrorがCCAgentSendErrorに変換される
-        with pytest.raises(CCAgentSendError, match="メッセージ送信に失敗しました"):
-            await agent.handle_task("テストタスク")
-
-    @pytest.mark.asyncio
-    async def test_handle_task_propagates_timeout_error(self, agent, mock_cluster_manager):
-        """CCAgentTimeoutErrorがそのまま再送出されること"""
-        mock_cluster_manager.send_message.side_effect = PaneTimeoutError("タイムアウト")
-
-        # 親クラスのsend_toでPaneTimeoutErrorがCCAgentTimeoutErrorに変換される
-        with pytest.raises(CCAgentTimeoutError, match="応答がタイムアウトしました"):
-            await agent.handle_task("テストタスク")
+    async def test_handle_task_propagates_timeout_error(self, agent):
+        """_wait_for_resultのタイムアウトがTimeoutErrorとして伝播すること"""
+        # YAMLメソッドをモック
+        with patch.object(agent, '_update_status', new_callable=AsyncMock):
+            with patch.object(agent, '_write_yaml_message', new_callable=AsyncMock, return_value="msg-test-timeout"):
+                with patch.object(agent, '_wait_for_result', new_callable=AsyncMock, side_effect=TimeoutError("メッセージの結果がタイムアウトしました")):
+                    # TimeoutErrorがそのまま伝播することを確認
+                    with pytest.raises(TimeoutError, match="タイムアウトしました"):
+                        await agent.handle_task("テストタスク")
 
 
 class TestGrandBossAgentMiddleManagerCommunication:
-    """Middle Managerとの通信テスト"""
+    """Middle Managerとの通信テスト（YAMLプロトコル対応）"""
 
     @pytest.fixture
     def mock_cluster_manager(self) -> MagicMock:
         """CCClusterManagerのモック"""
         mock = MagicMock(spec=CCClusterManager)
-        mock.send_message = AsyncMock(return_value="MIDDLE MANAGER OK\n完了")
         return mock
 
     @pytest.fixture
     def mock_logger(self) -> MagicMock:
         """MessageLoggerのモック"""
         mock = MagicMock(spec=MessageLogger)
-        mock.log_send = MagicMock(return_value="msg-id-1")
-        mock.log_receive = MagicMock(return_value="msg-id-2")
         return mock
 
     @pytest.fixture
@@ -272,41 +273,48 @@ class TestGrandBossAgentMiddleManagerCommunication:
 
     @pytest.mark.asyncio
     async def test_send_to_middle_manager_success(self, agent):
-        """Middle Managerへの送信が成功すること"""
-        result = await agent.send_to(
-            to_agent=MIDDLE_MANAGER_NAME,
-            message="テストメッセージ",
-        )
+        """Middle ManagerへのYAMLメッセージ送信が成功すること"""
+        # YAMLメソッドをモック
+        with patch.object(agent, '_update_status', new_callable=AsyncMock):
+            with patch.object(agent, '_write_yaml_message', new_callable=AsyncMock, return_value="msg-test-send-001") as mock_write:
+                with patch.object(agent, '_wait_for_result', new_callable=AsyncMock, return_value="MIDDLE MANAGER OK\n完了"):
+                    result = await agent.handle_task("テストメッセージ")
 
-        assert result == "MIDDLE MANAGER OK\n完了"
+        # 結果が正しく返されることを確認
+        assert "MIDDLE MANAGER OK" in result
+        assert "完了" in result
 
     @pytest.mark.asyncio
     async def test_receive_from_middle_manager_success(self, agent):
         """Middle Managerからの応答が正しく受信されること"""
         response = "MIDDLE MANAGER OK\n実行結果: 成功"
 
-        # モックの戻り値を設定
-        agent._cluster_manager.send_message = AsyncMock(return_value=response)
+        # YAMLメソッドをモック
+        with patch.object(agent, '_update_status', new_callable=AsyncMock):
+            with patch.object(agent, '_write_yaml_message', new_callable=AsyncMock, return_value="msg-test-recv-001"):
+                with patch.object(agent, '_wait_for_result', new_callable=AsyncMock, return_value=response) as mock_wait:
+                    result = await agent.handle_task("テストタスク")
 
-        result = await agent.handle_task("テストタスク")
-
-        # 新しいフォーマットで結果が返される
+        # 新しいフォーマットで結果が返されることを確認
         assert "タスク実行結果" in result
         assert "元のタスク" in result
         assert "テストタスク" in result
         assert "Middle Managerによる集約結果" in result
-        assert response in result  # 元のレスポンスが含まれている
+        assert response in result
         assert "Grand Boss as Executive" in result
 
     @pytest.mark.asyncio
-    async def test_middle_manager_not_found_error(self, agent, mock_cluster_manager):
-        """Middle Managerが存在しない場合、CCClusterAgentNotFoundErrorが発生すること"""
-        mock_cluster_manager.send_message.side_effect = CCClusterAgentNotFoundError(
-            f"エージェント '{MIDDLE_MANAGER_NAME}' が見つかりません"
-        )
-
-        with pytest.raises(CCClusterAgentNotFoundError, match="エージェント.*が見つかりません"):
-            await agent.handle_task("テストタスク")
+    async def test_middle_manager_not_found_error(self, agent):
+        """Middle Managerが存在しない場合、適切なエラーが発生すること"""
+        # _write_yaml_messageがエラーをスローするシナリオ
+        # YAMLプロトコルでは、エージェントが見つからない場合もYAMLファイルへの書き込みは成功する
+        # そのため、ここでは_timeoutエラーをシミュレート
+        with patch.object(agent, '_update_status', new_callable=AsyncMock):
+            with patch.object(agent, '_write_yaml_message', new_callable=AsyncMock, return_value="msg-test-error-001"):
+                with patch.object(agent, '_wait_for_result', new_callable=AsyncMock, side_effect=TimeoutError("応答が返ってきません")):
+                    # 応答がない場合はタイムアウトエラー
+                    with pytest.raises(TimeoutError):
+                        await agent.handle_task("テストタスク")
 
 
 class TestGrandBossAgentConstants:
