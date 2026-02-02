@@ -313,22 +313,28 @@ class TestPhase2ErrorHandling:
     async def test_timeout_on_specialist_response(
         self, mock_cluster_manager, mock_logger
     ):
-        """Specialist応答のタイムアウト処理"""
-        # タイムアウトをシミュレート
-        mock_cluster_manager.send_message = AsyncMock(
-            side_effect=PaneTimeoutError("応答がありません")
-        )
+        """Specialist応答のタイムアウト処理
 
-        # Middle Manager Agentを作成
-        middle_manager = MiddleManagerAgent(
-            name="middle_manager",
-            cluster_manager=mock_cluster_manager,
-            logger=mock_logger,
-        )
+        Note: YAMLプロトコル導入後、_wait_for_resultをモックして
+        タイムアウトをシミュレートします。
+        """
+        from unittest.mock import patch
 
-        # CCAgentTimeoutErrorが発生すること
-        with pytest.raises(CCAgentTimeoutError, match="応答がタイムアウトしました"):
-            await middle_manager.handle_task("テストタスク")
+        # Middle Managerの_wait_for_resultをモックしてタイムアウトをシミュレート
+        with patch.object(MiddleManagerAgent, '_wait_for_result', new_callable=AsyncMock) as mock_wait:
+            # タイムアウトエラーを投げる
+            mock_wait.side_effect = TimeoutError("メッセージの結果がタイムアウトしました")
+
+            # Middle Manager Agentを作成
+            middle_manager = MiddleManagerAgent(
+                name="middle_manager",
+                cluster_manager=mock_cluster_manager,
+                logger=mock_logger,
+            )
+
+            # TimeoutErrorが発生すること
+            with pytest.raises(TimeoutError, match="タイムアウトしました"):
+                await middle_manager.handle_task("テストタスク")
 
     @pytest.mark.asyncio
     async def test_nonexistent_agent_error(
@@ -370,20 +376,26 @@ class TestPhase2ErrorHandling:
     ):
         """通信失敗のハンドリング - タイムアウト処理を検証
 
-        Note: YAMLベース通信ではクラッシュマネージャー経由の送信エラーを
-        直接シミュレートできないため、ここではタイムアウト処理を検証します。
+        Note: YAMLプロトコル導入後、_wait_for_resultをモックして
+        タイムアウトをシミュレートします。
         """
-        # Middle Manager Agentを作成（タイムアウトを短く設定）
-        middle_manager = MiddleManagerAgent(
-            name="middle_manager",
-            cluster_manager=mock_cluster_manager,
-            logger=mock_logger,
-            default_timeout=0.001,  # 非常に短いタイムアウトで必ずタイムアウトさせる
-        )
+        from unittest.mock import patch
 
-        # CCAgentTimeoutErrorが発生すること
-        with pytest.raises(CCAgentTimeoutError, match="応答がタイムアウトしました"):
-            await middle_manager.handle_task("テストタスク")
+        # Middle Managerの_wait_for_resultをモックしてタイムアウトをシミュレート
+        with patch.object(MiddleManagerAgent, '_wait_for_result', new_callable=AsyncMock) as mock_wait:
+            # タイムアウトエラーを投げる
+            mock_wait.side_effect = TimeoutError("メッセージの結果がタイムアウトしました")
+
+            # Middle Manager Agentを作成
+            middle_manager = MiddleManagerAgent(
+                name="middle_manager",
+                cluster_manager=mock_cluster_manager,
+                logger=mock_logger,
+            )
+
+            # TimeoutErrorが発生すること
+            with pytest.raises(TimeoutError, match="タイムアウトしました"):
+                await middle_manager.handle_task("テストタスク")
 
 
 # ============================================================================
@@ -415,32 +427,33 @@ class TestPhase2EndToEnd:
 
         Grand Boss → Middle Manager → Specialist
         という2段階の通信を検証します。
+
+        Note: YAMLプロトコル導入後、_wait_for_resultをモックします。
         """
-        # Middle Managerの応答をモック
-        mock_cluster_manager.send_message = AsyncMock(
-            return_value=f"{CODING_MARKER}\n実装が完了しました"
-        )
+        from unittest.mock import patch
 
-        # Grand Boss Agentを作成
-        grand_boss = GrandBossAgent(
-            name="grand_boss",
-            cluster_manager=mock_cluster_manager,
-            logger=mock_logger,
-        )
+        # GrandBossの_wait_for_resultをモック
+        with patch.object(GrandBossAgent, '_wait_for_result', new_callable=AsyncMock) as mock_gb_wait:
+            with patch.object(GrandBossAgent, '_write_yaml_message', new_callable=AsyncMock) as mock_gb_write:
+                # モックの設定
+                mock_gb_write.return_value = "msg-id-multi-hop"
+                mock_gb_wait.return_value = f"{CODING_MARKER}\n実装が完了しました"
 
-        # タスクを実行
-        result = await grand_boss.handle_task("新しい機能を実装してください")
+                # Grand Boss Agentを作成
+                grand_boss = GrandBossAgent(
+                    name="grand_boss",
+                    cluster_manager=mock_cluster_manager,
+                    logger=mock_logger,
+                )
 
-        # Grand Boss → Middle Manager の通信ログが記録されていること
-        send_calls = mock_logger.log_send.call_args_list
-        assert any(
-            call.kwargs["from_agent"] == "grand_boss"
-            and call.kwargs["to_agent"] == "middle_manager"
-            for call in send_calls
-        )
+                # タスクを実行
+                result = await grand_boss.handle_task("新しい機能を実装してください")
 
-        # 応答が返ってきていること
-        assert CODING_MARKER in result
+                # YAMLメッセージ書き込みが呼ばれたこと
+                mock_gb_write.assert_called_once()
+
+                # 応答が返ってきていること
+                assert CODING_MARKER in result
 
     @pytest.mark.asyncio
     async def test_all_specialists_respond_with_markers(
@@ -500,36 +513,36 @@ class TestPhase2EndToEnd:
     async def test_communication_logging(
         self, mock_cluster_manager, mock_logger
     ):
-        """通信ログの記録を検証"""
-        # Middle Managerの応答をモック
-        mock_cluster_manager.send_message = AsyncMock(
-            return_value="MIDDLE MANAGER OK\n完了"
-        )
+        """通信ログの記録を検証
 
-        # Grand Boss Agentを作成
-        grand_boss = GrandBossAgent(
-            name="grand_boss",
-            cluster_manager=mock_cluster_manager,
-            logger=mock_logger,
-        )
+        Note: YAMLプロトコル導入後、_wait_for_resultをモックします。
+        YAMLベース通信ではlog_send/log_receiveは使用されません。
+        代わりにYAMLメッセージの書き込みを検証します。
+        """
+        from unittest.mock import patch
 
-        # タスクを実行
-        await grand_boss.handle_task("ログ記録テスト")
+        # GrandBossの_wait_for_resultをモック
+        with patch.object(GrandBossAgent, '_wait_for_result', new_callable=AsyncMock) as mock_gb_wait:
+            with patch.object(GrandBossAgent, '_write_yaml_message', new_callable=AsyncMock) as mock_gb_write:
+                # モックの設定
+                mock_gb_write.return_value = "msg-id-logging"
+                mock_gb_wait.return_value = "MIDDLE MANAGER OK\n完了"
 
-        # 送信ログが記録されていること
-        mock_logger.log_send.assert_called_once()
-        send_kwargs = mock_logger.log_send.call_args.kwargs
-        assert send_kwargs["from_agent"] == "grand_boss"
-        assert send_kwargs["to_agent"] == "middle_manager"
-        assert send_kwargs["content"] == "ログ記録テスト"
-        assert send_kwargs["msg_type"] == MessageType.TASK
+                # Grand Boss Agentを作成
+                grand_boss = GrandBossAgent(
+                    name="grand_boss",
+                    cluster_manager=mock_cluster_manager,
+                    logger=mock_logger,
+                )
 
-        # 受信ログが記録されていること
-        mock_logger.log_receive.assert_called_once()
-        recv_kwargs = mock_logger.log_receive.call_args.kwargs
-        assert recv_kwargs["from_agent"] == "middle_manager"
-        assert recv_kwargs["to_agent"] == "grand_boss"
-        assert recv_kwargs["msg_type"] == MessageType.RESULT
+                # タスクを実行
+                await grand_boss.handle_task("ログ記録テスト")
+
+                # YAMLメッセージ書き込みが呼ばれたこと
+                mock_gb_write.assert_called_once()
+                write_kwargs = mock_gb_write.call_args.kwargs
+                assert write_kwargs["to_agent"] == "middle_manager"
+                assert write_kwargs["content"] == "ログ記録テスト"
 
 
 # ============================================================================
