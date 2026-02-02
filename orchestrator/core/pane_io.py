@@ -92,6 +92,27 @@ class PaneIO:
         # 将来の拡張用にメソッドとして分離
         return message
 
+    # ============================================================
+    # エイリアスメソッド（PjM指定名）
+    # ============================================================
+
+    def send_input(self, pane_index: int, message: str) -> None:
+        """メッセージをペインに送信します（send_messageのエイリアス）。
+
+        PjM指定のメソッド名です。send_messageと同じ機能を提供します。
+
+        Args:
+            pane_index: ペイン番号（0以上）
+            message: 送信するメッセージ文字列
+
+        Raises:
+            ValueError: pane_indexが負の値、またはmessageが空の場合
+            TmuxSessionNotFoundError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+        """
+        self.send_message(pane_index, message)
+
     async def get_response(
         self,
         pane_index: int,
@@ -218,6 +239,130 @@ class PaneIO:
 
         for pattern in prompt_patterns:
             if re.match(pattern, stripped):
+                return True
+
+        return False
+
+    # ============================================================
+    # エイリアスメソッド（PjM指定名） - 非同期
+    # ============================================================
+
+    async def get_output(
+        self,
+        pane_index: int,
+        expected_marker: str,
+        timeout: float = DEFAULT_TIMEOUT,
+        poll_interval: float = DEFAULT_POLL_INTERVAL,
+    ) -> str:
+        """合言葉（マーカー）を検出して応答を取得します（get_responseのエイリアス）。
+
+        PjM指定のメソッド名です。get_responseと同じ機能を提供します。
+
+        Args:
+            pane_index: ペイン番号（0以上）
+            expected_marker: 検出する合言葉（例: "MIDDLE MANAGER OK"）
+            timeout: タイムアウト時間（秒）、デフォルト30.0秒
+            poll_interval: ポーリング間隔（秒）、デフォルト0.5秒
+
+        Returns:
+            パースされた応答文字列（プロンプト行を除去）
+
+        Raises:
+            ValueError: pane_indexが負の値、またはexpected_markerが空の場合
+            PaneTimeoutError: タイムアウトまでに合言葉が検出されなかった場合
+            TmuxSessionNotFoundError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: tmuxコマンドがタイムアウトした場合
+        """
+        return await self.get_response(pane_index, expected_marker, timeout, poll_interval)
+
+    async def wait_for_response(
+        self,
+        pane_index: int,
+        expected_marker: str,
+        timeout: float = DEFAULT_TIMEOUT,
+        poll_interval: float = DEFAULT_POLL_INTERVAL,
+    ) -> str:
+        """合言葉（マーカー）を検出して応答を取得します（get_outputのエイリアス）。
+
+        PjM指定のメソッド名です。待機動作を強調するエイリアスです。
+        get_output/get_responseと同じ機能を提供します。
+
+        Args:
+            pane_index: ペイン番号（0以上）
+            expected_marker: 検出する合言葉（例: "MIDDLE MANAGER OK"）
+            timeout: タイムアウト時間（秒）、デフォルト30.0秒
+            poll_interval: ポーリング間隔（秒）、デフォルト0.5秒
+
+        Returns:
+            パースされた応答文字列（プロンプト行を除去）
+
+        Raises:
+            ValueError: pane_indexが負の値、またはexpected_markerが空の場合
+            PaneTimeoutError: タイムアウトまでに合言葉が検出されなかった場合
+            TmuxSessionNotFoundError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: tmuxコマンドがタイムアウトした場合
+        """
+        return await self.get_output(pane_index, expected_marker, timeout, poll_interval)
+
+    # ============================================================
+    # 新規メソッド（PjM指定）
+    # ============================================================
+
+    def clear_pane(self, pane_index: int) -> None:
+        """ペインの画面をクリアします。
+
+        tmuxのclearコマンドを送信して、ペインの画面をクリアします。
+
+        Args:
+            pane_index: ペイン番号（0以上）
+
+        Raises:
+            ValueError: pane_indexが負の値の場合
+            TmuxSessionNotFoundError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+        """
+        if pane_index < 0:
+            raise ValueError("pane_indexは0以上でなければなりません")
+
+        # clearコマンドを送信
+        self._tmux.send_keys(pane_index, "clear")
+
+    def is_ready(self, pane_index: int, prompt_char: str = ">") -> bool:
+        """ペインがコマンド受信可能な状態か確認します。
+
+        プロンプトが表示されているかを判定して、ペインが準備完了状態かを確認します。
+
+        Args:
+            pane_index: ペイン番号（0以上）
+            prompt_char: プロンプト文字（デフォルト: ">"、Claude Codeのプロンプト）
+
+        Returns:
+            プロンプトが表示されている場合True、それ以外の場合False
+
+        Raises:
+            ValueError: pane_indexが負の値の場合
+            TmuxSessionNotFoundError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+        """
+        if pane_index < 0:
+            raise ValueError("pane_indexは0以上でなければなりません")
+
+        # 現在の出力を取得
+        raw_output = self._tmux.capture_pane(
+            pane_index,
+            start_line=CAPTURE_HISTORY_LINES,
+        )
+
+        # 直近の行を確認
+        lines = raw_output.split("\n")
+        # 直近10行を確認（プロンプトは末尾付近にあるはず）
+        for line in reversed(lines[-10:]):
+            # 末尾のスペースを削除してチェック
+            if line.rstrip().endswith(prompt_char):
                 return True
 
         return False
