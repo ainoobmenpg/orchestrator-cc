@@ -25,6 +25,15 @@
 │  │  │ - エージェント管理│  │ - 通信ログ       │  │ - YAML読み │  │  │
 │  │  │ - ペイン割り当て │  │ - JSONL保存      │  │ - プロンプト│  │  │
 │  │  └──────────────────┘  └──────────────────┘  └────────────┘  │  │
+│  │                                                               │  │
+│  │  ┌──────────────────┐  ┌──────────────────┐  ┌────────────┐  │  │
+│  │  │ Cluster          │  │ Dashboard        │  │ WebSocket  │  │  │
+│  │  │ Monitor          │  │ Monitor          │  │ Manager    │  │  │
+│  │  │                  │  │                  │  │            │  │  │
+│  │  │ - 状態監視       │  │ - 統合監視       │  │ - 接続管理 │  │  │
+│  │  │ - メトリクス配信 │  │ - コールバック   │  │ - ブロード│  │  │
+│  │  │ - アラート通知   │  │   登録           │  │   キャスト │  │  │
+│  │  └──────────────────┘  └──────────────────┘  └────────────┘  │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                    │                               │
 │                                    ▼                               │
@@ -43,6 +52,14 @@
 │  │   │              │  │ "..."        │  │ "..."        │      │  │
 │  │   └──────────────┘  └──────────────┘  └──────────────┘      │  │
 │  │                                                              │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                    Web Dashboard (FastAPI)                    │  │
+│  │                                                               │  │
+│  │  REST API: /api/status, /api/metrics, /api/alerts            │  │
+│  │  WebSocket: /ws                                               │  │
+│  │  Static: /static/main.js, /static/style.css                   │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -209,6 +226,104 @@ class MessageLogger:
             content: str, msg_type: str) -> str:
         """メッセージをログに記録"""
 ```
+
+### 7. ClusterMonitor
+
+クラスタ全体の状態を監視するクラス。
+
+**責務**:
+- エージェントの状態監視（実行中、アイドル、エラーなど）
+- タスクの進捗監視
+- リソース使用状況の監視
+- アラート通知（異常検知時）
+
+**主要メソッド**:
+```python
+class ClusterMonitor:
+    def __init__(self, cluster_manager: CCClusterManager):
+        self._cluster = cluster_manager
+
+    async def start(self) -> None:
+        """監視を開始"""
+
+    async def stop(self) -> None:
+        """監視を停止"""
+
+    def get_metrics(self) -> ClusterMetrics:
+        """クラスタメトリクスを取得"""
+
+    def get_alerts(self) -> list[Alert]:
+        """アラート履歴を取得"""
+
+    def get_status_summary(self) -> dict:
+        """監視ステータスのサマリーを取得"""
+```
+
+### 8. DashboardMonitor
+
+ダッシュボード用の監視統合クラス。
+
+**責務**:
+- ClusterMonitorのラッパー
+- 定期ポーリングとイベント検知
+- WebSocket接続への状態配信
+
+**主要メソッド**:
+```python
+class DashboardMonitor:
+    def __init__(self, cluster_monitor: ClusterMonitor):
+        self._cluster_monitor = cluster_monitor
+
+    async def start_monitoring(self) -> None:
+        """監視を開始"""
+
+    async def stop_monitoring(self) -> None:
+        """監視を停止"""
+
+    def get_cluster_status(self) -> dict:
+        """クラスタのステータスを取得"""
+
+    def register_callback(self, callback) -> None:
+        """更新通知コールバックを登録"""
+```
+
+### 9. WebSocketManager
+
+WebSocket接続管理クラス。
+
+**責務**:
+- 接続の管理
+- メッセージのブロードキャスト
+
+**主要メソッド**:
+```python
+class WebSocketManager:
+    def __init__(self) -> None:
+        self._active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket) -> None:
+        """新しい接続を受け入れ"""
+
+    async def broadcast(self, message: dict) -> None:
+        """全クライアントにメッセージをブロードキャスト"""
+
+    async def send_personal(self, message: dict, websocket: WebSocket) -> None:
+        """特定のクライアントにメッセージを送信"""
+```
+
+### 10. FastAPIアプリケーション
+
+Webダッシュボードのバックエンド。
+
+**エンドポイント**:
+- `GET /` - ダッシュボードHTML
+- `GET /api/status` - クラスタ状態API
+- `GET /api/metrics` - メトリクスAPI
+- `GET /api/alerts` - アラート履歴API
+- `GET /api/agents` - エージェント一覧API
+- `POST /api/monitoring/start` - 監視開始API
+- `POST /api/monitoring/stop` - 監視停止API
+- `WebSocket /ws` - WebSocketエンドポイント
 
 ## データフロー
 

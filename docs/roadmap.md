@@ -9,7 +9,7 @@
 | **Phase 1** | 基礎プロセス起動・管理機能 | 3-5日 | ✅ 完了 | 2026-02-02 |
 | **Phase 2** | YAML通信方式の実装 | 3-5日 | ✅ 完了 | 2026-02-02 |
 | **Phase 3** | クラスタ管理・CLI拡張 | 5-7日 | ✅ 完了 | 2026-02-02 |
-| **Phase 4** | Webダッシュボード | 5-7日 | 🔄 未着手 | - |
+| **Phase 4** | Webダッシュボード | 5-7日 | ✅ 完了 | 2026-02-03 |
 
 ---
 
@@ -258,36 +258,58 @@ python -m orchestrator.cli status
 
 ---
 
-## Phase 4: Webダッシュボード 🔄 未着手
+## Phase 4: Webダッシュボード ✅ 完了 (2026-02-03)
 
 **目標**: Webブラウザ上で会話を観察できるようにする
 
 ### 実装ファイル
 
-| ファイル | 内容 | 行数見積 | 新規/再利用 |
-|---------|------|----------|-------------|
-| `orchestrator/web/dashboard.py` | Webダッシュボード（FastAPI） | 200 | 新規 |
-| `orchestrator/web/static/main.js` | フロントエンドJavaScript | 300 | 新規 |
-| `orchestrator/web/static/style.css` | スタイルシート | 150 | 新規 |
-| `orchestrator/web/templates/index.html` | HTMLテンプレート | 100 | 新規 |
-| `tests/test_web/test_dashboard.py` | ダッシュボードテスト | 100 | 新規 |
+| ファイル | 内容 | 状態 |
+|---------|------|------|
+| `orchestrator/core/cluster_monitor.py` | クラスタ監視 | ✅ 実装済 |
+| `orchestrator/web/dashboard.py` | Webダッシュボード（FastAPI） | ✅ 実装済 |
+| `orchestrator/web/message_handler.py` | WebSocketメッセージハンドラー | ✅ 実装済 |
+| `orchestrator/web/monitor.py` | ダッシュボード監視統合 | ✅ 実装済 |
+| `orchestrator/web/static/main.js` | フロントエンドJavaScript | ✅ 実装済 |
+| `orchestrator/web/static/style.css` | スタイルシート | ✅ 実装済 |
+| `orchestrator/web/templates/index.html` | HTMLテンプレート | ✅ 実装済 |
 
 ### 主要実装項目
 
-#### 1. FastAPIアプリケーション
+#### 1. ClusterMonitor（クラスタ監視）
+
+クラスタ全体の状態を監視するクラス。
+
+```python
+class ClusterMonitor:
+    def __init__(self, cluster_manager: CCClusterManager):
+        self._cluster = cluster_manager
+
+    async def start(self) -> None:
+        """監視を開始"""
+
+    async def stop(self) -> None:
+        """監視を停止"""
+
+    def get_metrics(self) -> ClusterMetrics:
+        """クラスタメトリクスを取得"""
+
+    def get_alerts(self) -> list[Alert]:
+        """アラート履歴を取得"""
+```
+
+#### 2. FastAPIアプリケーション
 
 ```python
 app = FastAPI()
 
-class ConnectionManager:
+class WebSocketManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
 
     async def broadcast(self, message: dict) -> None:
         for connection in self.active_connections:
             await connection.send_json(message)
-
-manager = ConnectionManager()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -296,16 +318,20 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            # handle message
+            await handler.handle_message(data, websocket)
     finally:
         manager.active_connections.remove(websocket)
 
 @app.get("/")
 async def get_dashboard():
     return FileResponse("orchestrator/web/templates/index.html")
+
+@app.get("/api/status")
+async def get_status():
+    return dashboard_monitor.get_cluster_status()
 ```
 
-#### 2. フロントエンド（JavaScript）
+#### 3. フロントエンド（JavaScript）
 
 ```javascript
 const ws = new WebSocket(`ws://${host}/ws`);
@@ -333,11 +359,11 @@ function displayMessage(message) {
 
 ### 完了条件
 
-- [ ] Webダッシュボードが起動できる
-- [ ] 複数インスタンスの会話がリアルタイムで見える
-- [ ] 思考ログの表示/非表示が切り替えられる
-- [ ] 過去ログを閲覧できる
-- [ ] テストがパスする
+- [x] Webダッシュボードが起動できる
+- [x] 複数インスタンスの会話がリアルタイムで見える
+- [x] 思考ログの表示/非表示が切り替えられる
+- [x] 過去ログを閲覧できる
+- [x] テストがパスする
 
 ### 検証方法
 
@@ -366,7 +392,7 @@ Phase 2 (YAML通信方式) ✅
 Phase 3 (クラスタ管理・CLI拡張) ✅
     │
     ▼
-Phase 4 (Webダッシュボード) 🔄
+Phase 4 (Webダッシュボード) ✅
 ```
 
 ---
@@ -379,7 +405,7 @@ Phase 4 (Webダッシュボード) 🔄
 | **MS-1** | Day 5 | ✅ 完了 | 2026-02-02 |
 | **MS-2** | Day 10 | ✅ 完了 | 2026-02-02 |
 | **MS-3** | Day 17 | ✅ 完了 | 2026-02-02 |
-| **MS-4** | Day 24 | 🔄 未着手 | - |
+| **MS-4** | Day 24 | ✅ 完了 | 2026-02-03 |
 
 ---
 
@@ -392,7 +418,7 @@ Phase 4 (Webダッシュボード) 🔄
 | **Phase 1** | P0 | tmuxプロセス起動はシステムの基盤 | ✅ 完了 |
 | **Phase 2** | P0 | YAML通信はシステムの中核 | ✅ 完了 |
 | **Phase 3** | P0 | クラスタ管理・CLI拡張はシステムの目的 | ✅ 完了 |
-| **Phase 4** | P1 | Webダッシュボードは便利だが必須ではない | 🔄 未着手 |
+| **Phase 4** | P1 | Webダッシュボードは便利だが必須ではない | ✅ 完了 |
 
 ---
 
@@ -404,6 +430,7 @@ Phase 4 (Webダッシュボード) 🔄
 | #38 | Phase 2関連（詳細不明） | 2026-02-02 | Phase 2 |
 | #39 | README更新（Phase 2完了後の現状に合わせた文書作成） | 2026-02-02 | Phase 2 |
 | #40 | Phase 2/3関連（詳細不明） | 2026-02-02 | Phase 2, 3 |
+| #42 | Phase 4 Webダッシュボード実装 | 2026-02-03 | Phase 4 |
 
 ---
 

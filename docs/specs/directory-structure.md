@@ -29,7 +29,14 @@ orchestrator-cc/
 │   │   ├── cc_process_launcher.py     # プロセス起動・管理
 │   │   ├── pane_io.py                 # ペイン入出力
 │   │   ├── cc_cluster_manager.py      # クラスタ管理
-│   │   └── message_logger.py          # メッセージログ
+│   │   ├── yaml_protocol.py           # YAML通信プロトコル
+│   │   ├── yaml_monitor.py            # YAMLファイル監視
+│   │   ├── task_tracker.py            # タスク追跡
+│   │   ├── notification_service.py    # 通知サービス
+│   │   ├── cluster_logger.py          # クラスタログ
+│   │   ├── message_logger.py          # メッセージログ
+│   │   ├── message_models.py          # メッセージデータモデル
+│   │   └── cluster_monitor.py         # クラスタ監視
 │   │
 │   ├── agents/                        # エージェント実装
 │   │   ├── __init__.py
@@ -41,6 +48,20 @@ orchestrator-cc/
 │   │   └── testing_specialist.py      # Testing実装
 │   │
 │   └── cli/                           # CLIコマンド
+│       ├── __init__.py
+│       ├── cc_cluster.py              # クラスタ管理CLI
+│       └── cc_agent.py                # エージェント操作CLI
+│
+│   ├── web/                           # Webダッシュボード
+│   │   ├── __init__.py
+│   │   ├── dashboard.py               # FastAPIアプリケーション
+│   │   ├── message_handler.py         # WebSocketメッセージハンドラー
+│   │   ├── monitor.py                 # ダッシュボード監視統合
+│   │   ├── static/
+│   │   │   ├── main.js                # フロントエンドJavaScript
+│   │   │   └── style.css              # スタイルシート
+│   │   └── templates/
+│   │       └── index.html             # HTMLテンプレート
 │       ├── __init__.py
 │       ├── cc_cluster.py              # クラスタ管理CLI
 │       └── cc_agent.py                # エージェント操作CLI
@@ -63,6 +84,13 @@ orchestrator-cc/
 │   │   └── test_*.py                  # 各エージェントのテスト
 │   │
 │   └── test_integration/              # 統合テスト
+│       ├── __init__.py
+│       ├── test_cluster_startup.py   # クラスタ起動テスト
+│       └── test_agent_communication.py # エージェント間通信テスト
+│
+│   ├── test_web/                      # Webダッシュボードテスト
+│   │   ├── __init__.py
+│   │   └── test_dashboard.py          # ダッシュボードテスト
 │       ├── __init__.py
 │       ├── test_cluster_startup.py   # クラスタ起動テスト
 │       └── test_agent_communication.py # エージェント間通信テスト
