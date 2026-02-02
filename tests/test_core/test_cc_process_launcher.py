@@ -233,7 +233,7 @@ class TestCCProcessLauncherStart:
     """プロセス起動のテスト"""
 
     @pytest.mark.asyncio
-    async def test_start_success(self):
+    async def test_launch_cc_in_pane_success(self):
         """正常起動でis_running()がTrueになる"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -251,15 +251,15 @@ class TestCCProcessLauncherStart:
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
             launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
-            await launcher.start()
+            await launcher.launch_cc_in_pane()
 
-            assert launcher.is_running() is True
+            assert launcher.is_process_alive() is True
             launcher._pane_io.get_response.assert_called_once_with(
                 0, "TEST OK", timeout=INITIAL_TIMEOUT, poll_interval=0.5
             )
 
     @pytest.mark.asyncio
-    async def test_start_uses_custom_poll_interval(self):
+    async def test_launch_cc_in_pane_uses_custom_poll_interval(self):
         """カスタムpoll_intervalが使用される"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -277,14 +277,14 @@ class TestCCProcessLauncherStart:
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
             launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
-            await launcher.start()
+            await launcher.launch_cc_in_pane()
 
             launcher._pane_io.get_response.assert_called_once_with(
                 0, "TEST OK", timeout=INITIAL_TIMEOUT, poll_interval=0.3
             )
 
     @pytest.mark.asyncio
-    async def test_start_waits_for_wait_time(self):
+    async def test_launch_cc_in_pane_waits_for_wait_time(self):
         """wait_timeの分だけ追加待機する"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -302,12 +302,12 @@ class TestCCProcessLauncherStart:
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
             launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
-            await launcher.start()
+            await launcher.launch_cc_in_pane()
 
-            assert launcher.is_running() is True
+            assert launcher.is_process_alive() is True
 
     @pytest.mark.asyncio
-    async def test_start_calls_send_keys(self):
+    async def test_launch_cc_in_pane_calls_send_keys(self):
         """send_keysが呼び出されることを確認"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -325,7 +325,7 @@ class TestCCProcessLauncherStart:
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
             launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
-            await launcher.start()
+            await launcher.launch_cc_in_pane()
 
             # send_keysが起動コマンドで呼ばれることを確認
             mock_tmux.send_keys.assert_called()
@@ -334,7 +334,7 @@ class TestCCProcessLauncherStart:
             assert "cd /tmp/test" in call_args[0][1]  # work_dirを含む
 
     @pytest.mark.asyncio
-    async def test_start_waits_for_marker(self):
+    async def test_launch_cc_in_pane_waits_for_marker(self):
         """マーカー待機でget_responseが呼ばれることを確認"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -351,7 +351,7 @@ class TestCCProcessLauncherStart:
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
             launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
-            await launcher.start()
+            await launcher.launch_cc_in_pane()
 
             # get_responseがマーカー付きで呼ばれることを確認
             launcher._pane_io.get_response.assert_called_once_with(
@@ -359,7 +359,7 @@ class TestCCProcessLauncherStart:
             )
 
     @pytest.mark.asyncio
-    async def test_start_sets_running_flag(self):
+    async def test_launch_cc_in_pane_sets_running_flag(self):
         """起動成功で_runningフラグがTrueになる"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -376,12 +376,12 @@ class TestCCProcessLauncherStart:
             launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
             launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
 
-            await launcher.start()
+            await launcher.launch_cc_in_pane()
 
             assert launcher._running is True
 
     @pytest.mark.asyncio
-    async def test_start_prompt_not_found_raises_error(self):
+    async def test_launch_cc_in_pane_prompt_not_found_raises_error(self):
         """プロンプトファイル不在でエラーが送出される"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -395,10 +395,10 @@ class TestCCProcessLauncherStart:
         launcher = CCProcessLauncher(config, 0, mock_tmux)
 
         with pytest.raises(CCPersonalityPromptNotFoundError):
-            await launcher.start()
+            await launcher.launch_cc_in_pane()
 
     @pytest.mark.asyncio
-    async def test_start_timeout_raises_cc_process_launch_error(self):
+    async def test_launch_cc_in_pane_timeout_raises_cc_process_launch_error(self):
         """タイムアウトでCCProcessLaunchErrorが送出される"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -418,10 +418,10 @@ class TestCCProcessLauncherStart:
             with pytest.raises(
                 CCProcessLaunchError, match="プロセスの初期化がタイムアウトしました"
             ):
-                await launcher.start()
+                await launcher.launch_cc_in_pane()
 
     @pytest.mark.asyncio
-    async def test_start_when_already_running_does_nothing(self):
+    async def test_launch_cc_in_pane_when_already_running_does_nothing(self):
         """既に実行中の場合は何もしない"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -438,7 +438,7 @@ class TestCCProcessLauncherStart:
         # 既に実行中なので何も呼ばれない
         launcher._pane_io.get_response = AsyncMock(return_value="Response")
 
-        await launcher.start()
+        await launcher.launch_cc_in_pane()
 
         # get_responseは呼ばれない
         launcher._pane_io.get_response.assert_not_called()
@@ -447,7 +447,7 @@ class TestCCProcessLauncherStart:
 class TestCCProcessLauncherIsRunning:
     """状態確認のテスト"""
 
-    def test_is_running_after_start(self):
+    def test_is_process_alive_after_start(self):
         """起動後にTrueを返す"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -461,9 +461,9 @@ class TestCCProcessLauncherIsRunning:
         launcher = CCProcessLauncher(config, 0, mock_tmux)
         launcher._running = True
 
-        assert launcher.is_running() is True
+        assert launcher.is_process_alive() is True
 
-    def test_is_running_initially(self):
+    def test_is_process_alive_initially(self):
         """初期状態でFalseを返す"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -476,9 +476,9 @@ class TestCCProcessLauncherIsRunning:
 
         launcher = CCProcessLauncher(config, 0, mock_tmux)
 
-        assert launcher.is_running() is False
+        assert launcher.is_process_alive() is False
 
-    def test_is_running_after_stop(self):
+    def test_is_process_alive_after_stop(self):
         """停止後にFalseを返す"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -493,7 +493,7 @@ class TestCCProcessLauncherIsRunning:
         launcher._running = True
         launcher._running = False
 
-        assert launcher.is_running() is False
+        assert launcher.is_process_alive() is False
 
 
 class TestCCProcessLauncherSendMessage:
@@ -608,7 +608,7 @@ class TestCCProcessLauncherStop:
     """プロセス停止のテスト"""
 
     @pytest.mark.asyncio
-    async def test_stop_success(self):
+    async def test_terminate_process_success(self):
         """正常停止でis_running()がFalseになる"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -622,13 +622,13 @@ class TestCCProcessLauncherStop:
         launcher = CCProcessLauncher(config, 0, mock_tmux)
         launcher._running = True
 
-        await launcher.stop()
+        await launcher.terminate_process()
 
-        assert launcher.is_running() is False
+        assert launcher.is_process_alive() is False
         mock_tmux.send_keys.assert_called_once_with(0, "C-c")
 
     @pytest.mark.asyncio
-    async def test_stop_sends_ctrl_c(self):
+    async def test_terminate_process_sends_ctrl_c(self):
         """Ctrl+Cが送信されることを確認"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -642,12 +642,12 @@ class TestCCProcessLauncherStop:
         launcher = CCProcessLauncher(config, 0, mock_tmux)
         launcher._running = True
 
-        await launcher.stop()
+        await launcher.terminate_process()
 
         mock_tmux.send_keys.assert_called_once_with(0, "C-c")
 
     @pytest.mark.asyncio
-    async def test_stop_when_not_running_does_nothing(self):
+    async def test_terminate_process_when_not_running_does_nothing(self):
         """未起動状態では何もしない"""
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
@@ -661,7 +661,7 @@ class TestCCProcessLauncherStop:
         launcher = CCProcessLauncher(config, 0, mock_tmux)
         launcher._running = False
 
-        await launcher.stop()
+        await launcher.terminate_process()
 
         # send_keysは呼ばれない
         mock_tmux.send_keys.assert_not_called()
@@ -924,9 +924,96 @@ class TestCCProcessLauncherWaitForPromptReady:
         ]
 
         for output, expected in test_cases:
-            def mock_capture(pane_index, start_line):
-                return output
+            def mock_capture(pane_index, start_line, out=output):
+                return out
 
             mock_tmux.capture_pane = Mock(side_effect=mock_capture)
             result = await launcher._wait_for_prompt_ready(timeout=0.5)
             assert result is expected, f"Failed for: {output!r}, expected {expected}, got {result}"
+
+
+class TestCCProcessLauncherGetAllProcessesStatus:
+    """全プロセス状態取得のテスト"""
+
+    def test_get_all_processes_status_returns_dict(self):
+        """辞書型で返ることを確認"""
+        result = CCProcessLauncher.get_all_processes_status()
+
+        assert isinstance(result, dict)
+
+    def test_get_all_processes_status_includes_registered_processes(self):
+        """登録されたプロセスが含まれることを確認"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+
+        # 複数のプロセスを作成
+        config1 = CCProcessConfig(
+            name="agent1",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST1",
+            pane_index=0,
+        )
+        config2 = CCProcessConfig(
+            name="agent2",
+            role=CCProcessRole.MIDDLE_MANAGER,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST2",
+            pane_index=1,
+        )
+
+        launcher1 = CCProcessLauncher(config1, 0, mock_tmux)
+        _ = CCProcessLauncher(config2, 1, mock_tmux)
+
+        # プロセス1を実行中に設定
+        launcher1._running = True
+
+        result = CCProcessLauncher.get_all_processes_status()
+
+        assert result["agent1"] is True
+        assert result["agent2"] is False
+
+    def test_get_all_processes_status_with_running_processes(self):
+        """実行中のプロセスの状態を正しく取得"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST",
+            pane_index=0,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._running = True
+
+        result = CCProcessLauncher.get_all_processes_status()
+
+        assert result["test_agent"] is True
+
+    def test_get_all_processes_status_after_terminate(self):
+        """終了後のプロセスがレジストリから削除されることを確認"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST",
+            pane_index=0,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._running = True
+
+        # 終了前にプロセスが含まれることを確認
+        result_before = CCProcessLauncher.get_all_processes_status()
+        assert "test_agent" in result_before
+
+        # terminate_processを呼び出す（同期メソッドとして実装）
+        launcher._running = False
+        CCProcessLauncher._process_registry.pop(config.name, None)
+
+        # 終了後にプロセスが含まれないことを確認
+        result_after = CCProcessLauncher.get_all_processes_status()
+        assert "test_agent" not in result_after

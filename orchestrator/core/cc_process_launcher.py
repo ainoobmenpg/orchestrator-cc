@@ -9,6 +9,7 @@ import shlex
 import time
 from pathlib import Path
 from typing import Final
+from weakref import WeakValueDictionary
 
 from orchestrator.core.cc_process_models import CCProcessConfig
 from orchestrator.core.pane_io import (
@@ -64,6 +65,9 @@ class CCProcessLauncher:
     各ペインでClaude Codeプロセスを起動し、性格プロンプトを適用して
     エージェントとの通信を管理します。
 
+    クラス変数:
+        _process_registry: 全プロセスの登録簿（プロセス名 -> インスタンス）
+
     Attributes:
         _config: エージェント設定
         _pane_index: tmuxペイン番号
@@ -72,6 +76,12 @@ class CCProcessLauncher:
         _running: プロセス実行中フラグ
         _restart_count: 再起動回数（TODO: auto_restart機能実装時に使用、Issue #11）
     """
+
+    # クラスレベルのプロセスレジストリ
+    # WeakValueDictionaryを使用して、インスタンスがGCされたら自動削除
+    _process_registry: WeakValueDictionary[str, "CCProcessLauncher"] = (
+        WeakValueDictionary()
+    )
 
     def __init__(
         self,
@@ -104,7 +114,10 @@ class CCProcessLauncher:
         # TODO: auto_restart機能実装時に使用 (Issue #11)
         self._restart_count: int = 0
 
-    async def start(self) -> None:
+        # プロセスレジストリに登録（同じ名前のプロセスがあれば上書き）
+        CCProcessLauncher._process_registry[config.name] = self
+
+    async def launch_cc_in_pane(self) -> None:
         """Claude Codeプロセスを起動します。
 
         性格プロンプトを読み込み、ペインでClaude Codeを起動し、
@@ -164,7 +177,7 @@ class CCProcessLauncher:
         # TODO: auto_restart機能実装時に使用 (Issue #11)
         self._restart_count = 0
 
-    def is_running(self) -> bool:
+    def is_process_alive(self) -> bool:
         """プロセスが実行中か確認します。
 
         Returns:
@@ -192,7 +205,7 @@ class CCProcessLauncher:
 
         if not self._running:
             raise CCProcessNotRunningError(
-                f"プロセス '{self._config.name}' は実行されていません。先にstart()を呼び出してください"
+                f"プロセス '{self._config.name}' は実行されていません。先にlaunch_cc_in_pane()を呼び出してください"
             )
 
         # メッセージを送信
@@ -207,7 +220,7 @@ class CCProcessLauncher:
 
         return response
 
-    async def stop(self) -> None:
+    async def terminate_process(self) -> None:
         """プロセスを停止します。
 
         ペインにCtrl+Cを送信してClaude Codeを停止します。
@@ -224,14 +237,35 @@ class CCProcessLauncher:
 
         self._running = False
 
+        # プロセスレジストリから削除
+        CCProcessLauncher._process_registry.pop(self._config.name, None)
+
+    @classmethod
+    def get_all_processes_status(cls) -> dict[str, bool]:
+        """全プロセスの状態を取得します。
+
+        Returns:
+            プロセス名 -> 生存状況 の辞書
+            例: {"grand_boss": True, "middle_manager": True, "specialist_coding": False}
+
+        Note:
+            このメソッドはクラスメソッドです。インスタンス化せずに呼び出せます。
+        """
+        return {
+            name: launcher.is_process_alive()
+            for name, launcher in cls._process_registry.items()
+        }
+
     def mark_as_running(self) -> None:
         """既存のプロセスが実行中としてマークします。
 
         すでにtmuxペインで起動しているプロセスに接続する場合に使用します。
-        connect()メソッド経由で呼び出されます。
+        このメソッドを呼び出すと、プロセスレジストリにも登録されます。
         """
         self._running = True
         self._restart_count = 0
+        # プロセスレジストリに登録
+        CCProcessLauncher._process_registry[self._config.name] = self
 
     async def _wait_for_prompt_ready(self, timeout: float = 10.0) -> bool:
         """Claude Codeのプロンプトが表示されていることを確認します。
