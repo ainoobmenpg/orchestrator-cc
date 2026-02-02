@@ -334,7 +334,7 @@ class CCAgentBase(ABC):
         Returns:
             見つかったメッセージのリスト
         """
-        messages = []
+        messages: list[TaskMessage] = []
 
         # 自分宛のメッセージファイルを探す
         queue_dir = Path("queue")

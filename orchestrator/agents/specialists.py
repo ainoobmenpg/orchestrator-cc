@@ -20,6 +20,7 @@ from orchestrator.core.yaml_protocol import (
     MessageStatus,
     MessageType as YAMLMessageType,
     TaskMessage,
+    write_message_async,
 )
 
 if TYPE_CHECKING:
@@ -453,5 +454,5 @@ class TestingSpecialist(CCAgentBase):
 
 # ResearchAnalysisSpecialistとTestingSpecialistにも同様のメソッドを追加
 for cls in [ResearchAnalysisSpecialist, TestingSpecialist]:
-    cls.check_and_process_yaml_messages = CodingWritingSpecialist.check_and_process_yaml_messages
-    cls.run_yaml_loop = CodingWritingSpecialist.run_yaml_loop
+    cls.check_and_process_yaml_messages = CodingWritingSpecialist.check_and_process_yaml_messages  # type: ignore[attr-defined]
+    cls.run_yaml_loop = CodingWritingSpecialist.run_yaml_loop  # type: ignore[attr-defined]

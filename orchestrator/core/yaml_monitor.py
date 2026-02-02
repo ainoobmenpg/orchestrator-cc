@@ -4,10 +4,12 @@
 コールバックを呼び出す機能を提供します。
 """
 
+from __future__ import annotations
+
 import asyncio
 import threading
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
 from watchdog.observers import Observer
@@ -47,7 +49,9 @@ class YAMLFileHandler(FileSystemEventHandler):
         """
         if not event.is_directory and self.filter_pattern in event.src_path:
             # コールバックが非同期か同期的かを判定
-            result = self.callback(event.src_path)
+            # event.src_pathはbytes|str型なのでstrに変換
+            path = event.src_path if isinstance(event.src_path, str) else event.src_path.decode('utf-8')
+            result = self.callback(path)
             if asyncio.iscoroutine(result):
                 # 非同期コールバックの場合はメインスレッドのイベントループで実行
                 if self._main_loop and not self._main_loop.is_closed():
@@ -86,7 +90,7 @@ class YAMLMonitor:
         self._watch_dir = Path(watch_dir)
         self._callback = callback
         self._filter_pattern = filter_pattern
-        self._observer: Observer | None = None
+        self._observer: Any = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
 
     def _get_event_loop(self) -> asyncio.AbstractEventLoop | None:
