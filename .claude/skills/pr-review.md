@@ -9,10 +9,12 @@ review
 ## 使い方
 
 ```
-/review <PR番号>
+/review <Issue番号>
 ```
 
-PR番号を省略すると、オープン中のPR一覧を表示します。
+Issue番号を省略すると、レビュー待ちのIssue一覧を表示します。
+
+**重要**: このプロジェクトではローカルの`PullRequests/`ディレクトリでレビュー管理を行います。
 
 ---
 
@@ -28,16 +30,48 @@ Read: docs/workflows/review-process.md
 Read: docs/quality/quality-management.md
 ```
 
-### ステップ2: PR情報の取得
+### ステップ2: 既存レビュードキュメントの確認
 
-引数にPR番号がある場合：
-1. `gh pr view <number> --json title,body,author,headRefName,baseRefName,files,additions,deletions` を実行
-2. `gh pr diff <number>` を実行
+まず、既存のレビュードキュメントを確認してください：
+
+```bash
+# PullRequestsディレクトリのファイル一覧を取得
+ls -la PullRequests/
+
+# 以下のパターンでファイルを探索：
+# 1. PullRequests/pr-XXXX-review.md
+# 2. PullRequests/issue-XXXX-review.md
+# 3. PullRequests/pr-XXXX-review-v2.md（再レビュー）
+# 4. PullRequests/issue-XXXX-review-v2.md（再レビュー）
+```
+
+**ファイルが存在する場合**:
+1. ファイルの内容を読み込む（`Read`ツールを使用）
+2. 以下の情報をユーザーに表示：
+   - 総合判定
+   - 要件チェック結果
+   - Critical問題
+   - 承認条件
+3. 新規作成はしない
+
+**ファイルが存在しない場合**:
+- ステップ3以降で新規作成を行う
+
+### ステップ3: ブランチ情報の取得
+
+引数にIssue番号がある場合、対応するブランチを特定します：
+
+1. `git branch -a` を実行してブランチ一覧を取得
+2. Issue番号に対応するブランチを探す（例: `issue-43`, `task-43` など）
+3. `git diff main...<branch> --stat` を実行（変更ファイルの統計）
+4. `git log main...<branch> --oneline` を実行（コミット履歴）
+5. `git diff main...<branch>` を実行（diffの取得）
 
 引数がない場合：
-1. `gh pr list` を実行してオープン中のPRを表示
+1. `git branch -a` を実行してレビュー待ちのブランチを表示
+2. 特に、`+`マークが付いている最新のブランチを提案
 
-### ステップ3: 厳格さレベルの判定
+### ステップ4: 厳格さレベルの判定
 
 PRの変更内容に応じて厳格さレベルを判定してください：
 
@@ -47,7 +81,7 @@ PRの変更内容に応じて厳格さレベルを判定してください：
 | **L2: 標準** | 通常の機能追加・バグ修正 | `feat:`, `fix:` |
 | **L3: 基礎** | ドキュメント・小さな修正 | `docs:`, 小さなtypo修正 |
 
-### ステップ4: 品質チェックの実行
+### ステップ5: 品質チェックの実行
 
 以下のコマンドを実行して品質チェックを行ってください：
 
@@ -62,9 +96,15 @@ mypy <変更ファイル>
 pytest tests/ -v
 ```
 
-### ステップ5: レビュードキュメントの作成
+### ステップ6: レビュードキュメントの作成
 
-`reviews/pr-XXXX-review.md` を作成してください。テンプレートは以下を使用してください：
+**ファイル名の優先順位**:
+1. `PullRequests/issue-XXXX-review.md`（Issue番号形式・標準）
+2. `PullRequests/pr-XXXX-review.md`（PR番号形式）
+
+Issue番号の場合は `issue-XXXX-review.md` の命名を使用してください。
+
+`PullRequests/issue-XXXX-review.md` を作成してください。テンプレートは以下を使用してください：
 
 ```markdown
 # PR #XXXX レビュー: <PRタイトル>
@@ -236,10 +276,16 @@ pytest tests/ -v
 <判断の理由を簡潔に記載>
 ```
 
-### ステップ6: GitHub PRコメントの投稿
+### ステップ7: レビュー結果の通知
 
-レビュードキュメント作成後、以下の内容でGitHub PRにコメントを投稿してください：
+レビュードキュメント作成後、レビュー結果を開発者に通知してください：
 
+**ローカルPR運用の場合**:
+- レビュードキュメント `PullRequests/issue-XXXX-review.md` に評価を記録
+- 総合判定と承認条件を明記
+- Critical問題がある場合は開発者に報告
+
+**GitHub PRがある場合**:
 ```bash
 gh pr comment <PR番号> --body "<コメント内容>"
 ```
@@ -265,7 +311,7 @@ GitHub PRコメントのテンプレート：
 
 ---
 
-詳細は `reviews/pr-XXXX-review.md` を参照してください。
+詳細は `PullRequests/issue-XXXX-review.md` を参照してください。
 
 <承認条件があれば記載。例：「これ直したらマージ可（再レビュー不要）」>
 ```
