@@ -85,6 +85,43 @@ def stop_cluster(args: argparse.Namespace) -> None:
     asyncio.run(_stop())
 
 
+def status_cluster(args: argparse.Namespace) -> None:
+    """クラスタの状態を表示します。
+
+    Args:
+        args: コマンドライン引数
+    """
+    from datetime import datetime
+
+    from orchestrator.core.cc_cluster_manager import CCClusterManager
+
+    cluster = CCClusterManager(args.config)
+    status = cluster.get_status()
+
+    print(f"\n{'='*50}")
+    print(f"クラスタ名: {status['cluster_name']}")
+    print(f"tmuxセッション: {status['session_name']}")
+    print(f"セッション状態: {'起動中' if status['session_exists'] else '停止中'}")
+    print(f"{'='*50}")
+    print("\nエージェント状態:")
+    print("-" * 50)
+
+    for agent in status["agents"]:
+        status_str = "🟢 実行中" if agent["running"] else "🔴 停止"
+        last_activity = "N/A"
+        if agent["last_activity"] > 0:
+            last_activity = datetime.fromtimestamp(agent["last_activity"]).strftime("%Y-%m-%d %H:%M:%S")
+
+        print(f"""
+  {agent['name']} ({agent['role']})
+    状態: {status_str}
+    再起動回数: {agent['restart_count']}
+    最終アクティビティ: {last_activity}
+""")
+
+    print("-" * 50)
+
+
 def main() -> None:
     """メインエントリーポイント"""
     parser = argparse.ArgumentParser(description="orchestrator-cc CLI")
@@ -115,6 +152,14 @@ def main() -> None:
         help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
     )
 
+    # statusコマンド
+    status_parser = subparsers.add_parser("status", help="クラスタの状態を表示")
+    status_parser.add_argument(
+        "--config",
+        default="config/cc-cluster.yaml",
+        help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
+    )
+
     # 引数をパース
     args = parser.parse_args()
 
@@ -125,6 +170,8 @@ def main() -> None:
         execute_task(args)
     elif args.command == "stop":
         stop_cluster(args)
+    elif args.command == "status":
+        status_cluster(args)
     else:
         parser.print_help()
         sys.exit(1)

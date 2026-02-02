@@ -218,6 +218,57 @@ class CCClusterManager:
         launcher = self.get_agent(agent_name)
         return await launcher.send_message(message, timeout=timeout)
 
+    def get_status(self) -> dict:
+        """クラスタの状態を取得します。
+
+        Returns:
+            クラスタの状態を表す辞書
+            {
+                "cluster_name": str,
+                "session_name": str,
+                "session_exists": bool,
+                "agents": [
+                    {
+                        "name": str,
+                        "role": str,
+                        "running": bool,
+                        "restart_count": int,
+                        "last_activity": float
+                    },
+                    ...
+                ]
+            }
+        """
+        session_exists = self._tmux.session_exists()
+        agents_status = []
+
+        for agent_config in self._config.agents:
+            launcher = self._launchers.get(agent_config.name)
+            if launcher:
+                agents_status.append({
+                    "name": agent_config.name,
+                    "role": agent_config.role.value,
+                    "running": launcher.is_process_alive(),
+                    "restart_count": launcher._restart_count,
+                    "last_activity": launcher._last_activity_time
+                })
+            else:
+                # ランチャーが未初期化の場合
+                agents_status.append({
+                    "name": agent_config.name,
+                    "role": agent_config.role.value,
+                    "running": False,
+                    "restart_count": 0,
+                    "last_activity": 0.0
+                })
+
+        return {
+            "cluster_name": self._config.name,
+            "session_name": self._config.session_name,
+            "session_exists": session_exists,
+            "agents": agents_status
+        }
+
     def _load_config(self, path: str) -> CCClusterConfig:
         """YAML設定ファイルを読み込みます。
 
