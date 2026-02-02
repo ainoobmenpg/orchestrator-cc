@@ -388,9 +388,9 @@ class TestMiddleManagerAgentSpecialistCommunication:
         mock_cluster_manager.send_message.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_specialist_not_found_error(self, agent, mock_cluster_manager):
-        """Specialistが存在しない場合、CCClusterAgentNotFoundErrorが発生すること"""
-        # YAMLメソッドをモック - タイムアウトをシミュレート（エージェント不在）
+    async def test_timeout_when_agent_not_responding(self, agent, mock_cluster_manager):
+        """Specialistが応答しない場合、タイムアウトエラーが発生すること"""
+        # YAMLメソッドをモック - タイムアウトをシミュレート
         with patch.object(agent, '_write_yaml_message', new_callable=AsyncMock, return_value="msg-test-error"):
             with patch.object(agent, '_wait_for_result', new_callable=AsyncMock, side_effect=TimeoutError("応答が返ってきません")):
                 # 応答がない場合はタイムアウトエラー
