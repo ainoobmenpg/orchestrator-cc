@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>orchestrator-cc Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>orchestrator-cc Dashboard</h1>
+            <span class="cluster-name" id="cluster-name">クラスタ: connecting...</span>
+        </div>
+        <div id="connection-status" class="status-disconnected">
+            <span class="status-dot"></span>
+            <span class="status-text">切断中</span>
+        </div>
+    </header>
+
+    <main>
+        <aside class="agent-panel">
+            <div class="panel-header">
+                <h2>エージェント状態</h2>
+                <button id="refresh-agents" class="btn-small" title="更新">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                        <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1-.771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+                    </svg>
+                </button>
+            </div>
+            <div id="agent-list" class="agent-list">
+                <div class="loading">エージェント情報を読み込み中...</div>
+            </div>
+        </aside>
+
+        <section class="message-panel">
+            <div class="panel-header">
+                <h2>メッセージログ</h2>
+                <div class="message-stats">
+                    <span id="message-count">0件</span>
+                </div>
+            </div>
+            <div id="messages" class="message-container"></div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="controls">
+            <label class="checkbox-label">
+                <input type="checkbox" id="show-thinking" checked>
+                <span>思考ログを表示</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="auto-scroll" checked>
+                <span>自動スクロール</span>
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="show-timestamp">
+                <span>タイムスタンプ表示</span>
+            </label>
+        </div>
+        <div class="actions">
+            <button id="clear-messages" class="btn-secondary">ログをクリア</button>
+            <button id="export-messages" class="btn-secondary">エクスポート</button>
+        </div>
+    </footer>
+
+    <!-- 接続エラー通知 -->
+    <div id="error-notification" class="notification error hidden">
+        <span class="notification-message"></span>
+        <button class="notification-close">&times;</button>
+    </div>
+
+    <!-- 再接続モーダル -->
+    <div id="reconnect-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>接続が切断されました</h3>
+            <p>サーバーへの接続が失われました。再接続を試みています...</p>
+            <div class="reconnect-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="reconnect-progress"></div>
+                </div>
+                <span class="reconnect-text" id="reconnect-text">再接続中...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/main.js"></script>
+</body>
+</html>

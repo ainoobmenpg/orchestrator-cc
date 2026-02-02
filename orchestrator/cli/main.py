@@ -5,6 +5,7 @@
 
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -122,6 +123,179 @@ def status_cluster(args: argparse.Namespace) -> None:
     print("-" * 50)
 
 
+def show_logs(args: argparse.Namespace) -> None:
+    """通信ログを表示します。
+
+    Args:
+        args: コマンドライン引数
+    """
+    from datetime import datetime
+
+    from orchestrator.core.cluster_logger import ClusterLogger, LogFilter
+
+    logger = ClusterLogger(log_file=args.log_file)
+
+    # フィルタ条件を作成
+    log_filter = LogFilter(
+        from_agent=args.from_agent,
+        to_agent=args.to_agent,
+        msg_type=args.msg_type,
+        level=args.level,
+        limit=args.limit,
+    )
+
+    if args.recent:
+        # 最近のログを取得
+        entries = logger.get_recent_logs(count=args.limit or 10)
+    else:
+        # フィルタ適用してログを取得
+        entries = logger.read_logs(log_filter)
+
+    if not entries:
+        print("ログが見つかりませんでした。")
+        return
+
+    # JSON出力モード
+    if args.json:
+        data = [
+            {
+                "timestamp": e.timestamp,
+                "id": e.id,
+                "from_agent": e.from_agent,
+                "to_agent": e.to_agent,
+                "type": e.type,
+                "content": e.content,
+                "level": e.level,
+            }
+            for e in entries
+        ]
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+        return
+
+    # 表形式出力
+    print(f"\n{'='*100}")
+    print(f"通信ログ ({len(entries)}件)")
+    print(f"{'='*100}\n")
+
+    for entry in entries:
+        # タイムスタンプを整形
+        try:
+            ts = datetime.fromisoformat(entry.timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            ts = entry.timestamp
+
+        # タイプに応じたアイコン
+        type_icons = {
+            "task": "📋",
+            "result": "✅",
+            "thought": "💭",
+            "error": "❌",
+            "info": "ℹ️",
+        }
+        icon = type_icons.get(entry.type, "📝")
+
+        print(f"{icon} [{ts}] {entry.from_agent} → {entry.to_agent} ({entry.type})")
+        print(f"   {entry.content[:100]}{'...' if len(entry.content) > 100 else ''}")
+        print()
+
+    print(f"{'='*100}")
+
+
+def show_tasks(args: argparse.Namespace) -> None:
+    """タスク一覧を表示します。
+
+    Args:
+        args: コマンドライン引数
+    """
+    from orchestrator.core.task_tracker import TaskTracker, TaskStatus
+
+    # タスク追跡インスタンスを作成
+    tracker = TaskTracker()
+
+    # 全サブタスクを取得
+    all_tasks = tracker.get_all_subtasks()
+
+    if not all_tasks:
+        print("タスクが見つかりませんでした。")
+        return
+
+    # ステータスでフィルタ
+    if args.status:
+        try:
+            filter_status = TaskStatus(args.status)
+            all_tasks = [t for t in all_tasks if t.status == filter_status]
+        except ValueError:
+            print(f"無効なステータス: {args.status}")
+            print(f"有効なステータス: {[s.value for s in TaskStatus]}")
+            return
+
+    # エージェントでフィルタ
+    if args.agent:
+        all_tasks = [t for t in all_tasks if t.assigned_to == args.agent]
+
+    if not all_tasks:
+        print("条件に一致するタスクが見つかりませんでした。")
+        return
+
+    # JSON出力モード
+    if args.json:
+        data = [
+            {
+                "id": t.id,
+                "description": t.description,
+                "assigned_to": t.assigned_to,
+                "status": t.status.value,
+                "result": t.result,
+                "created_at": t.created_at,
+                "completed_at": t.completed_at,
+            }
+            for t in all_tasks
+        ]
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+        return
+
+    # 表形式出力
+    print(f"\n{'='*100}")
+    print(f"タスク一覧 ({len(all_tasks)}件)")
+    print(f"{'='*100}\n")
+
+    # ステータス別にグループ化
+    status_order = [TaskStatus.IN_PROGRESS, TaskStatus.PENDING, TaskStatus.COMPLETED, TaskStatus.FAILED]
+    grouped: dict[TaskStatus, list] = {status: [] for status in status_order}
+
+    for task in all_tasks:
+        grouped[task.status].append(task)
+
+    for status in status_order:
+        tasks = grouped[status]
+        if not tasks:
+            continue
+
+        # ステータスに応じたアイコン
+        status_icons = {
+            TaskStatus.PENDING: "⏳",
+            TaskStatus.IN_PROGRESS: "🔄",
+            TaskStatus.COMPLETED: "✅",
+            TaskStatus.FAILED: "❌",
+        }
+        icon = status_icons[status]
+
+        print(f"{icon} {status.value.upper()} ({len(tasks)}件)")
+        print("-" * 100)
+
+        for task in tasks:
+            created = task.created_at[:19] if task.created_at else "N/A"
+            print(f"  [{task.id}] {task.description}")
+            print(f"    担当: {task.assigned_to} | 作成: {created}")
+            if task.result:
+                result_preview = task.result[:80] + "..." if len(task.result) > 80 else task.result
+                print(f"    結果: {result_preview}")
+            print()
+
+    print(f"{'='*100}")
+    print(f"\nサマリー: {tracker.get_summary()}")
+
+
 def main() -> None:
     """メインエントリーポイント"""
     parser = argparse.ArgumentParser(description="orchestrator-cc CLI")
@@ -160,6 +334,27 @@ def main() -> None:
         help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
     )
 
+    # logsコマンド
+    logs_parser = subparsers.add_parser("logs", help="通信ログを表示")
+    logs_parser.add_argument(
+        "--log-file",
+        default="messages.jsonl",
+        help="ログファイルのパス（デフォルト: messages.jsonl）",
+    )
+    logs_parser.add_argument("--from-agent", help="送信元エージェントでフィルタ")
+    logs_parser.add_argument("--to-agent", help="送信先エージェントでフィルタ")
+    logs_parser.add_argument("--msg-type", help="メッセージタイプでフィルタ（task/result/thought/error/info）")
+    logs_parser.add_argument("--level", help="ログレベルでフィルタ（DEBUG/INFO/WARNING/ERROR）")
+    logs_parser.add_argument("--limit", type=int, help="最大表示数")
+    logs_parser.add_argument("--recent", action="store_true", help="最近のログを表示")
+    logs_parser.add_argument("--json", action="store_true", help="JSON形式で出力")
+
+    # tasksコマンド
+    tasks_parser = subparsers.add_parser("tasks", help="タスク一覧を表示")
+    tasks_parser.add_argument("--status", help="ステータスでフィルタ（pending/in_progress/completed/failed）")
+    tasks_parser.add_argument("--agent", help="担当エージェントでフィルタ")
+    tasks_parser.add_argument("--json", action="store_true", help="JSON形式で出力")
+
     # 引数をパース
     args = parser.parse_args()
 
@@ -172,6 +367,10 @@ def main() -> None:
         stop_cluster(args)
     elif args.command == "status":
         status_cluster(args)
+    elif args.command == "logs":
+        show_logs(args)
+    elif args.command == "tasks":
+        show_tasks(args)
     else:
         parser.print_help()
         sys.exit(1)

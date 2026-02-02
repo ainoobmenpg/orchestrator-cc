@@ -1,0 +1,586 @@
+/**
+ * orchestrator-cc Dashboard Styles
+ *
+ * リアルタイムエージェント監視ダッシュボードのスタイル
+ */
+
+/* ============================================================================
+   CSS変数
+   ============================================================================ */
+
+:root {
+    /* カラーパレット */
+    --color-bg: #0f172a;
+    --color-bg-secondary: #1e293b;
+    --color-bg-tertiary: #334155;
+    --color-border: #475569;
+    --color-text: #e2e8f0;
+    --color-text-muted: #94a3b8;
+    --color-primary: #3b82f6;
+    --color-success: #22c55e;
+    --color-warning: #eab308;
+    --color-error: #ef4444;
+    --color-info: #06b6d4;
+
+    /* スペーシング */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --spacing-lg: 1.5rem;
+    --spacing-xl: 2rem;
+
+    /* 角丸 */
+    --radius-sm: 0.25rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+
+    /* シャドウ */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
+
+    /* トランジション */
+    --transition-fast: 150ms ease;
+    --transition-normal: 250ms ease;
+}
+
+/* ============================================================================
+   ベーススタイル
+   ============================================================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    line-height: 1.5;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ============================================================================
+   ヘッダー
+   ============================================================================ */
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    background-color: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: var(--shadow-sm);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+header h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.cluster-name {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.status-connected {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-success);
+}
+
+.status-connected .status-dot {
+    background-color: var(--color-success);
+}
+
+.status-disconnected {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-error);
+}
+
+.status-disconnected .status-dot {
+    background-color: var(--color-error);
+}
+
+.status-connecting {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-warning);
+}
+
+.status-connecting .status-dot {
+    background-color: var(--color-warning);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ============================================================================
+   メインコンテンツ
+   ============================================================================ */
+
+main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ============================================================================
+   エージェントパネル
+   ============================================================================ */
+
+.agent-panel {
+    width: 300px;
+    min-width: 250px;
+    background-color: var(--color-bg-secondary);
+    border-right: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.panel-header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.agent-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-sm);
+}
+
+.agent-card {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    background-color: var(--color-bg-tertiary);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+}
+
+.agent-card:hover {
+    background-color: var(--color-border);
+}
+
+.agent-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.agent-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.agent-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.agent-role {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.agent-status {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.loading {
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+}
+
+/* ============================================================================
+   メッセージパネル
+   ============================================================================ */
+
+.message-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg);
+}
+
+.message-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-md) var(--spacing-lg);
+}
+
+.message {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin-bottom: var(--spacing-xs);
+    background-color: var(--color-bg-secondary);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--color-border);
+    transition: background-color var(--transition-fast);
+}
+
+.message:hover {
+    background-color: var(--color-bg-tertiary);
+}
+
+.message-timestamp {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+}
+
+.message-agent {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--color-primary);
+}
+
+.message-to {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--color-info);
+}
+
+.message-arrow {
+    color: var(--color-text-muted);
+}
+
+.message-type {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.message-content {
+    flex: 1;
+    min-width: 0;
+    word-break: break-word;
+    font-size: 0.875rem;
+}
+
+.message-label {
+    font-size: 0.75rem;
+    color: var(--color-warning);
+    font-weight: 600;
+}
+
+/* 思考ログ */
+.message-thinking {
+    background-color: rgba(234, 179, 8, 0.1);
+    border-left-color: var(--color-warning);
+}
+
+.thinking-agent {
+    color: var(--color-warning);
+}
+
+/* タイプ別の色 */
+.message-task {
+    border-left-color: var(--color-primary);
+}
+
+.message-result {
+    border-left-color: var(--color-success);
+}
+
+/* ============================================================================
+   フッター
+   ============================================================================ */
+
+footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    background-color: var(--color-bg-secondary);
+    border-top: 1px solid var(--color-border);
+}
+
+.controls {
+    display: flex;
+    gap: var(--spacing-lg);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.message-stats {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+
+/* ============================================================================
+   ボタン
+   ============================================================================ */
+
+button {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+.btn-small {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.75rem;
+}
+
+.btn-secondary {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text);
+}
+
+.btn-secondary:hover {
+    background-color: var(--color-border);
+}
+
+/* ============================================================================
+   通知
+   ============================================================================ */
+
+.notification {
+    position: fixed;
+    top: var(--spacing-lg);
+    right: var(--spacing-lg);
+    max-width: 400px;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    z-index: 1000;
+}
+
+.notification.error {
+    background-color: rgba(239, 68, 68, 0.9);
+    color: white;
+}
+
+.notification.info {
+    background-color: rgba(59, 130, 246, 0.9);
+    color: white;
+}
+
+.notification.success {
+    background-color: rgba(34, 197, 94, 0.9);
+    color: white;
+}
+
+.notification-message {
+    flex: 1;
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ============================================================================
+   モーダル
+   ============================================================================ */
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal-content {
+    background-color: var(--color-bg-secondary);
+    padding: var(--spacing-xl);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    max-width: 400px;
+    width: 100%;
+    margin: var(--spacing-lg);
+}
+
+.modal-content h3 {
+    margin-bottom: var(--spacing-md);
+    font-size: 1.125rem;
+}
+
+.modal-content p {
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-lg);
+}
+
+.reconnect-progress {
+    margin-top: var(--spacing-lg);
+}
+
+.progress-bar {
+    height: 8px;
+    background-color: var(--color-bg-tertiary);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-bottom: var(--spacing-sm);
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: var(--color-primary);
+    transition: width var(--transition-normal);
+}
+
+.reconnect-text {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+}
+
+/* ============================================================================
+   スクロールバー
+   ============================================================================ */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
+}
+
+/* ============================================================================
+   レスポンシブデザイン
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    main {
+        flex-direction: column;
+    }
+
+    .agent-panel {
+        width: 100%;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    footer {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .controls {
+        flex-wrap: wrap;
+    }
+
+    .message {
+        font-size: 0.8125rem;
+    }
+}
+
+@media (max-width: 480px) {
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+
+    .message {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
