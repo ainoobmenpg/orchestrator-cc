@@ -31,3 +31,6 @@ build/
 .coverage
 htmlcov/
 .orchestrator-worktrees/
+# 実行時の状態ファイル
+queue/
+status/
