@@ -5,11 +5,15 @@ CCProcessLauncherクラスを定義します。
 """
 
 import asyncio
+import logging
 import shlex
 import time
 from pathlib import Path
 from typing import Final
 from weakref import WeakValueDictionary
+
+# ロガーの設定
+logger = logging.getLogger(__name__)
 
 from orchestrator.core.cc_process_models import CCProcessConfig
 from orchestrator.core.pane_io import (
@@ -57,6 +61,7 @@ class CCPersonalityPromptReadError(CCProcessError):
 # 定数
 INITIAL_TIMEOUT: Final[float] = 60.0  # 初期化待機のタイムアウト（秒）
 CAPTURE_HISTORY_LINES: Final[int] = -100  # キャプチャ時に取得する履歴行数
+RESTART_CHECK_INTERVAL: Final[float] = 5.0  # 再起動監視のチェック間隔（秒）
 
 
 class CCProcessLauncher:
@@ -74,7 +79,9 @@ class CCProcessLauncher:
         _tmux: TmuxSessionManagerインスタンス
         _pane_io: PaneIOインスタンス
         _running: プロセス実行中フラグ
-        _restart_count: 再起動回数（TODO: auto_restart機能実装時に使用、Issue #11）
+        _restart_count: 再起動回数
+        _monitor_task: 自動再起動監視タスク
+        _last_activity_time: 最終アクティビティ時刻
     """
 
     # クラスレベルのプロセスレジストリ
@@ -111,17 +118,21 @@ class CCProcessLauncher:
         self._tmux: TmuxSessionManager = tmux_manager
         self._pane_io: PaneIO = PaneIO(tmux_manager)
         self._running: bool = False
-        # TODO: auto_restart機能実装時に使用 (Issue #11)
         self._restart_count: int = 0
+        self._monitor_task: asyncio.Task[None] | None = None
+        self._last_activity_time: float = time.time()
 
         # プロセスレジストリに登録（同じ名前のプロセスがあれば上書き）
         CCProcessLauncher._process_registry[config.name] = self
 
-    async def launch_cc_in_pane(self) -> None:
+    async def launch_cc_in_pane(self, is_restart: bool = False) -> None:
         """Claude Codeプロセスを起動します。
 
         性格プロンプトを読み込み、ペインでClaude Codeを起動し、
         初期化完了を待機します。
+
+        Args:
+            is_restart: 再起動の場合True（再起動回数をリセットしない）
 
         Raises:
             CCPersonalityPromptNotFoundError: 性格プロンプトファイルが見つからない場合
@@ -174,8 +185,15 @@ class CCProcessLauncher:
             )
 
         self._running = True
-        # TODO: auto_restart機能実装時に使用 (Issue #11)
-        self._restart_count = 0
+        # 初期起動時のみ再起動回数をリセット（再起動時はカウントを維持）
+        if not is_restart:
+            self._restart_count = 0
+        self._last_activity_time = time.time()
+        logger.info(f"プロセス '{self._config.name}' を起動しました（ペイン: {self._pane_index}）")
+
+        # 自動再起動監視を開始（有効な場合）
+        if self._config.auto_restart:
+            self.start_auto_restart_monitor()
 
     def is_process_alive(self) -> bool:
         """プロセスが実行中か確認します。
@@ -218,6 +236,9 @@ class CCProcessLauncher:
             timeout=timeout,
         )
 
+        # アクティビティ時刻を更新
+        self._last_activity_time = time.time()
+
         return response
 
     async def terminate_process(self) -> None:
@@ -232,6 +253,15 @@ class CCProcessLauncher:
         if not self._running:
             return
 
+        # 監視タスクを停止
+        if self._monitor_task and not self._monitor_task.done():
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
+            self._monitor_task = None
+
         # Ctrl+Cを送信してプロセスを停止
         self._tmux.send_keys(self._pane_index, "C-c")
 
@@ -239,6 +269,7 @@ class CCProcessLauncher:
 
         # プロセスレジストリから削除
         CCProcessLauncher._process_registry.pop(self._config.name, None)
+        logger.info(f"プロセス '{self._config.name}' を停止しました")
 
     @classmethod
     def get_all_processes_status(cls) -> dict[str, bool]:
@@ -264,8 +295,13 @@ class CCProcessLauncher:
         """
         self._running = True
         self._restart_count = 0
+        self._last_activity_time = time.time()
         # プロセスレジストリに登録
         CCProcessLauncher._process_registry[self._config.name] = self
+
+        # 自動再起動監視を開始（有効な場合）
+        if self._config.auto_restart:
+            self.start_auto_restart_monitor()
 
     async def _wait_for_prompt_ready(self, timeout: float = 10.0) -> bool:
         """Claude Codeのプロンプトが表示されていることを確認します。
@@ -361,3 +397,134 @@ class CCProcessLauncher:
         parts.append(f"{claude_path} --dangerously-skip-permissions --system-prompt '{escaped_prompt}'")
 
         return " && ".join(parts)
+
+    # === 自動再起動機能 ===
+
+    def start_auto_restart_monitor(self) -> None:
+        """自動再起動監視を開始します。
+
+        バックグラウンドでプロセスの死活監視タスクを起動します。
+        """
+        if self._monitor_task is None or self._monitor_task.done():
+            self._monitor_task = asyncio.create_task(self._auto_restart_monitor())
+            logger.info(
+                f"プロセス '{self._config.name}' の自動再起動監視を開始しました "
+                f"(上限: {self._config.max_restarts}回)"
+            )
+
+    async def _auto_restart_monitor(self) -> None:
+        """プロセス監視ループ
+
+        定期的にプロセスの状態を確認し、クラッシュしている場合は自動的に再起動します。
+        """
+        try:
+            while self._running:
+                await asyncio.sleep(RESTART_CHECK_INTERVAL)
+
+                # プロセスの生存確認
+                if not await self._check_process_alive():
+                    logger.warning(f"プロセス '{self._config.name}' がクラッシュを検出しました")
+                    await self._attempt_restart()
+        except asyncio.CancelledError:
+            logger.debug(f"プロセス '{self._config.name}' の監視タスクがキャンセルされました")
+            raise
+
+    async def _check_process_alive(self) -> bool:
+        """プロセスが生存しているか確認します。
+
+        Returns:
+            生存している場合True、それ以外の場合False
+        """
+        try:
+            # tmuxペインのキャプチャを取得してプロセスを確認
+            raw_output = self._tmux.capture_pane(
+                self._pane_index,
+                start_line=CAPTURE_HISTORY_LINES,
+            )
+
+            # Claude Codeのプロンプトパターンを検出
+            lines = raw_output.split("\n")
+            for line in reversed(lines[-10:]):
+                if line.rstrip().endswith(">"):
+                    return True
+
+            # プロンプトが見つからない場合はクラッシュとみなす
+            return False
+        except Exception as e:
+            logger.error(f"プロセス生存確認中にエラーが発生: {e}")
+            return False
+
+    async def _attempt_restart(self) -> None:
+        """プロセスの再起動を試みます。
+
+        再起動回数の上限をチェックし、上限内であれば再起動します。
+        """
+        if not self._should_restart():
+            logger.error(
+                f"プロセス '{self._config.name}' の再起動回数が上限に達しました "
+                f"({self._restart_count}/{self._config.max_restarts})"
+            )
+            self._running = False
+            return
+
+        self._restart_count += 1
+        logger.info(
+            f"プロセス '{self._config.name}' を再起動します "
+            f"({self._restart_count}/{self._config.max_restarts}回目)"
+        )
+
+        # プロセスを停止してから再起動
+        self._running = False
+
+        try:
+            # プロセスを強制終了
+            self._tmux.send_keys(self._pane_index, "C-c")
+            await asyncio.sleep(1.0)
+
+            # プロセスを再起動（is_restart=Trueでカウントを維持）
+            await self.launch_cc_in_pane(is_restart=True)
+            logger.info(f"プロセス '{self._config.name}' の再起動が完了しました")
+        except Exception as e:
+            logger.error(f"プロセス '{self._config.name}' の再起動に失敗しました: {e}")
+            self._running = False
+
+    def _should_restart(self) -> bool:
+        """再起動すべきか判定します。
+
+        Returns:
+            再起動すべき場合True、それ以外の場合False
+        """
+        return (
+            self._config.auto_restart
+            and self._restart_count < self._config.max_restarts
+        )
+
+    async def restart_process(self) -> None:
+        """プロセスを手動で再起動します。
+
+        監視タスクを一時停止し、プロセスを強制終了してから再起動します。
+
+        Raises:
+            CCProcessLaunchError: 再起動に失敗した場合
+        """
+        logger.info(f"プロセス '{self._config.name}' を手動再起動します")
+
+        # 監視タスクを一時停止
+        if self._monitor_task and not self._monitor_task.done():
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
+            self._monitor_task = None
+
+        # プロセスを強制終了
+        self._running = False
+        self._tmux.send_keys(self._pane_index, "C-c")
+        await asyncio.sleep(1.0)
+
+        # 再起動回数をリセットして起動
+        self._restart_count = 0
+        await self.launch_cc_in_pane()
+
+        logger.info(f"プロセス '{self._config.name}' の手動再起動が完了しました")

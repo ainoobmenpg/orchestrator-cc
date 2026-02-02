@@ -3,6 +3,7 @@
 このモジュールでは、CCProcessLauncherクラスの単体テストを実装します。
 """
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -1017,3 +1018,332 @@ class TestCCProcessLauncherGetAllProcessesStatus:
         # 終了後にプロセスが含まれないことを確認
         result_after = CCProcessLauncher.get_all_processes_status()
         assert "test_agent" not in result_after
+
+
+class TestCCProcessLauncherAutoRestart:
+    """自動再起動機能のテスト (Issue #11)"""
+
+    def test_init_with_auto_restart_fields(self):
+        """初期化時にauto_restart関連フィールドが設定される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=True,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        assert launcher._restart_count == 0
+        assert launcher._monitor_task is None
+
+    def test_should_restart_with_auto_restart_enabled(self):
+        """auto_restart有効時、再起動回数未満でTrueを返す"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=True,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._restart_count = 2
+
+        assert launcher._should_restart() is True
+
+    def test_should_restart_with_count_exceeded(self):
+        """再起動回数超過時、Falseを返す"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=True,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._restart_count = 3
+
+        assert launcher._should_restart() is False
+
+    def test_should_restart_with_auto_restart_disabled(self):
+        """auto_restart無効時、Falseを返す"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=False,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._restart_count = 0
+
+        assert launcher._should_restart() is False
+
+    @pytest.mark.asyncio
+    async def test_check_process_alive_with_prompt_present(self):
+        """プロンプト存在時、Trueを返す"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        mock_tmux.capture_pane = Mock(return_value="Some output\n> ")
+
+        result = await launcher._check_process_alive()
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_check_process_alive_without_prompt(self):
+        """プロンプト不在時、Falseを返す"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        mock_tmux.capture_pane = Mock(return_value="Some output without prompt")
+
+        result = await launcher._check_process_alive()
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_attempt_restart_increases_count(self):
+        """再起動試行でrestart_countが増加する"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=True,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._running = True  # プロセスを実行中に設定
+
+        # モック設定
+        with patch.object(launcher, "_load_personality_prompt", return_value="Test"):
+            launcher._pane_io.get_response = AsyncMock(return_value="TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
+            launcher._check_process_alive = AsyncMock(return_value=False)  # プロセス死をシミュレート
+
+            initial_count = launcher._restart_count
+            await launcher._attempt_restart()
+
+            assert launcher._restart_count == initial_count + 1
+
+    @pytest.mark.asyncio
+    async def test_attempt_restart_stops_when_limit_exceeded(self):
+        """上限超過時、再起動せずrunningをFalseにする"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=True,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._restart_count = 3  # 上限に達している
+        launcher._running = True
+
+        await launcher._attempt_restart()
+
+        assert launcher._running is False
+
+    @pytest.mark.asyncio
+    async def test_restart_process_manual_restart(self):
+        """手動再起動が正しく動作する"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=True,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._running = True
+        launcher._restart_count = 2
+
+        # モック設定
+        with patch.object(launcher, "_load_personality_prompt", return_value="Test"):
+            launcher._pane_io.get_response = AsyncMock(return_value="TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
+
+            await launcher.restart_process()
+
+            # 再起動回数がリセットされる
+            assert launcher._restart_count == 0
+            # プロセスが実行中
+            assert launcher._running is True
+
+    @pytest.mark.asyncio
+    async def test_send_message_updates_activity_time(self):
+        """send_messageでアクティビティ時刻が更新される"""
+        import time
+
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._running = True
+        initial_time = launcher._last_activity_time
+
+        # 少し待機
+        await asyncio.sleep(0.1)
+
+        launcher._pane_io.send_message = Mock()
+        launcher._pane_io.get_response = AsyncMock(return_value="Test response")
+
+        await launcher.send_message("Hello")
+
+        # アクティビティ時刻が更新されている
+        assert launcher._last_activity_time > initial_time
+
+    @pytest.mark.asyncio
+    async def test_launch_starts_auto_restart_monitor(self):
+        """起動時にauto_restart監視が開始される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=True,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        # モック設定
+        with patch.object(launcher, "_load_personality_prompt", return_value="Test"):
+            launcher._pane_io.get_response = AsyncMock(return_value="TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
+
+            await launcher.launch_cc_in_pane()
+
+            # 監視タスクが作成されている
+            assert launcher._monitor_task is not None
+            assert not launcher._monitor_task.done()
+
+    @pytest.mark.asyncio
+    async def test_launch_with_auto_restart_disabled(self):
+        """auto_restart無効時、監視タスクが作成されない"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=False,  # 無効
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        # モック設定
+        with patch.object(launcher, "_load_personality_prompt", return_value="Test"):
+            launcher._pane_io.get_response = AsyncMock(return_value="TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
+
+            await launcher.launch_cc_in_pane()
+
+            # 監視タスクが作成されていない
+            assert launcher._monitor_task is None
+
+    @pytest.mark.asyncio
+    async def test_terminate_stops_auto_restart_monitor(self):
+        """停止時にauto_restart監視が停止される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=True,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        # モック設定
+        with patch.object(launcher, "_load_personality_prompt", return_value="Test"):
+            launcher._pane_io.get_response = AsyncMock(return_value="TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
+
+            await launcher.launch_cc_in_pane()
+
+            # 監視タスクが作成されている
+            monitor_task = launcher._monitor_task
+            assert monitor_task is not None
+
+            # プロセスを停止
+            await launcher.terminate_process()
+
+            # 監視タスクがクリアされている
+            assert launcher._monitor_task is None
+
+    @pytest.mark.asyncio
+    async def test_mark_as_running_starts_monitor_when_enabled(self):
+        """mark_as_runningでauto_restart有効時、監視が開始される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+            auto_restart=True,
+            max_restarts=3,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher.mark_as_running()
+
+        # 監視タスクが作成されている
+        assert launcher._monitor_task is not None
