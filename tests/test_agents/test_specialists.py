@@ -4,9 +4,10 @@
 - CodingWritingSpecialist
 - ResearchAnalysisSpecialist
 - TestingSpecialist
+
+YAMLプロトコル対応のテストです。
 """
 
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -103,7 +104,7 @@ class TestCodingWritingSpecialistHandleTask:
     def mock_cluster_manager(self) -> MagicMock:
         """CCClusterManagerのモック"""
         mock = MagicMock(spec=CCClusterManager)
-        # get_launcher()がモックランチャーを返すように設定
+        # get_launcherがモックランチャーを返すように設定
         mock_launcher = MagicMock(spec=CCProcessLauncher)
         mock_launcher.send_message = AsyncMock(
             return_value=f"{CODING_MARKER}\nタスクを完了しました"
@@ -269,7 +270,7 @@ class TestResearchAnalysisSpecialistHandleTask:
     def mock_cluster_manager(self) -> MagicMock:
         """CCClusterManagerのモック"""
         mock = MagicMock(spec=CCClusterManager)
-        # get_launcher()がモックランチャーを返すように設定
+        # get_launcherがモックランチャーを返すように設定
         mock_launcher = MagicMock(spec=CCProcessLauncher)
         mock_launcher.send_message = AsyncMock(
             return_value=f"{RESEARCH_MARKER}\nタスクを完了しました"
@@ -435,7 +436,7 @@ class TestTestingSpecialistHandleTask:
     def mock_cluster_manager(self) -> MagicMock:
         """CCClusterManagerのモック"""
         mock = MagicMock(spec=CCClusterManager)
-        # get_launcher()がモックランチャーを返すように設定
+        # get_launcherがモックランチャーを返すように設定
         mock_launcher = MagicMock(spec=CCProcessLauncher)
         mock_launcher.send_message = AsyncMock(
             return_value=f"{TESTING_MARKER}\nタスクを完了しました"
