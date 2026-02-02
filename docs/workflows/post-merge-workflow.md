@@ -4,33 +4,33 @@
 
 ---
 
+## 🔴 最重要: ローカル完結型
+
+**⚠️ 重要**: このプロジェクトでは**ローカル完結型**の開発フローを採用します。**GitHubへのプッシュ・プルは不要です。**
+
+### 方式の概要
+
+| 項目 | 従来の方式 | 本プロジェクトの方式 |
+|------|----------|-------------------|
+| リモート同期 | `git pull/push` | **不要** |
+| Issue管理 | GitHub Issue | ローカルIssue管理 |
+| ブランチ削除 | リモート・ローカル両方 | **ローカルのみ** |
+
+---
+
 ## 概要
 
-PRがマージされた後、以下の手順でブランチを整理し、関連Issueをクローズします。
+PRがマージされた後、以下の手順でブランチを整理します。
 
 ---
 
-## 1. 関連Issueのクローズ確認
-
-PRのコミットメッセージに `closes #<issue番号>` が含まれている場合、GitHubは自動的にIssueをクローズします。
-
-### 手動でクローズが必要な場合
+## 1. ローカルブランチの削除
 
 ```bash
-# Issueの状態を確認
-gh issue view <issue番号>
-
-# Issueをクローズ
-gh issue close <issue番号>
-```
-
----
-
-## 2. ローカルブランチの削除
-
-```bash
-# 作業ブランチを削除（mainに戻ってから）
+# mainブランチに戻る
 git checkout main
+
+# マージ済みブランチを削除
 git branch -d feature/your-feature-name
 
 # 強制削除（マージされていないブランチ）
@@ -39,45 +39,53 @@ git branch -D feature/your-feature-name
 
 ---
 
-## 3. リモートブランチの削除
+## 2. 作業完了の記録
+
+ローカルのレビュードキュメントにマージ完了を記録します。
 
 ```bash
-# リモートブランチを削除
-git push origin --delete feature/your-feature-name
+# レビュードキュメントに完了を記録
+echo "## マージ完了
 
-# または
-git push origin :feature/your-feature-name
+- マージ日: $(date '+%Y-%m-%d')
+- mainブランチにマージ済み
+" >> PullRequests/issue-XX-review.md
 ```
 
 ---
 
-## 4. mainブランチの最新化
-
-```bash
-git pull origin main
-```
-
----
-
-## 5. ブランチ整理の一括コマンド
+## 3. ブランチ整理の一括コマンド
 
 ```bash
 # マージ済みブランチを一括削除（ローカル）
 git branch --merged | grep -v "main\|master" | xargs git branch -d
 
-# リモートの古いブランチを一括削除
-git remote prune origin
+# 未マージブランチを確認
+git branch --no-merged
 ```
 
 ---
 
 ## マージ後チェックリスト
 
-- [ ] PRがmainブランチにマージされている
-- [ ] 関連するIssueがクローズされている（`gh issue list` で確認）
+**ローカル完結型のチェックリスト**:
+
+- [ ] PRがmainブランチにマージされている（ローカルで確認）
+- [ ] レビュードキュメントにマージ完了を記録
 - [ ] ローカルブランチが削除されている
-- [ ] リモートブランチが削除されている
-- [ ] mainブランチが最新化されている
+- [ ] **リモート操作は不要であることを確認**
+
+---
+
+## GitHubは使用しない
+
+このプロジェクトでは以下の操作は**不要**です：
+
+- ❌ `git push`
+- ❌ `git pull`
+- ❌ `git push origin --delete`
+- ❌ `gh issue close`
+- ❌ `gh pr merge`
 
 ---
 
