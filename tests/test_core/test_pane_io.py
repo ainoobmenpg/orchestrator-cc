@@ -310,3 +310,162 @@ class TestPaneIOIsPromptLine:
 
         assert pane_io._is_prompt_line("") is False
         assert pane_io._is_prompt_line("   ") is False
+
+
+# ============================================================
+# エイリアスメソッドのテスト（PjM指定名）
+# ============================================================
+
+class TestPaneIOSendInput:
+    """send_inputメソッド（send_inputエイリアス）のテスト"""
+
+    def test_send_input_success(self):
+        """send_inputがsend_messageと同じ動作をする"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        pane_io = PaneIO(mock_tmux)
+
+        pane_io.send_input(0, "test message")
+
+        mock_tmux.send_keys.assert_called_once_with(0, "test message")
+
+    def test_send_input_with_unicode(self):
+        """Unicode文字を含むメッセージが正常に送信される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        pane_io = PaneIO(mock_tmux)
+
+        unicode_message = "test with 日本語"
+        pane_io.send_input(0, unicode_message)
+
+        mock_tmux.send_keys.assert_called_once_with(0, unicode_message)
+
+    def test_send_input_empty_message_raises_value_error(self):
+        """空文字列でValueErrorが送出される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        pane_io = PaneIO(mock_tmux)
+
+        with pytest.raises(ValueError, match="messageは空であってはなりません"):
+            pane_io.send_input(0, "")
+
+
+class TestPaneIOGetOutput:
+    """get_outputメソッド（get_responseエイリアス）のテスト"""
+
+    @pytest.mark.asyncio
+    async def test_get_output_success(self):
+        """get_outputがget_responseと同じ動作をする"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        mock_tmux.capture_pane.return_value = "Response content\nMARKER\n"
+        pane_io = PaneIO(mock_tmux)
+
+        response = await pane_io.get_output(0, "MARKER", timeout=1.0)
+
+        assert isinstance(response, str)
+        assert "MARKER" not in response
+
+    @pytest.mark.asyncio
+    async def test_get_output_with_timeout(self):
+        """タイムアウト指定でPaneTimeoutErrorが送出される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        mock_tmux.capture_pane.return_value = "waiting...\n"
+        pane_io = PaneIO(mock_tmux)
+
+        with pytest.raises(PaneTimeoutError, match="合言葉.*タイムアウト"):
+            await pane_io.get_output(0, "MARKER", timeout=0.5)
+
+
+class TestPaneIOWaitForResponse:
+    """wait_for_responseメソッド（get_outputエイリアス）のテスト"""
+
+    @pytest.mark.asyncio
+    async def test_wait_for_response_success(self):
+        """wait_for_responseがget_responseと同じ動作をする"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        mock_tmux.capture_pane.return_value = "Response content\nMARKER\n"
+        pane_io = PaneIO(mock_tmux)
+
+        response = await pane_io.wait_for_response(0, "MARKER", timeout=1.0)
+
+        assert isinstance(response, str)
+        assert "MARKER" not in response
+
+    @pytest.mark.asyncio
+    async def test_wait_for_response_polling(self):
+        """ポーリング動作で合言葉検出が成功する"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        mock_tmux.capture_pane.side_effect = [
+            "waiting...\n",
+            "waiting...\n",
+            "Response here\nMARKER\n",
+        ]
+        pane_io = PaneIO(mock_tmux)
+
+        response = await pane_io.wait_for_response(0, "MARKER", timeout=2.0)
+
+        assert "Response here" in response
+
+
+# ============================================================
+# 新規メソッドのテスト（PjM指定）
+# ============================================================
+
+class TestPaneIOClearPane:
+    """clear_paneメソッドのテスト"""
+
+    def test_clear_pane_success(self):
+        """clear_paneがclearコマンドを送信する"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        pane_io = PaneIO(mock_tmux)
+
+        pane_io.clear_pane(0)
+
+        mock_tmux.send_keys.assert_called_once_with(0, "clear")
+
+    def test_clear_pane_invalid_pane_index_raises_value_error(self):
+        """負のペインインデックスでValueErrorが送出される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        pane_io = PaneIO(mock_tmux)
+
+        with pytest.raises(ValueError, match="pane_indexは0以上"):
+            pane_io.clear_pane(-1)
+
+
+class TestPaneIOIsReady:
+    """is_readyメソッドのテスト"""
+
+    def test_is_ready_with_prompt(self):
+        """プロンプトが表示されている場合Trueを返す"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        mock_tmux.capture_pane.return_value = "user@host:~$ \n> "
+        pane_io = PaneIO(mock_tmux)
+
+        result = pane_io.is_ready(0)
+
+        assert result is True
+
+    def test_is_ready_without_prompt(self):
+        """プロンプトが表示されていない場合Falseを返す"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        mock_tmux.capture_pane.return_value = "processing...\nstill working...\n"
+        pane_io = PaneIO(mock_tmux)
+
+        result = pane_io.is_ready(0)
+
+        assert result is False
+
+    def test_is_ready_with_custom_prompt_char(self):
+        """カスタムプロンプト文字で判定する"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        mock_tmux.capture_pane.return_value = "user@host:~$ \n$ "
+        pane_io = PaneIO(mock_tmux)
+
+        result = pane_io.is_ready(0, prompt_char="$")
+
+        assert result is True
+
+    def test_is_ready_invalid_pane_index_raises_value_error(self):
+        """負のペインインデックスでValueErrorが送出される"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        pane_io = PaneIO(mock_tmux)
+
+        with pytest.raises(ValueError, match="pane_indexは0以上"):
+            pane_io.is_ready(-1)
