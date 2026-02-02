@@ -7,7 +7,7 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from orchestrator.agents.cc_agent_base import CCAgentBase
+from orchestrator.agents.cc_agent_base import CCAgentBase, CCAgentTimeoutError
 from orchestrator.core.yaml_protocol import (
     AgentState,
     MessageStatus,
@@ -214,7 +214,7 @@ class MiddleManagerAgent(CCAgentBase):
             結果の内容
 
         Raises:
-            TimeoutError: タイムアウトした場合
+            CCAgentTimeoutError: タイムアウトした場合
         """
         start_time = asyncio.get_event_loop().time()
 
@@ -228,7 +228,10 @@ class MiddleManagerAgent(CCAgentBase):
 
             await asyncio.sleep(YAML_POLL_INTERVAL)
 
-        raise TimeoutError(f"メッセージ {msg_id} の結果がタイムアウトしました")
+        raise CCAgentTimeoutError(
+            f"エージェントからの応答がタイムアウトしました "
+            f"(timeout={timeout}秒, msg_id={msg_id})"
+        )
 
     async def check_and_process_yaml_messages(self) -> None:
         """YAMLメッセージを確認して処理します。
