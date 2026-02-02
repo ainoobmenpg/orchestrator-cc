@@ -274,6 +274,42 @@ class TmuxSessionManager:
 
         return output
 
+    def send_tmux_key(self, pane_index: int, key: str) -> None:
+        """tmuxキーをペインに送信します。
+
+        send_keys() とは異なり、文字列入力ではなく制御キーを送信します。
+
+        Args:
+            pane_index: ペイン番号（0以上）
+            key: tmuxキー（例: "C-c", "C-d", "Enter"）
+
+        Raises:
+            ValueError: pane_indexが負の値、またはkeyが空の場合
+            TmuxSessionNotFoundError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+            TmuxTimeoutError: コマンドがタイムアウトした場合
+        """
+        if pane_index < 0:
+            raise ValueError("pane_indexは0以上でなければなりません")
+
+        if not key:
+            raise ValueError("keyは空であってはなりません")
+
+        if not self.session_exists():
+            raise TmuxSessionNotFoundError(f"セッション '{self._session_name}' が存在しません")
+
+        target = f"{self._session_name}:{self._window_index}.{pane_index}"
+
+        # tmux send-keys -t {target} {key} （-l なしでキーとして送信）
+        self._run_tmux_command(
+            [
+                "send-keys",
+                "-t",
+                target,
+                key,
+            ]
+        )
+
     def get_pane_count(self) -> int:
         """現在のペイン数を取得します。
 

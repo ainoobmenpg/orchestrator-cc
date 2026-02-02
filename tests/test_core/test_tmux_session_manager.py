@@ -205,6 +205,60 @@ class TestTmuxSessionManagerSendKeys:
                 manager.kill_session()
 
 
+class TestTmuxSessionManagerSendTmuxKey:
+    """tmuxキー送信のテスト（制御キーなど）"""
+
+    def test_send_tmux_key_ctrl_c(self):
+        """Ctrl+Cキー送信が成功する"""
+        manager = TmuxSessionManager("test-send-ctrl-c")
+        try:
+            manager.create_session()
+            # 例外が送出されなければ成功
+            manager.send_tmux_key(0, "C-c")
+        finally:
+            if manager.session_exists():
+                manager.kill_session()
+
+    def test_send_tmux_key_enter(self):
+        """Enterキー送信が成功する"""
+        manager = TmuxSessionManager("test-send-enter")
+        try:
+            manager.create_session()
+            # 例外が送出されなければ成功
+            manager.send_tmux_key(0, "Enter")
+        finally:
+            if manager.session_exists():
+                manager.kill_session()
+
+    def test_send_tmux_key_invalid_pane_index(self):
+        """負のインデックスでValueErrorが送出される"""
+        manager = TmuxSessionManager("test-invalid-index-tmux-key")
+        try:
+            manager.create_session()
+            with pytest.raises(ValueError, match="pane_indexは0以上でなければなりません"):
+                manager.send_tmux_key(-1, "C-c")
+        finally:
+            if manager.session_exists():
+                manager.kill_session()
+
+    def test_send_tmux_key_empty_key(self):
+        """空のキーでValueErrorが送出される"""
+        manager = TmuxSessionManager("test-empty-key")
+        try:
+            manager.create_session()
+            with pytest.raises(ValueError, match="keyは空であってはなりません"):
+                manager.send_tmux_key(0, "")
+        finally:
+            if manager.session_exists():
+                manager.kill_session()
+
+    def test_send_tmux_key_session_not_exists(self):
+        """セッションがない場合TmuxSessionNotFoundErrorが送出される"""
+        manager = TmuxSessionManager("test-no-session-tmux-key")
+        with pytest.raises(TmuxSessionNotFoundError, match="が存在しません"):
+            manager.send_tmux_key(0, "C-c")
+
+
 class TestTmuxSessionManagerCapturePane:
     """出力キャプチャのテスト"""
 

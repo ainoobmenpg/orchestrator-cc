@@ -1,8 +1,8 @@
-content: '実装に関連するタスク: 新しい機能を実装してください'
+content: 一般的なタスク
 from: middle_manager
-id: msg-b6f1f3c1
+id: msg-5a565165
 metadata: {}
 status: pending
-timestamp: '2026-02-02T08:52:20.342533'
+timestamp: '2026-02-03T07:45:47.815420'
 to: specialist_coding_writing
 type: task

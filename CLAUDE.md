@@ -24,7 +24,7 @@ git checkout -b feature/<task-name>
 
 ### ルール2: レビュー対応時のフロー
 
-レビュー対応時は、必ず `reviews/pr-XXXX-review.md` を先頭から最後まで読んでください。
+レビュー対応時は、必ず `PullRequests/pr-XXXX-review.md` を先頭から最後まで読んでください。
 
 ---
 

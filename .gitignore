@@ -24,7 +24,7 @@ build/
 # プロジェクト固有
 /tmp/orchestrator-cc/
 *.log
-/reviews/
+/PullRequests/
 /.claude/skills/
 
 # テストカバレッジ

@@ -229,6 +229,71 @@ class TestCCClusterManagerLoadConfig:
         assert manager._config.agents[0].wait_time == 5.0
         assert manager._config.agents[0].poll_interval == 0.5
 
+    def test_load_config_resolves_relative_paths_from_config_dir(self, tmp_path):
+        """相対パスがconfigファイル基準で解決されることを確認"""
+        # config ディレクトリ内に personalities サブディレクトリを作成
+        personalities_dir = tmp_path / "personalities"
+        personalities_dir.mkdir()
+        prompt_file = personalities_dir / "test.txt"
+        prompt_file.write_text("Test prompt", encoding="utf-8")
+
+        config_data = {
+            "cluster": {
+                "name": "test-cluster",
+                "session_name": "test-session",
+                "work_dir": "/tmp/test",
+            },
+            "agents": [
+                {
+                    "name": "agent1",
+                    "role": "grand_boss",
+                    "personality_prompt_path": "personalities/test.txt",  # 相対パス
+                    "marker": "OK",
+                    "pane_index": 0,
+                }
+            ],
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_data, f)
+
+        manager = CCClusterManager(str(config_file))
+
+        # 相対パスが絶対パスに解決されていることを確認
+        expected_path = str(personalities_dir.resolve() / "test.txt")
+        assert manager._config.agents[0].personality_prompt_path == expected_path
+
+    def test_load_config_keeps_absolute_paths_unchanged(self, tmp_path):
+        """絶対パスがそのまま保持されることを確認"""
+        # 別の場所にプロンプトファイルを作成
+        prompt_file = tmp_path / "absolute_prompt.txt"
+        prompt_file.write_text("Test prompt", encoding="utf-8")
+
+        config_data = {
+            "cluster": {
+                "name": "test-cluster",
+                "session_name": "test-session",
+                "work_dir": "/tmp/test",
+            },
+            "agents": [
+                {
+                    "name": "agent1",
+                    "role": "grand_boss",
+                    "personality_prompt_path": str(prompt_file),  # 絶対パス
+                    "marker": "OK",
+                    "pane_index": 0,
+                }
+            ],
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.dump(config_data, f)
+
+        manager = CCClusterManager(str(config_file))
+
+        # 絶対パスがそのまま保持されていることを確認
+        assert manager._config.agents[0].personality_prompt_path == str(prompt_file.resolve())
+
 
 class TestCCClusterManagerStart:
     """クラスタ起動のテスト"""

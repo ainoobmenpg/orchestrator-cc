@@ -329,10 +329,14 @@ class TestCCProcessLauncherStart:
             await launcher.launch_cc_in_pane()
 
             # send_keysが起動コマンドで呼ばれることを確認
+            # call_args_listを使って全ての呼び出しを確認
             mock_tmux.send_keys.assert_called()
-            call_args = mock_tmux.send_keys.call_args
-            assert call_args[0][0] == 0  # pane_index
-            assert "cd /tmp/test" in call_args[0][1]  # work_dirを含む
+            all_calls = mock_tmux.send_keys.call_args_list
+            # 最初の呼び出しは起動コマンド（cd && claude --system-prompt ...）
+            first_call = all_calls[0]
+            assert first_call[0][0] == 0  # pane_index
+            assert "cd /tmp/test" in first_call[0][1]  # work_dirを含む
+            assert "--system-prompt" in first_call[0][1]  # claudeコマンドを含む
 
     @pytest.mark.asyncio
     async def test_launch_cc_in_pane_waits_for_marker(self):
@@ -626,7 +630,7 @@ class TestCCProcessLauncherStop:
         await launcher.terminate_process()
 
         assert launcher.is_process_alive() is False
-        mock_tmux.send_keys.assert_called_once_with(0, "C-c")
+        mock_tmux.send_tmux_key.assert_called_once_with(0, "C-c")
 
     @pytest.mark.asyncio
     async def test_terminate_process_sends_ctrl_c(self):
@@ -645,7 +649,7 @@ class TestCCProcessLauncherStop:
 
         await launcher.terminate_process()
 
-        mock_tmux.send_keys.assert_called_once_with(0, "C-c")
+        mock_tmux.send_tmux_key.assert_called_once_with(0, "C-c")
 
     @pytest.mark.asyncio
     async def test_terminate_process_when_not_running_does_nothing(self):
@@ -664,8 +668,55 @@ class TestCCProcessLauncherStop:
 
         await launcher.terminate_process()
 
-        # send_keysは呼ばれない
-        mock_tmux.send_keys.assert_not_called()
+        # send_tmux_keyは呼ばれない
+        mock_tmux.send_tmux_key.assert_not_called()
+
+
+class TestCCProcessLauncherStartStopAliases:
+    """start()およびstop()エイリアスメソッドのテスト"""
+
+    @pytest.mark.asyncio
+    async def test_start_alias_calls_launch_cc_in_pane(self):
+        """start()がlaunch_cc_in_pane()を呼び出すことを確認"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+
+        # モック設定
+        with patch.object(launcher, "_load_personality_prompt", return_value="Test prompt"):
+            launcher._pane_io.get_response = AsyncMock(return_value="Response with TEST OK")
+            launcher._wait_for_prompt_ready = AsyncMock(return_value=True)
+
+            await launcher.start()
+
+            assert launcher.is_process_alive() is True
+
+    @pytest.mark.asyncio
+    async def test_stop_alias_calls_terminate_process(self):
+        """stop()がterminate_process()を呼び出すことを確認"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        launcher._running = True
+
+        await launcher.stop()
+
+        assert launcher.is_process_alive() is False
+        mock_tmux.send_tmux_key.assert_called_once_with(0, "C-c")
 
 
 class TestCCProcessLauncherBuildCommand:
@@ -918,10 +969,13 @@ class TestCCProcessLauncherWaitForPromptReady:
 
         # 様々なプロンプトパターンをテスト
         test_cases = [
-            ("Some text\n> ", True),           # 行末にプロンプト
-            ("Line 1\nLine 2\n> ", True),      # 複数行後にプロンプト
+            ("Some text\n> ", True),           # 行末にプロンプト（従来）
+            ("Line 1\nLine 2\n> ", True),      # 複数行後にプロンプト（従来）
             ("No prompt here", False),         # プロンプトなし
-            ("Prompt with spaces:  >  ", True),  # スペース付きプロンプト
+            ("Prompt with spaces:  >  ", True),  # スペース付きプロンプト（従来）
+            ("Claude Code prompt\n❯ ", True),  # Claude Codeのプロンプト
+            ("Line 1\nLine 2\n❯ ", True),     # 複数行後のClaude Codeプロンプト
+            ("Prompt with spaces:  ❯  ", True),  # スペース付きClaude Codeプロンプト
         ]
 
         for output, expected in test_cases:
@@ -1134,6 +1188,25 @@ class TestCCProcessLauncherAutoRestart:
         assert result is False
 
     @pytest.mark.asyncio
+    async def test_check_process_alive_with_claude_code_prompt(self):
+        """Claude Codeのプロンプト「❯」が検出されることを確認"""
+        mock_tmux = Mock(spec=TmuxSessionManager)
+        config = CCProcessConfig(
+            name="test_agent",
+            role=CCProcessRole.GRAND_BOSS,
+            personality_prompt_path="config/personalities/test.txt",
+            marker="TEST OK",
+            pane_index=0,
+        )
+
+        launcher = CCProcessLauncher(config, 0, mock_tmux)
+        mock_tmux.capture_pane = Mock(return_value="Some output\n❯ ")
+
+        result = await launcher._check_process_alive()
+
+        assert result is True
+
+    @pytest.mark.asyncio
     async def test_attempt_restart_increases_count(self):
         """再起動試行でrestart_countが増加する"""
         mock_tmux = Mock(spec=TmuxSessionManager)
@@ -1216,8 +1289,6 @@ class TestCCProcessLauncherAutoRestart:
     @pytest.mark.asyncio
     async def test_send_message_updates_activity_time(self):
         """send_messageでアクティビティ時刻が更新される"""
-        import time
-
         mock_tmux = Mock(spec=TmuxSessionManager)
         config = CCProcessConfig(
             name="test_agent",

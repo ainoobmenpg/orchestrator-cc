@@ -284,6 +284,9 @@ class CCClusterManager:
         """
         config_file = Path(path)
 
+        # config ファイルのディレクトリを基準ディレクトリとして取得
+        config_dir = config_file.parent.resolve()
+
         # ファイルの存在を確認
         if not config_file.exists():
             raise FileNotFoundError(f"設定ファイルが見つかりません: {path}")
@@ -356,6 +359,12 @@ class CCClusterManager:
                 raise CCClusterConfigError(
                     f"無効な役割が指定されました: {role_str}"
                 ) from e
+
+            # 相対パスの場合は config ファイル基準で絶対パス化
+            prompt_path = Path(personality_path)
+            if not prompt_path.is_absolute():
+                prompt_path = (config_dir / personality_path).resolve()
+            personality_path = str(prompt_path)
 
             # オプションフィールドの取得
             wait_time = float(agent_data.get("wait_time", 5.0))
