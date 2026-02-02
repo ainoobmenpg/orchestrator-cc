@@ -96,22 +96,26 @@ class CCClusterManager:
             try:
                 self._tmux.create_session()
                 # 最初のペインはセッション作成時に自動的に作成される
-                # 5つのペインを作成するため、適切な分割パターンを使用
-                # ┌─────┬─────┐
-                # │  0  │  1  │
-                # ├─────┼─────┤
-                # │  2  │  3  │
-                # ├─────┴─────┤
-                # │     4      │
-                # └───────────┘
-                # 垂直分割で2つに
-                self._tmux.create_pane(split="h")  # Pane 1
-                # 左側を上下分割
-                self._tmux.create_pane(split="v", target_pane=0)  # Pane 2
-                # 右側を上下分割
-                self._tmux.create_pane(split="v", target_pane=1)  # Pane 3
-                # 下部を左右統合して1つのペインに
-                self._tmux.create_pane(split="v", target_pane=2)  # Pane 4
+                # 5つのペインをシンプルな分割パターンで作成
+                # ┌───┬───┐
+                # │ 0 │ 1 │
+                # ├───┼───┤
+                # │ 2 │ 3 │
+                # ├───┴───┤
+                # │   4   │
+                # └───────┘
+
+                # 水平分割でPane 1を作成
+                self._tmux.create_pane(split="h")  # → [0|1]
+
+                # Pane 0を垂直分割してPane 2を作成
+                self._tmux.create_pane(split="v", target_pane=0)  # → [2|1]
+
+                # Pane 1を垂直分割してPane 3を作成
+                self._tmux.create_pane(split="v", target_pane=1)  # → [2|3]
+
+                # Pane 3を水平分割してPane 4を作成
+                self._tmux.create_pane(split="v", target_pane=3)  # → [2|4]
             except TmuxError as e:
                 raise CCClusterConfigError(
                     f"セッションの作成に失敗しました: {e}"
@@ -123,7 +127,7 @@ class CCClusterManager:
                 agent_config, agent_config.pane_index, self._tmux
             )
             self._launchers[agent_config.name] = launcher
-            await launcher.start()
+            await launcher.launch_cc_in_pane()
 
     def connect(self) -> None:
         """既存のtmuxセッションに接続してランチャーを初期化します。
@@ -161,7 +165,7 @@ class CCClusterManager:
         # 起動と逆順で停止
         for agent_config in reversed(self._config.agents):
             if agent_config.name in self._launchers:
-                await self._launchers[agent_config.name].stop()
+                await self._launchers[agent_config.name].terminate_process()
 
     def get_agent(self, name: str) -> CCProcessLauncher:
         """指定されたエージェントを取得します。

@@ -159,30 +159,23 @@ class CCProcessLauncher:
         except TmuxSessionNotFoundError as e:
             raise CCProcessLaunchError(f"セッションが存在しません: {e}") from e
 
-        # 初期化完了マーカーを待機
+        # Enterキーを押してコマンドを実行
         try:
-            # 空のメッセージを送信してプロンプトを表示（初期化完了確認）
-            # 実際にはClaude Codeの起動を待ってから最初のメッセージを送る
-            await self._pane_io.get_response(
-                self._pane_index,
-                self._config.marker,
-                timeout=INITIAL_TIMEOUT,
-                poll_interval=self._config.poll_interval,
-            )
-        except PaneTimeoutError as e:
-            raise CCProcessLaunchError(
-                f"プロセスの初期化がタイムアウトしました "
-                f"(marker={self._config.marker}, timeout={INITIAL_TIMEOUT}秒)"
-            ) from e
+            self._tmux.send_keys(self._pane_index, "Enter")
+        except TmuxSessionNotFoundError as e:
+            raise CCProcessLaunchError(f"セッションが存在しません: {e}") from e
 
-        # 起動後の追加待機（Claude Codeの完全な初期化を待つ）
-        await asyncio.sleep(self._config.wait_time)
+        # Claude Code起動待機（起動コマンド実行後の初期化時間）
+        await asyncio.sleep(12.0)
 
-        # プロンプト準備完了を確認
-        if not await self._wait_for_prompt_ready(timeout=10.0):
+        # プロンプト準備完了を確認（Claude Codeが起動してプロンプトが表示されているか）
+        if not await self._wait_for_prompt_ready(timeout=60.0):
             raise CCProcessLaunchError(
                 f"プロセス '{self._config.name}' のプロンプト起動を確認できませんでした"
             )
+
+        # 起動後の追加待機（Claude Codeの完全な初期化を待つ）
+        await asyncio.sleep(self._config.wait_time)
 
         self._running = True
         # 初期起動時のみ再起動回数をリセット（再起動時はカウントを維持）
@@ -292,6 +285,8 @@ class CCProcessLauncher:
 
         すでにtmuxペインで起動しているプロセスに接続する場合に使用します。
         このメソッドを呼び出すと、プロセスレジストリにも登録されます。
+
+        Note: 自動再起動監視は開始しません。接続先のプロセスは既に実行中と仮定します。
         """
         self._running = True
         self._restart_count = 0
@@ -299,9 +294,7 @@ class CCProcessLauncher:
         # プロセスレジストリに登録
         CCProcessLauncher._process_registry[self._config.name] = self
 
-        # 自動再起動監視を開始（有効な場合）
-        if self._config.auto_restart:
-            self.start_auto_restart_monitor()
+        # Note: 自動再起動監視は開始しません（connect()メソッドから呼ばれる場合）
 
     async def _wait_for_prompt_ready(self, timeout: float = 10.0) -> bool:
         """Claude Codeのプロンプトが表示されていることを確認します。
@@ -325,7 +318,9 @@ class CCProcessLauncher:
             # 直近10行を確認
             for line in reversed(lines[-10:]):
                 # 末尾のスペースを削除してチェック
-                if line.rstrip().endswith(">"):
+                # Claude Code v2.xのプロンプトは ❯ で始まる
+                stripped = line.strip()
+                if stripped.endswith(">") or "❯" in stripped:
                     return True
 
             await asyncio.sleep(self._config.poll_interval)
@@ -445,7 +440,9 @@ class CCProcessLauncher:
             # Claude Codeのプロンプトパターンを検出
             lines = raw_output.split("\n")
             for line in reversed(lines[-10:]):
-                if line.rstrip().endswith(">"):
+                # Claude Code v2.xのプロンプトは ❯ で始まる
+                stripped = line.strip()
+                if stripped.endswith(">") or "❯" in stripped:
                     return True
 
             # プロンプトが見つからない場合はクラッシュとみなす
