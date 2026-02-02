@@ -5,15 +5,13 @@ CCProcessLauncherクラスを定義します。
 """
 
 import asyncio
+import contextlib
 import logging
 import shlex
 import time
 from pathlib import Path
 from typing import Final
 from weakref import WeakValueDictionary
-
-# ロガーの設定
-logger = logging.getLogger(__name__)
 
 from orchestrator.core.cc_process_models import CCProcessConfig
 from orchestrator.core.pane_io import (
@@ -25,6 +23,9 @@ from orchestrator.core.tmux_session_manager import (
     TmuxSessionManager,
     TmuxSessionNotFoundError,
 )
+
+# ロガーの設定
+logger = logging.getLogger(__name__)
 
 
 # 例外クラス
@@ -62,6 +63,7 @@ class CCPersonalityPromptReadError(CCProcessError):
 INITIAL_TIMEOUT: Final[float] = 60.0  # 初期化待機のタイムアウト（秒）
 CAPTURE_HISTORY_LINES: Final[int] = -100  # キャプチャ時に取得する履歴行数
 RESTART_CHECK_INTERVAL: Final[float] = 5.0  # 再起動監視のチェック間隔（秒）
+PROMPT_CHARS: Final[tuple[str, ...]] = (">", "❯")  # プロンプト文字のリスト
 
 
 class CCProcessLauncher:
@@ -161,8 +163,12 @@ class CCProcessLauncher:
 
         # 初期化完了マーカーを待機
         try:
-            # 空のメッセージを送信してプロンプトを表示（初期化完了確認）
-            # 実際にはClaude Codeの起動を待ってから最初のメッセージを送る
+            # Claude Code の起動を待つ（短い待機）
+            await asyncio.sleep(2.0)
+
+            # 起動確認 ping を送って marker を回収
+            self._pane_io.send_message(self._pane_index, "起動確認。指示どおりマーカーを含めて一言返答してください。")
+
             await self._pane_io.get_response(
                 self._pane_index,
                 self._config.marker,
@@ -194,6 +200,20 @@ class CCProcessLauncher:
         # 自動再起動監視を開始（有効な場合）
         if self._config.auto_restart:
             self.start_auto_restart_monitor()
+
+    async def start(self) -> None:
+        """プロセスを起動します（launch_cc_in_paneのエイリアス）。
+
+        CCClusterManagerとのAPI整合性のために提供されます。
+        """
+        await self.launch_cc_in_pane()
+
+    async def stop(self) -> None:
+        """プロセスを停止します（terminate_processのエイリアス）。
+
+        CCClusterManagerとのAPI整合性のために提供されます。
+        """
+        await self.terminate_process()
 
     def is_process_alive(self) -> bool:
         """プロセスが実行中か確認します。
@@ -256,14 +276,12 @@ class CCProcessLauncher:
         # 監視タスクを停止
         if self._monitor_task and not self._monitor_task.done():
             self._monitor_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass
             self._monitor_task = None
 
         # Ctrl+Cを送信してプロセスを停止
-        self._tmux.send_keys(self._pane_index, "C-c")
+        self._tmux.send_tmux_key(self._pane_index, "C-c")
 
         self._running = False
 
@@ -325,7 +343,8 @@ class CCProcessLauncher:
             # 直近10行を確認
             for line in reversed(lines[-10:]):
                 # 末尾のスペースを削除してチェック
-                if line.rstrip().endswith(">"):
+                tail = line.rstrip()
+                if any(tail.endswith(char) for char in PROMPT_CHARS):
                     return True
 
             await asyncio.sleep(self._config.poll_interval)
@@ -445,7 +464,8 @@ class CCProcessLauncher:
             # Claude Codeのプロンプトパターンを検出
             lines = raw_output.split("\n")
             for line in reversed(lines[-10:]):
-                if line.rstrip().endswith(">"):
+                tail = line.rstrip()
+                if any(tail.endswith(char) for char in PROMPT_CHARS):
                     return True
 
             # プロンプトが見つからない場合はクラッシュとみなす
@@ -478,7 +498,7 @@ class CCProcessLauncher:
 
         try:
             # プロセスを強制終了
-            self._tmux.send_keys(self._pane_index, "C-c")
+            self._tmux.send_tmux_key(self._pane_index, "C-c")
             await asyncio.sleep(1.0)
 
             # プロセスを再起動（is_restart=Trueでカウントを維持）
@@ -512,15 +532,13 @@ class CCProcessLauncher:
         # 監視タスクを一時停止
         if self._monitor_task and not self._monitor_task.done():
             self._monitor_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass
             self._monitor_task = None
 
         # プロセスを強制終了
         self._running = False
-        self._tmux.send_keys(self._pane_index, "C-c")
+        self._tmux.send_tmux_key(self._pane_index, "C-c")
         await asyncio.sleep(1.0)
 
         # 再起動回数をリセットして起動
