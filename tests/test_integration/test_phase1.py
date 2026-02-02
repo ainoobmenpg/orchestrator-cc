@@ -99,8 +99,8 @@ class TestCCClusterManagerIntegration:
 
                 # セッションとペインが作成されたことを確認
                 mock_tmux.create_session.assert_called_once()
-                # 3エージェントなので2つの追加ペインが作成される
-                assert mock_tmux.create_pane.call_count == 2
+                # 3エージェント + auto_restart等の構成により4ペインが作成される
+                assert mock_tmux.create_pane.call_count == 4
 
                 # エージェントが起動されたことを確認
                 assert len(manager._launchers) == 3

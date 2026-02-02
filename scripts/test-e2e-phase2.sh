@@ -5,8 +5,11 @@
 
 set -euo pipefail
 
-# カレントディレクトリをスクリプトの場所に移動
-cd "$(dirname "$0")/../.."
+# カレントディレクトリをプロジェクトルートに移動
+# Git worktree環境にも対応
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && git rev-parse --show-toplevel 2>/dev/null || echo "$SCRIPT_DIR/..")"
+cd "$PROJECT_ROOT"
 
 # 色の定義
 RED='\033[0;31m'
@@ -32,8 +35,8 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# セッション名
-SESSION_NAME="orchestrator-cc-test"
+# セッション名（config/cc-cluster.yamlと一致させる）
+SESSION_NAME="orchestrator-cc"
 
 # クリーンアップ関数
 cleanup() {

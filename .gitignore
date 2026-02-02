@@ -30,3 +30,4 @@ build/
 # テストカバレッジ
 .coverage
 htmlcov/
+.orchestrator-worktrees/
