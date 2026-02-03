@@ -351,6 +351,13 @@ async def restart_cluster():
         return {"error": "Cluster manager not initialized"}
 
     try:
+        # システムログを配信
+        if _ws_manager:
+            await _ws_manager.broadcast({
+                "type": "cluster_event",
+                "event": "cluster_restart_start",
+            })
+
         # 監視を一時停止
         monitoring_was_running = (
             _dashboard_monitor is not None and _dashboard_monitor.is_running()
@@ -365,9 +372,23 @@ async def restart_cluster():
         if monitoring_was_running and _dashboard_monitor:
             await _dashboard_monitor.start_monitoring()
 
+        # システムログを配信（成功）
+        if _ws_manager:
+            await _ws_manager.broadcast({
+                "type": "cluster_event",
+                "event": "cluster_restart_complete",
+            })
+
         return {"message": "Cluster restarted successfully"}
     except Exception as e:
         logger.error(f"Cluster restart error: {e}")
+        # システムログを配信（失敗）
+        if _ws_manager:
+            await _ws_manager.broadcast({
+                "type": "cluster_event",
+                "event": "cluster_restart_failed",
+                "data": {"error": str(e)},
+            })
         return {"error": f"Failed to restart cluster: {str(e)}"}
 
 
@@ -384,6 +405,13 @@ async def shutdown_cluster():
         return {"error": "Cluster manager not initialized"}
 
     try:
+        # システムログを配信
+        if _ws_manager:
+            await _ws_manager.broadcast({
+                "type": "cluster_event",
+                "event": "cluster_stop",
+            })
+
         # 監視を停止
         if _dashboard_monitor is not None and _dashboard_monitor.is_running():
             await _dashboard_monitor.stop_monitoring()
@@ -430,6 +458,31 @@ async def websocket_endpoint(
             },
             websocket
         )
+
+        # 初期システムログを送信
+        await _ws_manager.send_personal(
+            {
+                "type": "system_log",
+                "timestamp": None,
+                "level": "info",
+                "content": "ダッシュボードに接続しました",
+            },
+            websocket
+        )
+
+        # クラスタ状態をログに追加
+        if _cluster_manager:
+            status = _cluster_manager.get_status()
+            running_agents = sum(1 for a in status.get("agents", []) if a.get("running"))
+            await _ws_manager.send_personal(
+                {
+                    "type": "system_log",
+                    "timestamp": None,
+                    "level": "info",
+                    "content": f"クラスタ状態: {status.get('cluster_name', 'unknown')} (エージェント: {running_agents}/{len(status.get('agents', []))} 実行中)",
+                },
+                websocket
+            )
 
         # メッセージ受信ループ
         while True:
