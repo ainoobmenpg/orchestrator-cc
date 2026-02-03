@@ -47,7 +47,7 @@ class CCProcessConfig:
     pane_index: int
     work_dir: str = "/tmp/orchestrator-cc"
     claude_path: str = "claude"
-    auto_restart: bool = True
+    auto_restart: bool = False
     max_restarts: int = 3
     wait_time: float = 5.0
     poll_interval: float = 0.5
