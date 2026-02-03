@@ -18,7 +18,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from orchestrator.core.cc_cluster_manager import CCClusterManager
+from orchestrator.core.cc_cluster_manager import (
+    CCClusterManager,
+    CCClusterConfigError,
+)
 from orchestrator.core.cluster_monitor import ClusterMonitor
 from orchestrator.web.message_handler import WebSocketManager, WebSocketMessageHandler
 from orchestrator.web.monitor import DashboardMonitor, MonitorUpdate
@@ -103,6 +106,14 @@ def initialize(
 
     # クラスタマネージャーを初期化
     _cluster_manager = CCClusterManager(config_path)
+
+    # 既存のクラスタに接続（自動再起動は無効化）
+    try:
+        _cluster_manager.connect(auto_restart=False)
+        logger.info("既存のクラスタに接続しました")
+    except CCClusterConfigError as e:
+        logger.warning(f"既存のクラスタへの接続に失敗しました: {e}")
+        # 接続失敗しても続行（ダッシュボード単体で動作可能）
 
     # クラスタ監視を初期化
     _cluster_monitor = ClusterMonitor(_cluster_manager)

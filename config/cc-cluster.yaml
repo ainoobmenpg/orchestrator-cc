@@ -8,30 +8,30 @@ cluster:
 agents:
   - name: "grand_boss"
     role: "grand_boss"
-    personality_prompt_path: "config/personalities/grand_boss.txt"
+    personality_prompt_path: "personalities/grand_boss.txt"
     marker: "GRAND BOSS OK"
     pane_index: 0
 
   - name: "middle_manager"
     role: "middle_manager"
-    personality_prompt_path: "config/personalities/middle_manager.txt"
+    personality_prompt_path: "personalities/middle_manager.txt"
     marker: "MIDDLE MANAGER OK"
     pane_index: 1
 
   - name: "coding_writing_specialist"
     role: "specialist_coding_writing"
-    personality_prompt_path: "config/personalities/coding_writing_specialist.txt"
+    personality_prompt_path: "personalities/coding_writing_specialist.txt"
     marker: "CODING OK"
     pane_index: 2
 
   - name: "research_analysis_specialist"
     role: "specialist_research_analysis"
-    personality_prompt_path: "config/personalities/research_analysis_specialist.txt"
+    personality_prompt_path: "personalities/research_analysis_specialist.txt"
     marker: "RESEARCH OK"
     pane_index: 3
 
   - name: "testing_specialist"
     role: "specialist_testing"
-    personality_prompt_path: "config/personalities/testing_specialist.txt"
+    personality_prompt_path: "personalities/testing_specialist.txt"
     marker: "TESTING OK"
     pane_index: 4

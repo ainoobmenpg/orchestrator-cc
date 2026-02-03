@@ -127,7 +127,7 @@ class DashboardClient {
 
     async fetchAgents() {
         try {
-            const response = await fetch(`${CONFIG.apiUrl}/status`);
+            const response = await fetch(`${CONFIG.apiUrl}/agents`);
             if (response.ok) {
                 const data = await response.json();
                 handleAgentsMessage({ type: 'agents', agents: data.agents || [] });
@@ -501,46 +501,80 @@ function hideConfirmModal() {
 }
 
 async function restartCluster() {
+    // 確認モーダルを表示
     showConfirmModal(
         'クラスタ再起動',
         'クラスタを再起動します。よろしいですか？',
         async () => {
+            const btn = document.getElementById('restart-cluster');
+            const originalContent = btn.innerHTML;
+
+            // ボタンを無効化してスピナー表示
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span><span>再起動中...</span>';
+
             try {
                 const response = await fetch(`${CONFIG.apiUrl}/cluster/restart`, {
                     method: 'POST',
                 });
                 const data = await response.json();
+
                 if (data.error) {
                     showNotification(data.error, 'error');
                 } else {
                     showNotification(data.message || 'クラスタを再起動しました', 'success');
+                    // エージェント状態を更新
+                    if (dashboardClient) {
+                        setTimeout(() => dashboardClient.fetchAgents(), 2000);
+                    }
                 }
             } catch (error) {
                 showNotification('クラスタの再起動に失敗しました', 'error');
                 console.error('Restart error:', error);
+            } finally {
+                // ボタンを元に戻す
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
             }
         }
     );
 }
 
 async function shutdownCluster() {
+    // 確認モーダルを表示
     showConfirmModal(
         'クラスタ停止',
         'クラスタを完全に停止します。この操作は取り消せません。よろしいですか？',
         async () => {
+            const btn = document.getElementById('shutdown-cluster');
+            const originalContent = btn.innerHTML;
+
+            // ボタンを無効化してスピナー表示
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span><span>停止中...</span>';
+
             try {
                 const response = await fetch(`${CONFIG.apiUrl}/cluster/shutdown`, {
                     method: 'POST',
                 });
                 const data = await response.json();
+
                 if (data.error) {
                     showNotification(data.error, 'error');
                 } else {
                     showNotification(data.message || 'クラスタを停止しました', 'success');
+                    // エージェント状態を更新
+                    if (dashboardClient) {
+                        setTimeout(() => dashboardClient.fetchAgents(), 1000);
+                    }
                 }
             } catch (error) {
                 showNotification('クラスタの停止に失敗しました', 'error');
                 console.error('Shutdown error:', error);
+            } finally {
+                // ボタンを元に戻す
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
             }
         }
     );
