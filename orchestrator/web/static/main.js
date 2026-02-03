@@ -30,6 +30,7 @@ const state = {
     isAutoScroll: true,
     showThinking: true,
     showTimestamp: false,
+    pendingConfirm: null,
 };
 
 // ============================================================================
@@ -464,6 +465,87 @@ function hideReconnectModal() {
     modal.classList.add('hidden');
 }
 
+function showConfirmModal(title, message, onConfirm) {
+    const modal = document.getElementById('confirm-modal');
+    const titleEl = document.getElementById('confirm-title');
+    const messageEl = document.getElementById('confirm-message');
+    const okBtn = document.getElementById('confirm-ok');
+    const cancelBtn = document.getElementById('confirm-cancel');
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+
+    state.pendingConfirm = onConfirm;
+
+    modal.classList.remove('hidden');
+
+    // ボタンハンドラーを設定
+    okBtn.onclick = () => {
+        modal.classList.add('hidden');
+        if (state.pendingConfirm) {
+            state.pendingConfirm();
+            state.pendingConfirm = null;
+        }
+    };
+
+    cancelBtn.onclick = () => {
+        modal.classList.add('hidden');
+        state.pendingConfirm = null;
+    };
+}
+
+function hideConfirmModal() {
+    const modal = document.getElementById('confirm-modal');
+    modal.classList.add('hidden');
+    state.pendingConfirm = null;
+}
+
+async function restartCluster() {
+    showConfirmModal(
+        'クラスタ再起動',
+        'クラスタを再起動します。よろしいですか？',
+        async () => {
+            try {
+                const response = await fetch(`${CONFIG.apiUrl}/cluster/restart`, {
+                    method: 'POST',
+                });
+                const data = await response.json();
+                if (data.error) {
+                    showNotification(data.error, 'error');
+                } else {
+                    showNotification(data.message || 'クラスタを再起動しました', 'success');
+                }
+            } catch (error) {
+                showNotification('クラスタの再起動に失敗しました', 'error');
+                console.error('Restart error:', error);
+            }
+        }
+    );
+}
+
+async function shutdownCluster() {
+    showConfirmModal(
+        'クラスタ停止',
+        'クラスタを完全に停止します。この操作は取り消せません。よろしいですか？',
+        async () => {
+            try {
+                const response = await fetch(`${CONFIG.apiUrl}/cluster/shutdown`, {
+                    method: 'POST',
+                });
+                const data = await response.json();
+                if (data.error) {
+                    showNotification(data.error, 'error');
+                } else {
+                    showNotification(data.message || 'クラスタを停止しました', 'success');
+                }
+            } catch (error) {
+                showNotification('クラスタの停止に失敗しました', 'error');
+                console.error('Shutdown error:', error);
+            }
+        }
+    );
+}
+
 // ============================================================================
 // イベントリスナー
 // ============================================================================
@@ -515,6 +597,12 @@ function setupEventListeners() {
     document.getElementById('refresh-agents').addEventListener('click', () => {
         dashboardClient.fetchAgents();
     });
+
+    // クラスタ再起動
+    document.getElementById('restart-cluster').addEventListener('click', restartCluster);
+
+    // クラスト停止
+    document.getElementById('shutdown-cluster').addEventListener('click', shutdownCluster);
 
     // 通知を閉じる
     document.querySelector('.notification-close').addEventListener('click', hideNotification);
