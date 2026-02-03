@@ -361,12 +361,8 @@ class CCProcessLauncher:
             CCPersonalityPromptNotFoundError: ファイルが見つからない場合
             CCPersonalityPromptReadError: ファイル読み込みに失敗した場合
         """
+        # personality_prompt_path は cc_cluster_manager.py で既に絶対パス化されている
         prompt_path = Path(self._config.personality_prompt_path)
-
-        # 相対パスの場合はプロジェクトルートからのパスとして解決
-        if not prompt_path.is_absolute():
-            # カレントワーキングディレクトリを基準に解決
-            prompt_path = Path.cwd() / self._config.personality_prompt_path
 
         # ファイルの存在を確認
         if not prompt_path.exists():
