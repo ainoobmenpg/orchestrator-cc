@@ -34,12 +34,12 @@ for i in $(seq 1 $MAX_ITERATIONS); do
         SESSION_EXISTS=$(tmux list-sessions 2>&1 | grep -c orchestrator-cc || true)
         SESSION_EXISTS=${SESSION_EXISTS:-0}
         if [ "$SESSION_EXISTS" -gt 0 ]; then
-            # 各エージェントの応答を確認
-            PANE_0_CNT=$(tmux capture-pane -t orchestrator-cc:0.0 -p 2>/dev/null | grep -c "GRAND BOSS OK" || true)
-            PANE_1_CNT=$(tmux capture-pane -t orchestrator-cc:0.1 -p 2>/dev/null | grep -c "MIDDLE MANAGER OK" || true)
-            PANE_2_CNT=$(tmux capture-pane -t orchestrator-cc:0.2 -p 2>/dev/null | grep -c "CODING OK" || true)
-            PANE_3_CNT=$(tmux capture-pane -t orchestrator-cc:0.3 -p 2>/dev/null | grep -c "RESEARCH OK" || true)
-            PANE_4_CNT=$(tmux capture-pane -t orchestrator-cc:0.4 -p 2>/dev/null | grep -c "TESTING OK" || true)
+            # 各エージェントの応答を確認（履歴全体を取得）
+            PANE_0_CNT=$(tmux capture-pane -t orchestrator-cc:0.0 -p -S - 2>/dev/null | grep -c "GRAND BOSS OK" || true)
+            PANE_1_CNT=$(tmux capture-pane -t orchestrator-cc:0.1 -p -S - 2>/dev/null | grep -c "MIDDLE MANAGER OK" || true)
+            PANE_2_CNT=$(tmux capture-pane -t orchestrator-cc:0.2 -p -S - 2>/dev/null | grep -c "CODING OK" || true)
+            PANE_3_CNT=$(tmux capture-pane -t orchestrator-cc:0.3 -p -S - 2>/dev/null | grep -c "RESEARCH OK" || true)
+            PANE_4_CNT=$(tmux capture-pane -t orchestrator-cc:0.4 -p -S - 2>/dev/null | grep -c "TESTING OK" || true)
 
             PANE_0_OK=${PANE_0_CNT:-0}
             PANE_1_OK=${PANE_1_CNT:-0}
