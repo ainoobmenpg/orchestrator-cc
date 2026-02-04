@@ -3,7 +3,9 @@
 cluster:
   name: "orchestrator-cc"
   session_name: "orchestrator-cc"
-  work_dir: ".>"
+  # work_dir は環境変数 ORCHESTRATOR_WORK_DIR で上書き可能
+  # デフォルトは現在のディレクトリ
+  work_dir: "."
 
 agents:
   - name: "grand_boss"

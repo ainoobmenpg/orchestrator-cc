@@ -21,6 +21,17 @@ build/
 *~
 .DS_Store
 
+# シークレット/機密情報
+.env
+.env.local
+.env.production
+*.key
+*.pem
+*.cert
+*.credential
+id_rsa*
+secrets/
+
 # プロジェクト固有
 /tmp/orchestrator-cc/
 *.log
