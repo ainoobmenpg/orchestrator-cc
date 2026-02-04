@@ -8,6 +8,7 @@
 |----|------|--------|----------|--------|
 | #43 | クラスタ起動プロセスの複数の致命的問題の修正 | P0 | Open | [issue-043-cluster-startup-fixes.md](issue-043-cluster-startup-fixes.md) |
 | #44 | Webダッシュボードからクラスタの再起動・シャットダウン機能を追加 | P1 | Open | [issue-044-dashboard-cluster-controls.md](issue-044-dashboard-cluster-controls.md) |
+| #45 | Rustへの移行可能性調査 | P2 | Open | [issue-045-rust-migration-feasibility.md](issue-045-rust-migration-feasibility.md) |
 
 ---
 
@@ -22,3 +23,4 @@
 ## Issue 作成日
 
 - 2026-02-02: Issue #43, #44 作成
+- 2026-02-04: Issue #45 作成
