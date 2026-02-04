@@ -13,10 +13,11 @@ from orchestrator.agents.cc_agent_base import (
 from orchestrator.core.yaml_protocol import (
     AgentState,
     MessageStatus,
-    MessageType as YAMLMessageType,
-    TaskMessage,
     read_message_async,
     write_message_async,
+)
+from orchestrator.core.yaml_protocol import (
+    MessageType as YAMLMessageType,
 )
 
 if TYPE_CHECKING:

@@ -8,7 +8,6 @@ from typing import Final
 
 from orchestrator.core.tmux_session_manager import TmuxSessionManager
 
-
 # 定数
 DEFAULT_NOTIFY_MESSAGE: Final[str] = "/check-yaml"  # YAMLチェックを促すコマンド
 

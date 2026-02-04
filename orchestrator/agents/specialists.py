@@ -18,8 +18,9 @@ from orchestrator.core.pane_io import PaneTimeoutError
 from orchestrator.core.yaml_protocol import (
     AgentState,
     MessageStatus,
+)
+from orchestrator.core.yaml_protocol import (
     MessageType as YAMLMessageType,
-    TaskMessage,
 )
 
 if TYPE_CHECKING:

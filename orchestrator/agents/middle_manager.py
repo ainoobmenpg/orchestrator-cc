@@ -8,14 +8,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from orchestrator.agents.cc_agent_base import CCAgentBase, CCAgentTimeoutError
+from orchestrator.core.task_tracker import TaskStatus, TaskTracker
 from orchestrator.core.yaml_protocol import (
     AgentState,
     MessageStatus,
-    MessageType as YAMLMessageType,
-    TaskMessage,
     read_message_async,
 )
-from orchestrator.core.task_tracker import TaskTracker, TaskStatus
+from orchestrator.core.yaml_protocol import (
+    MessageType as YAMLMessageType,
+)
 
 if TYPE_CHECKING:
     from orchestrator.core.cc_cluster_manager import CCClusterManager
@@ -299,7 +300,7 @@ class MiddleManagerAgent(CCAgentBase):
 
         # どのSpecialistにもマッチしない場合は全員に送信
         if all(len(tasks) == 0 for tasks in subtasks.values()):
-            for specialist in subtasks.keys():
+            for specialist in subtasks:
                 subtasks[specialist].append(task)
 
         return subtasks
