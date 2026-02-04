@@ -1,7 +1,0 @@
-# Research Specialist のステータスYAML
-agent_name: "specialist_research_analysis"
-state: "idle"
-current_task: null
-last_updated: "2026-02-02T00:00:00"
-statistics:
-  tasks_completed: 0

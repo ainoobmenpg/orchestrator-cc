@@ -1,7 +1,0 @@
-agent_name: middle_manager
-current_task: grand_boss_task
-last_updated: '2026-02-03T07:51:49.374098'
-state: working
-statistics:
-  subtasks_delegated: 3
-  tasks_completed: 1

@@ -27,6 +27,27 @@ build/
 /PullRequests/
 /.claude/skills/
 
+# 実行時ファイル
+queue/
+status/
+
+# テンプレート
+.template/
+
+# テスト結果
+test_results/
+.playwright-mcp/
+
+# 開発ツール
+claude-orchestrator-mvp/
+issue37/
+reviews/
+
+# UIテスト
+tests/ui/
+scripts/run-integration-tests.sh
+scripts/run-ui-tests.sh
+
 # テストカバレッジ
 .coverage
 htmlcov/
