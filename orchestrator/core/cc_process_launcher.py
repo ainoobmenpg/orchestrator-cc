@@ -166,6 +166,13 @@ class CCProcessLauncher:
             # Claude Code の起動を待つ（短い待機）
             await asyncio.sleep(2.0)
 
+            # プロンプト準備完了を確認（起動確認メッセージ送信前に確認）
+            # タイムアウトを長くして、プロンプトが確実に検出されるようにする
+            if not await self._wait_for_prompt_ready(timeout=60.0):
+                raise CCProcessLaunchError(
+                    f"プロセス '{self._config.name}' のプロンプト起動を確認できませんでした"
+                )
+
             # 起動確認 ping を送って marker を回収
             self._pane_io.send_message(self._pane_index, "起動確認。指示どおりマーカーを含めて一言返答してください。")
 
