@@ -60,7 +60,7 @@ class CCPersonalityPromptReadError(CCProcessError):
 
 
 # 定数
-INITIAL_TIMEOUT: Final[float] = 60.0  # 初期化待機のタイムアウト（秒）
+INITIAL_TIMEOUT: Final[float] = 45.0  # 初期化待機のタイムアウト（秒）
 CAPTURE_HISTORY_LINES: Final[int] = -100  # キャプチャ時に取得する履歴行数
 RESTART_CHECK_INTERVAL: Final[float] = 5.0  # 再起動監視のチェック間隔（秒）
 PROMPT_CHARS: Final[tuple[str, ...]] = (">", "❯")  # プロンプト文字のリスト
@@ -167,8 +167,8 @@ class CCProcessLauncher:
             await asyncio.sleep(2.0)
 
             # プロンプト準備完了を確認（起動確認メッセージ送信前に確認）
-            # タイムアウトを長くして、プロンプトが確実に検出されるようにする
-            if not await self._wait_for_prompt_ready(timeout=60.0):
+            # タイムアウトを短縮して、起動時間を改善
+            if not await self._wait_for_prompt_ready(timeout=20.0):
                 raise CCProcessLaunchError(
                     f"プロセス '{self._config.name}' のプロンプト起動を確認できませんでした"
                 )
@@ -190,12 +190,6 @@ class CCProcessLauncher:
 
         # 起動後の追加待機（Claude Codeの完全な初期化を待つ）
         await asyncio.sleep(self._config.wait_time)
-
-        # プロンプト準備完了を確認
-        if not await self._wait_for_prompt_ready(timeout=30.0):
-            raise CCProcessLaunchError(
-                f"プロセス '{self._config.name}' のプロンプト起動を確認できませんでした"
-            )
 
         self._running = True
         # 初期起動時のみ再起動回数をリセット（再起動時はカウントを維持）
