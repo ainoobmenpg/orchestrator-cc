@@ -4,6 +4,7 @@
 CCClusterManagerクラスを定義します。
 """
 
+import os
 from pathlib import Path
 from typing import Final
 
@@ -385,6 +386,9 @@ class CCClusterManager:
             raise CCClusterConfigError(
                 f"'cluster' セクションに必須キーがありません: {e}"
             ) from e
+
+        # 環境変数で work_dir を上書き
+        work_dir = os.getenv("ORCHESTRATOR_WORK_DIR", work_dir)
 
         # エージェント設定を構築
         agents: list[CCProcessConfig] = []

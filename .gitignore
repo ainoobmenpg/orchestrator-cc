@@ -35,7 +35,6 @@ secrets/
 # プロジェクト固有
 /tmp/orchestrator-cc/
 *.log
-/PullRequests/
 /.claude/skills/
 
 # 実行時ファイル
@@ -52,7 +51,6 @@ test_results/
 # 開発ツール
 claude-orchestrator-mvp/
 issue37/
-reviews/
 
 # UIテスト
 tests/ui/
