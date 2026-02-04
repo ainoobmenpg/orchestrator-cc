@@ -21,11 +21,41 @@ build/
 *~
 .DS_Store
 
+# シークレット/機密情報
+.env
+.env.local
+.env.production
+*.key
+*.pem
+*.cert
+*.credential
+id_rsa*
+secrets/
+
 # プロジェクト固有
 /tmp/orchestrator-cc/
 *.log
-/PullRequests/
 /.claude/skills/
+
+# 実行時ファイル
+queue/
+status/
+
+# テンプレート
+.template/
+
+# テスト結果
+test_results/
+.playwright-mcp/
+
+# 開発ツール
+claude-orchestrator-mvp/
+issue37/
+
+# UIテスト
+tests/ui/
+scripts/run-integration-tests.sh
+scripts/run-ui-tests.sh
 
 # テストカバレッジ
 .coverage

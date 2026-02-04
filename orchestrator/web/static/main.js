@@ -30,6 +30,10 @@ const state = {
     isAutoScroll: true,
     showThinking: true,
     showTimestamp: false,
+    pendingConfirm: null,
+    // システムログ用状態
+    systemLogs: [],
+    systemLogAutoScroll: true,
 };
 
 // ============================================================================
@@ -62,6 +66,9 @@ class DashboardClient {
             updateConnectionStatus('connected');
             hideReconnectModal();
 
+            // システムログに接続完了を記録
+            addSystemLog('success', 'ダッシュボードに接続しました');
+
             // 初期データをリクエスト
             this.send({
                 type: 'subscribe',
@@ -90,6 +97,10 @@ class DashboardClient {
         this.ws.onclose = (event) => {
             console.log('WebSocket切断:', event.code, event.reason);
             updateConnectionStatus('disconnected');
+
+            // システムログに切断を記録
+            addSystemLog('warning', `サーバーとの接続が切断されました (code: ${event.code})`);
+
             this.handleReconnect();
         };
     }
@@ -110,6 +121,8 @@ class DashboardClient {
         this.on('agents', handleAgentsMessage);
         this.on('error', handleErrorMessage);
         this.on('pong', handlePongMessage);
+        this.on('system_log', handleSystemLogMessage);
+        this.on('cluster_event', handleClusterEventMessage);
     }
 
     on(type, callback) {
@@ -126,7 +139,7 @@ class DashboardClient {
 
     async fetchAgents() {
         try {
-            const response = await fetch(`${CONFIG.apiUrl}/status`);
+            const response = await fetch(`${CONFIG.apiUrl}/agents`);
             if (response.ok) {
                 const data = await response.json();
                 handleAgentsMessage({ type: 'agents', agents: data.agents || [] });
@@ -262,6 +275,65 @@ function handleErrorMessage(message) {
 function handlePongMessage(message) {
     // Pingに対するPong応答
     console.debug('Pong received');
+}
+
+function handleSystemLogMessage(message) {
+    const { timestamp, level, content } = message;
+    addSystemLogToDom({
+        timestamp,
+        level: level || 'info',
+        content,
+    });
+}
+
+function handleClusterEventMessage(message) {
+    const { event, data } = message;
+    let level = 'info';
+    let content = '';
+
+    switch (event) {
+        case 'cluster_start':
+            level = 'success';
+            content = 'クラスタを起動しました';
+            break;
+        case 'cluster_stop':
+            level = 'warning';
+            content = 'クラスタを停止しました';
+            break;
+        case 'cluster_restart_start':
+            level = 'info';
+            content = 'クラスタの再起動を開始しました...';
+            break;
+        case 'cluster_restart_complete':
+            level = 'success';
+            content = 'クラスタの再起動が完了しました';
+            break;
+        case 'cluster_restart_failed':
+            level = 'error';
+            content = `クラスタの再起動に失敗しました: ${data?.error || '不明なエラー'}`;
+            break;
+        case 'agent_started':
+            level = 'success';
+            content = `エージェント ${data?.agent} を起動しました`;
+            break;
+        case 'agent_stopped':
+            level = 'warning';
+            content = `エージェント ${data?.agent} を停止しました`;
+            break;
+        case 'agent_error':
+            level = 'error';
+            content = `エージェント ${data?.agent} でエラーが発生: ${data?.error || '不明なエラー'}`;
+            break;
+        default:
+            level = 'info';
+            content = `クラスタイベント: ${event}`;
+    }
+
+    addSystemLogToDom({
+        timestamp: new Date().toISOString(),
+        level,
+        content,
+    });
 }
 
 // ============================================================================
@@ -424,6 +496,58 @@ function scrollToBottom() {
     container.scrollTop = container.scrollHeight;
 }
 
+function scrollToSystemLogBottom() {
+    const container = document.getElementById('system-log');
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
+}
+
+function addSystemLogToDom(logEntry) {
+    const container = document.getElementById('system-log');
+    if (!container) return;
+
+    const entryDiv = document.createElement('div');
+    entryDiv.className = `system-log-entry ${logEntry.level}`;
+
+    const icons = {
+        info: 'ℹ️',
+        success: '✅',
+        warning: '⚠️',
+        error: '❌',
+    };
+
+    const time = logEntry.timestamp ? formatTime(logEntry.timestamp) : '';
+    const icon = icons[logEntry.level] || icons.info;
+
+    entryDiv.innerHTML = `
+        <span class="system-log-icon">${icon}</span>
+        <span class="system-log-time">${escapeHtml(time)}</span>
+        <span class="system-log-level">${logEntry.level.toUpperCase()}</span>
+        <span class="system-log-message">${escapeHtml(logEntry.content)}</span>
+    `;
+
+    container.appendChild(entryDiv);
+
+    // ログ数制限
+    while (container.children.length > 500) {
+        container.removeChild(container.firstChild);
+    }
+
+    // 自動スクロール
+    if (state.systemLogAutoScroll) {
+        scrollToSystemLogBottom();
+    }
+}
+
+function addSystemLog(level, content) {
+    addSystemLogToDom({
+        timestamp: new Date().toISOString(),
+        level,
+        content,
+    });
+}
+
 // ============================================================================
 // 通知/モーダル
 // ============================================================================
@@ -462,6 +586,135 @@ function showReconnectModal(attempt) {
 function hideReconnectModal() {
     const modal = document.getElementById('reconnect-modal');
     modal.classList.add('hidden');
+}
+
+function showConfirmModal(title, message, onConfirm) {
+    const modal = document.getElementById('confirm-modal');
+    const titleEl = document.getElementById('confirm-title');
+    const messageEl = document.getElementById('confirm-message');
+    const okBtn = document.getElementById('confirm-ok');
+    const cancelBtn = document.getElementById('confirm-cancel');
+
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+
+    state.pendingConfirm = onConfirm;
+
+    modal.classList.remove('hidden');
+
+    // ボタンハンドラーを設定
+    okBtn.onclick = () => {
+        modal.classList.add('hidden');
+        if (state.pendingConfirm) {
+            state.pendingConfirm();
+            state.pendingConfirm = null;
+        }
+    };
+
+    cancelBtn.onclick = () => {
+        modal.classList.add('hidden');
+        state.pendingConfirm = null;
+    };
+}
+
+function hideConfirmModal() {
+    const modal = document.getElementById('confirm-modal');
+    modal.classList.add('hidden');
+    state.pendingConfirm = null;
+}
+
+async function restartCluster() {
+    // 確認モーダルを表示
+    showConfirmModal(
+        'クラスタ再起動',
+        'クラスタを再起動します。よろしいですか？',
+        async () => {
+            const btn = document.getElementById('restart-cluster');
+            const originalContent = btn.innerHTML;
+
+            // ボタンを無効化してスピナー表示
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span><span>再起動中...</span>';
+
+            // システムログに記録
+            addSystemLog('info', 'クラスタの再起動を開始します...');
+
+            try {
+                const response = await fetch(`${CONFIG.apiUrl}/cluster/restart`, {
+                    method: 'POST',
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    showNotification(data.error, 'error');
+                    addSystemLog('error', `再起動失敗: ${data.error}`);
+                } else {
+                    showNotification(data.message || 'クラスタを再起動しました', 'success');
+                    addSystemLog('success', data.message || 'クラスタの再起動が完了しました');
+                    // エージェント状態を更新
+                    if (dashboardClient) {
+                        setTimeout(() => dashboardClient.fetchAgents(), 2000);
+                    }
+                }
+            } catch (error) {
+                const errorMsg = 'クラスタの再起動に失敗しました';
+                showNotification(errorMsg, 'error');
+                addSystemLog('error', `${errorMsg}: ${error.message}`);
+                console.error('Restart error:', error);
+            } finally {
+                // ボタンを元に戻す
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
+        }
+    );
+}
+
+async function shutdownCluster() {
+    // 確認モーダルを表示
+    showConfirmModal(
+        'クラスタ停止',
+        'クラスタを完全に停止します。この操作は取り消せません。よろしいですか？',
+        async () => {
+            const btn = document.getElementById('shutdown-cluster');
+            const originalContent = btn.innerHTML;
+
+            // ボタンを無効化してスピナー表示
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span><span>停止中...</span>';
+
+            // システムログに記録
+            addSystemLog('warning', 'クラスタの停止を開始します...');
+
+            try {
+                const response = await fetch(`${CONFIG.apiUrl}/cluster/shutdown`, {
+                    method: 'POST',
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    showNotification(data.error, 'error');
+                    addSystemLog('error', `停止失敗: ${data.error}`);
+                } else {
+                    showNotification(data.message || 'クラスタを停止しました', 'success');
+                    addSystemLog('success', data.message || 'クラスタの停止が完了しました');
+                    // エージェント状態を更新
+                    if (dashboardClient) {
+                        setTimeout(() => dashboardClient.fetchAgents(), 1000);
+                    }
+                }
+            } catch (error) {
+                const errorMsg = 'クラスタの停止に失敗しました';
+                showNotification(errorMsg, 'error');
+                addSystemLog('error', `${errorMsg}: ${error.message}`);
+                console.error('Shutdown error:', error);
+            } finally {
+                // ボタンを元に戻す
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
+        }
+    );
 }
 
 // ============================================================================
@@ -514,6 +767,26 @@ function setupEventListeners() {
     // エージェント更新
     document.getElementById('refresh-agents').addEventListener('click', () => {
         dashboardClient.fetchAgents();
+    });
+
+    // クラスタ再起動
+    document.getElementById('restart-cluster').addEventListener('click', restartCluster);
+
+    // クラスタ停止
+    document.getElementById('shutdown-cluster').addEventListener('click', shutdownCluster);
+
+    // システムログ自動スクロール切り替え
+    document.getElementById('system-log-auto-scroll').addEventListener('change', (e) => {
+        state.systemLogAutoScroll = e.target.checked;
+    });
+
+    // システムログクリア
+    document.getElementById('clear-system-log').addEventListener('click', () => {
+        const container = document.getElementById('system-log');
+        if (container) {
+            container.innerHTML = '';
+            state.systemLogs = [];
+        }
     });
 
     // 通知を閉じる

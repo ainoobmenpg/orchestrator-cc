@@ -4,6 +4,7 @@
 CCClusterManagerクラスを定義します。
 """
 
+import os
 from pathlib import Path
 from typing import Final
 
@@ -125,11 +126,14 @@ class CCClusterManager:
             self._launchers[agent_config.name] = launcher
             await launcher.start()
 
-    def connect(self) -> None:
+    def connect(self, auto_restart: bool = False) -> None:
         """既存のtmuxセッションに接続してランチャーを初期化します。
 
         すでに起動しているクラスタに接続する場合に使用します。
         セッションが存在しない場合はCCClusterConfigErrorを発生させます。
+
+        Args:
+            auto_restart: 自動再起動監視を有効にするか（デフォルト: False）
 
         Raises:
             CCClusterConfigError: セッションが存在しない場合
@@ -145,6 +149,8 @@ class CCClusterManager:
             launcher = CCProcessLauncher(
                 agent_config, agent_config.pane_index, self._tmux
             )
+            # auto_restartを無効化してからマーク
+            launcher._config.auto_restart = auto_restart
             launcher.mark_as_running()
             self._launchers[agent_config.name] = launcher
 
@@ -156,12 +162,55 @@ class CCClusterManager:
 
         Note:
             このメソッドはtmuxペインを破棄しません。
-            セッションを完全に破棄するにはTmuxSessionManagerを使用してください。
+            セッションを完全に破棄するにはshutdown()を使用してください。
         """
         # 起動と逆順で停止
         for agent_config in reversed(self._config.agents):
             if agent_config.name in self._launchers:
                 await self._launchers[agent_config.name].stop()
+
+    async def restart(self) -> None:
+        """クラスタ全体を再起動します。
+
+        全エージェントを停止した後、再度起動します。
+        tmuxセッションは維持されます。
+
+        Raises:
+            CCClusterConfigError: セッションの作成に失敗した場合
+            CCProcessLaunchError: いずれかのエージェントの起動に失敗した場合
+        """
+        # 停止
+        await self.stop()
+
+        # ランチャーをクリア
+        self._launchers.clear()
+
+        # 再起動
+        await self.start()
+
+    async def shutdown(self) -> None:
+        """クラスタ全体をシャットダウンします。
+
+        全エージェントを停止し、tmuxセッションを削除します。
+        このメソッドはクラスタを完全に停止します。
+
+        Note:
+            シャットダウン後は、再度start()を呼び出す必要があります。
+        """
+        # 全エージェントを停止
+        await self.stop()
+
+        # ランチャーをクリア
+        self._launchers.clear()
+
+        # tmuxセッションを削除
+        if self._tmux.session_exists():
+            try:
+                self._tmux.kill_session()
+            except TmuxError as e:
+                raise CCClusterError(
+                    f"セッションの削除に失敗しました: {e}"
+                ) from e
 
     def get_agent(self, name: str) -> CCProcessLauncher:
         """指定されたエージェントを取得します。
@@ -337,6 +386,9 @@ class CCClusterManager:
             raise CCClusterConfigError(
                 f"'cluster' セクションに必須キーがありません: {e}"
             ) from e
+
+        # 環境変数で work_dir を上書き
+        work_dir = os.getenv("ORCHESTRATOR_WORK_DIR", work_dir)
 
         # エージェント設定を構築
         agents: list[CCProcessConfig] = []

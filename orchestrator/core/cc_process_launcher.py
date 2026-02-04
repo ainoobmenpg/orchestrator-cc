@@ -185,7 +185,7 @@ class CCProcessLauncher:
         await asyncio.sleep(self._config.wait_time)
 
         # プロンプト準備完了を確認
-        if not await self._wait_for_prompt_ready(timeout=10.0):
+        if not await self._wait_for_prompt_ready(timeout=30.0):
             raise CCProcessLaunchError(
                 f"プロセス '{self._config.name}' のプロンプト起動を確認できませんでした"
             )
@@ -333,22 +333,41 @@ class CCProcessLauncher:
         start_time = time.time()
 
         while time.time() - start_time < timeout:
+            # キャプチャ範囲を広げて取得（履歴全体を取得）
             raw_output = self._tmux.capture_pane(
                 self._pane_index,
-                start_line=CAPTURE_HISTORY_LINES,
+                start_line=None,  # 履歴の先頭から
+                end_line=None,     # 現在の行まで
             )
 
             # Claude Codeのプロンプトパターンを検出
             lines = raw_output.split("\n")
-            # 直近10行を確認
-            for line in reversed(lines[-10:]):
-                # 末尾のスペースを削除してチェック
-                tail = line.rstrip()
-                if any(tail.endswith(char) for char in PROMPT_CHARS):
-                    return True
+            # 直近50行を確認
+            for line in reversed(lines[-50:]):
+                # プロンプト文字が含まれるかチェック
+                if "❯" in line:
+                    # 行の空白を削除してチェック
+                    stripped = line.strip()
+                    # ❯で始まる行、または❯を含む短い行
+                    if stripped.startswith("❯") or (len(stripped) <= 5 and "❯" in stripped):
+                        logger.info(f"[{self._config.name}] Prompt detected: '{stripped[:30]}'")
+                        return True
+                # >も同様にチェック（通常のプロンプト）
+                if ">" in line:
+                    stripped = line.strip()
+                    # 単独の>や、短い行で終わる>
+                    if stripped == ">" or (stripped.endswith(">") and len(stripped) <= 15):
+                        # シェルプロンプト（user@host: path$）を除外
+                        if "@" not in stripped and "%" not in stripped:
+                            logger.info(f"[{self._config.name}] Prompt detected: '{stripped[:30]}'")
+                            return True
 
             await asyncio.sleep(self._config.poll_interval)
 
+        logger.warning(f"[{self._config.name}] Prompt not detected after {timeout}s")
+        # デバッグ用：キャプチャした内容の一部を出力
+        sample_output = self._tmux.capture_pane(self._pane_index)
+        logger.debug(f"[{self._config.name}] Sample capture (last 200 chars): {repr(sample_output[-200:])}")
         return False
 
     def _load_personality_prompt(self) -> str:
@@ -459,10 +478,16 @@ class CCProcessLauncher:
 
             # Claude Codeのプロンプトパターンを検出
             lines = raw_output.split("\n")
-            for line in reversed(lines[-10:]):
-                tail = line.rstrip()
-                if any(tail.endswith(char) for char in PROMPT_CHARS):
-                    return True
+            for line in reversed(lines[-20:]):
+                # プロンプト文字が含まれるかチェック
+                if "❯" in line:
+                    stripped = line.strip()
+                    if stripped.startswith("❯") or stripped == "❯":
+                        return True
+                if ">" in line:
+                    stripped = line.strip()
+                    if stripped.endswith(">") and len(stripped) <= 10:
+                        return True
 
             # プロンプトが見つからない場合はクラッシュとみなす
             return False

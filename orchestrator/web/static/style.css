@@ -237,21 +237,143 @@ main {
     font-size: 0.875rem;
 }
 
+/* クラスタ制御ボタン */
+.cluster-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+}
+
+.btn-icon {
+    font-size: 1rem;
+}
+
 /* ============================================================================
    メッセージパネル
    ============================================================================ */
 
-.message-panel {
+.log-panels {
     flex: 1;
     display: flex;
     flex-direction: column;
     background-color: var(--color-bg);
+    overflow: hidden;
 }
 
-.message-container {
+.log-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.log-panel:last-child {
+    border-bottom: none;
+}
+
+.message-panel {
+    flex: 1.5; /* メッセージログを少し大きく */
+}
+
+.system-log-panel {
+    flex: 1;
+    background-color: rgba(15, 23, 42, 0.5);
+}
+
+.system-log-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.checkbox-label.small {
+    font-size: 0.75rem;
+}
+
+.message-container,
+.system-log-container {
     flex: 1;
     overflow-y: auto;
     padding: var(--spacing-md) var(--spacing-lg);
+}
+
+/* システムログエントリー */
+.system-log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    line-height: 1.4;
+}
+
+.system-log-entry:hover {
+    background-color: var(--color-bg-secondary);
+}
+
+.system-log-icon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.system-log-time {
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+.system-log-level {
+    font-weight: 600;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    min-width: 50px;
+}
+
+.system-log-message {
+    flex: 1;
+    word-break: break-word;
+}
+
+/* ログレベル別のスタイル */
+.system-log-entry.info {
+    color: var(--color-info);
+}
+
+.system-log-entry.info .system-log-level {
+    color: var(--color-info);
+}
+
+.system-log-entry.success {
+    color: var(--color-success);
+}
+
+.system-log-entry.success .system-log-level {
+    color: var(--color-success);
+}
+
+.system-log-entry.warning {
+    color: var(--color-warning);
+}
+
+.system-log-entry.warning .system-log-level {
+    color: var(--color-warning);
+}
+
+.system-log-entry.error {
+    color: var(--color-error);
+}
+
+.system-log-entry.error .system-log-level {
+    color: var(--color-error);
 }
 
 .message {
@@ -410,6 +532,50 @@ button:active {
     background-color: var(--color-border);
 }
 
+.btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #2563eb;
+}
+
+.btn-danger {
+    background-color: var(--color-error);
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #dc2626;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* スピナー */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+button:disabled .spinner {
+    border-top-color: rgba(255, 255, 255, 0.5);
+}
+
 /* ============================================================================
    通知
    ============================================================================ */
@@ -458,6 +624,18 @@ button:active {
 
 .hidden {
     display: none !important;
+}
+
+/* モーダルアクションボタン */
+.modal-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: flex-end;
+    margin-top: var(--spacing-lg);
+}
+
+.modal-actions button {
+    min-width: 80px;
 }
 
 /* ============================================================================
@@ -558,6 +736,14 @@ button:active {
         border-bottom: 1px solid var(--color-border);
     }
 
+    .log-panels {
+        flex-direction: column;
+    }
+
+    .log-panel {
+        min-height: 200px;
+    }
+
     footer {
         flex-direction: column;
         gap: var(--spacing-md);
@@ -567,7 +753,8 @@ button:active {
         flex-wrap: wrap;
     }
 
-    .message {
+    .message,
+    .system-log-entry {
         font-size: 0.8125rem;
     }
 }

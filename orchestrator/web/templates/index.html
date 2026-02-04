@@ -29,19 +29,54 @@
                     </svg>
                 </button>
             </div>
+
+            <!-- クラスタ制御ボタン -->
+            <div class="cluster-controls">
+                <button id="restart-cluster" class="btn-primary">
+                    <span class="btn-icon">🔄</span>
+                    <span>クラスタ再起動</span>
+                </button>
+                <button id="shutdown-cluster" class="btn-danger">
+                    <span class="btn-icon">⏹</span>
+                    <span>クラスタ停止</span>
+                </button>
+            </div>
             <div id="agent-list" class="agent-list">
                 <div class="loading">エージェント情報を読み込み中...</div>
             </div>
         </aside>
 
-        <section class="message-panel">
-            <div class="panel-header">
-                <h2>メッセージログ</h2>
-                <div class="message-stats">
-                    <span id="message-count">0件</span>
+        <section class="log-panels">
+            <!-- メッセージログ -->
+            <div class="log-panel message-panel">
+                <div class="panel-header">
+                    <h2>メッセージログ</h2>
+                    <div class="message-stats">
+                        <span id="message-count">0件</span>
+                    </div>
                 </div>
+                <div id="messages" class="message-container"></div>
             </div>
-            <div id="messages" class="message-container"></div>
+
+            <!-- システムログ -->
+            <div class="log-panel system-log-panel">
+                <div class="panel-header">
+                    <h2>システムログ</h2>
+                    <div class="system-log-controls">
+                        <label class="checkbox-label small">
+                            <input type="checkbox" id="system-log-auto-scroll" checked>
+                            <span>自動スクロール</span>
+                        </label>
+                        <button id="clear-system-log" class="btn-small" title="クリア">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="system-log" class="system-log-container"></div>
+            </div>
         </section>
     </main>
 
@@ -82,6 +117,18 @@
                     <div class="progress-fill" id="reconnect-progress"></div>
                 </div>
                 <span class="reconnect-text" id="reconnect-text">再接続中...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- クラスタ操作確認モーダル -->
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="confirm-title">確認</h3>
+            <p id="confirm-message"></p>
+            <div class="modal-actions">
+                <button id="confirm-cancel" class="btn-secondary">キャンセル</button>
+                <button id="confirm-ok" class="btn-primary">実行</button>
             </div>
         </div>
     </div>

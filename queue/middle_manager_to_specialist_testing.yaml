@@ -1,8 +1,0 @@
-content: 'テストに関連するタスク: テストタスク'
-from: middle_manager
-id: msg-b6f8231a
-metadata: {}
-status: pending
-timestamp: '2026-02-03T07:51:49.374822'
-to: specialist_testing
-type: task
