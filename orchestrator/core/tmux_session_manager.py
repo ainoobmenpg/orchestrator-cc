@@ -5,6 +5,7 @@
 
 import re
 import subprocess
+import threading
 from typing import Final
 
 # 定数
@@ -44,7 +45,11 @@ class TmuxSessionManager:
         _session_name: tmuxセッション名
         _window_index: ウィンドウインデックス（デフォルト: 0）
         _next_pane_index: 次に作成するペイン番号
+        _lock: tmuxコマンド実行の排他ロック（並列実行時の競合回避）
     """
+
+    # クラスレベルのロック（すべてのインスタンスで共有）
+    _lock: threading.Lock = threading.Lock()
 
     def __init__(self, session_name: str, window_index: int = 0) -> None:
         """TmuxSessionManagerを初期化します。
@@ -71,6 +76,9 @@ class TmuxSessionManager:
     def _run_tmux_command(self, args: list[str]) -> str:
         """tmuxコマンドを実行し、出力を返します。
 
+        並列実行時の競合を回避するため、クラスレベルのロックを使用して
+        tmuxコマンドの実行を直列化します。
+
         Args:
             args: tmuxコマンドの引数リスト
 
@@ -81,21 +89,22 @@ class TmuxSessionManager:
             TmuxTimeoutError: コマンドがタイムアウトした場合
             TmuxCommandError: コマンドが失敗した場合
         """
-        try:
-            result = subprocess.run(
-                ["tmux"] + args,
-                capture_output=True,
-                text=True,
-                timeout=COMMAND_TIMEOUT,
-                check=True,
-            )
-            return result.stdout
-        except subprocess.TimeoutExpired as e:
-            raise TmuxTimeoutError(f"tmuxコマンドがタイムアウトしました: {e}") from e
-        except subprocess.CalledProcessError as e:
-            raise TmuxCommandError(f"tmuxコマンドが失敗しました: {e.stderr}") from e
-        except FileNotFoundError as e:
-            raise TmuxCommandError("tmuxがインストールされていません") from e
+        with TmuxSessionManager._lock:
+            try:
+                result = subprocess.run(
+                    ["tmux"] + args,
+                    capture_output=True,
+                    text=True,
+                    timeout=COMMAND_TIMEOUT,
+                    check=True,
+                )
+                return result.stdout
+            except subprocess.TimeoutExpired as e:
+                raise TmuxTimeoutError(f"tmuxコマンドがタイムアウトしました: {e}") from e
+            except subprocess.CalledProcessError as e:
+                raise TmuxCommandError(f"tmuxコマンドが失敗しました: {e.stderr}") from e
+            except FileNotFoundError as e:
+                raise TmuxCommandError("tmuxがインストールされていません") from e
 
     def session_exists(self) -> bool:
         """セッションが存在するか確認します。

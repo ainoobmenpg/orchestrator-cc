@@ -21,7 +21,10 @@ def start_cluster(args: argparse.Namespace) -> None:
 
     async def _start() -> None:
         cluster = CCClusterManager(args.config)
-        await cluster.start()
+        # 並列起動パラメータを取得
+        parallel = not args.sequential
+        batch_size = args.batch_size
+        await cluster.start(parallel=parallel, batch_size=batch_size)
         print(f"クラスタ '{cluster._config.name}' を起動しました")
         print(f"tmuxセッション: {cluster._config.session_name}")
         print(f"tmux attach -t {cluster._config.session_name} で確認できます")
@@ -207,7 +210,7 @@ def show_tasks(args: argparse.Namespace) -> None:
     Args:
         args: コマンドライン引数
     """
-    from orchestrator.core.task_tracker import TaskTracker, TaskStatus
+    from orchestrator.core.task_tracker import TaskStatus, TaskTracker
 
     # タスク追跡インスタンスを作成
     tracker = TaskTracker()
@@ -307,6 +310,17 @@ def main() -> None:
         "--config",
         default="config/cc-cluster.yaml",
         help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
+    )
+    start_parser.add_argument(
+        "--sequential",
+        action="store_true",
+        help="順次起動モード（デフォルト: 並列起動）",
+    )
+    start_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=2,
+        help="並列起動時のバッチサイズ（デフォルト: 2）",
     )
 
     # executeコマンド

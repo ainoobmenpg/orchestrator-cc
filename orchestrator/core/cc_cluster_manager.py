@@ -4,6 +4,7 @@
 CCClusterManagerクラスを定義します。
 """
 
+import asyncio
 import os
 from pathlib import Path
 from typing import Final
@@ -83,10 +84,14 @@ class CCClusterManager:
         # エージェントのランチャーを保持する辞書
         self._launchers: dict[str, CCProcessLauncher] = {}
 
-    async def start(self) -> None:
+    async def start(self, parallel: bool = True, batch_size: int = 2) -> None:
         """クラスタ全体を起動します。
 
         全エージェントを起動し、初期化完了を待機します。
+
+        Args:
+            parallel: 並列起動するか（デフォルト: True）
+            batch_size: 並列起動時のバッチサイズ（デフォルト: 2）
 
         Raises:
             CCClusterConfigError: セッションの作成に失敗した場合
@@ -119,12 +124,36 @@ class CCClusterManager:
                 ) from e
 
         # 全エージェントを起動
-        for agent_config in self._config.agents:
-            launcher = CCProcessLauncher(
-                agent_config, agent_config.pane_index, self._tmux
-            )
-            self._launchers[agent_config.name] = launcher
-            await launcher.start()
+        if parallel:
+            # バッチ並列起動
+            for i in range(0, len(self._config.agents), batch_size):
+                batch = self._config.agents[i:i + batch_size]
+                tasks = [self._launch_and_wait(agent_config) for agent_config in batch]
+                await asyncio.gather(*tasks)
+                # 次のバッチ起動前に待機（LLM APIのレートリミット回避）
+                if i + batch_size < len(self._config.agents):
+                    await asyncio.sleep(1.0)
+        else:
+            # 従来の順次起動
+            for agent_config in self._config.agents:
+                await self._launch_and_wait(agent_config)
+                # 次のエージェント起動前に待機（LLM APIのレートリミット回避）
+                await asyncio.sleep(0.5)
+
+    async def _launch_and_wait(self, agent_config: CCProcessConfig) -> None:
+        """エージェントを起動して完了を待機します。
+
+        Args:
+            agent_config: エージェント設定
+
+        Raises:
+            CCProcessLaunchError: エージェントの起動に失敗した場合
+        """
+        launcher = CCProcessLauncher(
+            agent_config, agent_config.pane_index, self._tmux
+        )
+        self._launchers[agent_config.name] = launcher
+        await launcher.start()
 
     def connect(self, auto_restart: bool = False) -> None:
         """既存のtmuxセッションに接続してランチャーを初期化します。

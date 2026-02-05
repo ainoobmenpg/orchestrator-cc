@@ -15,12 +15,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from orchestrator.core.cc_cluster_manager import (
-    CCClusterManager,
     CCClusterConfigError,
+    CCClusterManager,
 )
 from orchestrator.core.cluster_monitor import ClusterMonitor
 from orchestrator.web.message_handler import WebSocketManager, WebSocketMessageHandler
@@ -158,7 +158,6 @@ async def _handle_get_status(_data: dict, websocket: WebSocket) -> None:
 
 
 from pathlib import Path
-from fastapi.responses import FileResponse
 
 # テンプレートディレクトリのパス
 _templates_dir = Path(__file__).parent / "templates"
