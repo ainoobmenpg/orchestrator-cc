@@ -184,7 +184,7 @@ def show_logs(args: argparse.Namespace) -> None:
         # タイムスタンプを整形
         try:
             ts = datetime.fromisoformat(entry.timestamp).strftime("%Y-%m-%d %H:%M:%S")
-        except:
+        except ValueError:
             ts = entry.timestamp
 
         # タイプに応じたアイコン
@@ -314,13 +314,13 @@ def main() -> None:
     start_parser.add_argument(
         "--sequential",
         action="store_true",
-        help="順次起動モード（デフォルト: 並列起動）",
+        help="順次起動モード（デフォルト: バッチサイズ3での並列起動）",
     )
     start_parser.add_argument(
         "--batch-size",
         type=int,
-        default=2,
-        help="並列起動時のバッチサイズ（デフォルト: 2）",
+        default=3,
+        help="並列起動時のバッチサイズ（デフォルト: 3）",
     )
 
     # executeコマンド

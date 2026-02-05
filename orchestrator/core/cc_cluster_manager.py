@@ -112,12 +112,16 @@ class CCClusterManager:
                 # └───────────┘
                 # 垂直分割で2つに
                 self._tmux.create_pane(split="h")  # Pane 1
+                await asyncio.sleep(0.2)  # ペイン作成後の安定待機
                 # 左側を上下分割
                 self._tmux.create_pane(split="v", target_pane=0)  # Pane 2
+                await asyncio.sleep(0.2)  # ペイン作成後の安定待機
                 # 右側を上下分割
                 self._tmux.create_pane(split="v", target_pane=1)  # Pane 3
+                await asyncio.sleep(0.2)  # ペイン作成後の安定待機
                 # 下部を左右統合して1つのペインに
                 self._tmux.create_pane(split="v", target_pane=2)  # Pane 4
+                await asyncio.sleep(0.2)  # ペイン作成後の安定待機
             except TmuxError as e:
                 raise CCClusterConfigError(
                     f"セッションの作成に失敗しました: {e}"
@@ -132,13 +136,13 @@ class CCClusterManager:
                 await asyncio.gather(*tasks)
                 # 次のバッチ起動前に待機（LLM APIのレートリミット回避）
                 if i + batch_size < len(self._config.agents):
-                    await asyncio.sleep(1.0)
+                    await asyncio.sleep(3.0)
         else:
-            # 従来の順次起動
+            # 順次起動（各エージェントの完全初期化を待ってから次を起動）
             for agent_config in self._config.agents:
                 await self._launch_and_wait(agent_config)
-                # 次のエージェント起動前に待機（LLM APIのレートリミット回避）
-                await asyncio.sleep(0.5)
+                # リソース解放のための待機（launch_cc_in_pane内で完全初期化待機済み）
+                await asyncio.sleep(1.0)
 
     async def _launch_and_wait(self, agent_config: CCProcessConfig) -> None:
         """エージェントを起動して完了を待機します。
@@ -149,6 +153,18 @@ class CCClusterManager:
         Raises:
             CCProcessLaunchError: エージェントの起動に失敗した場合
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # デバッグ: 起動するエージェント情報をログに出力
+        logger.info(
+            f"Launching agent: name={agent_config.name}, "
+            f"role={agent_config.role.value}, "
+            f"pane={agent_config.pane_index}, "
+            f"prompt_path={agent_config.personality_prompt_path}, "
+            f"marker={agent_config.marker}"
+        )
+
         launcher = CCProcessLauncher(
             agent_config, agent_config.pane_index, self._tmux
         )
