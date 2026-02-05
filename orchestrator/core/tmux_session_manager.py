@@ -89,23 +89,22 @@ class TmuxSessionManager:
             TmuxTimeoutError: コマンドがタイムアウトした場合
             TmuxCommandError: コマンドが失敗した場合
         """
-        # ロックを一時的に無効化してテスト
-        # with TmuxSessionManager._lock:
-        try:
-            result = subprocess.run(
-                ["tmux"] + args,
-                capture_output=True,
-                text=True,
-                timeout=COMMAND_TIMEOUT,
-                check=True,
-            )
-            return result.stdout
-        except subprocess.TimeoutExpired as e:
-            raise TmuxTimeoutError(f"tmuxコマンドがタイムアウトしました: {e}") from e
-        except subprocess.CalledProcessError as e:
-            raise TmuxCommandError(f"tmuxコマンドが失敗しました: {e.stderr}") from e
-        except FileNotFoundError as e:
-            raise TmuxCommandError("tmuxがインストールされていません") from e
+        with TmuxSessionManager._lock:
+            try:
+                result = subprocess.run(
+                    ["tmux"] + args,
+                    capture_output=True,
+                    text=True,
+                    timeout=COMMAND_TIMEOUT,
+                    check=True,
+                )
+                return result.stdout
+            except subprocess.TimeoutExpired as e:
+                raise TmuxTimeoutError(f"tmuxコマンドがタイムアウトしました: {e}") from e
+            except subprocess.CalledProcessError as e:
+                raise TmuxCommandError(f"tmuxコマンドが失敗しました: {e.stderr}") from e
+            except FileNotFoundError as e:
+                raise TmuxCommandError("tmuxがインストールされていません") from e
 
     def session_exists(self) -> bool:
         """セッションが存在するか確認します。
@@ -220,6 +219,38 @@ class TmuxSessionManager:
         logger.warning("New pane not found, using fallback")
         return len(old_pane_ids)
 
+    def _get_pane_id(self, pane_index: int) -> str:
+        """ペイン番号からペインIDを取得します。
+
+        Args:
+            pane_index: ペイン番号（0以上）
+
+        Returns:
+            ペインID（例: %0, %1, %2）
+
+        Raises:
+            ValueError: pane_indexが負の値の場合
+            TmuxSessionNotFoundError: セッションが存在しない場合
+            TmuxCommandError: tmuxコマンドが失敗した場合
+        """
+        if pane_index < 0:
+            raise ValueError("pane_indexは0以上でなければなりません")
+
+        if not self.session_exists():
+            raise TmuxSessionNotFoundError(f"セッション '{self._session_name}' が存在しません")
+
+        # ペインIDを取得
+        panes_output = self._run_tmux_command(
+            ["list-panes", "-t", self._session_name, "-F", "#{pane_index}:#{pane_id}"]
+        )
+
+        for pane_info in panes_output.strip().split("\n"):
+            idx, pane_id = pane_info.split(":")
+            if int(idx) == pane_index:
+                return pane_id
+
+        raise TmuxCommandError(f"ペイン番号 {pane_index} が見つかりません")
+
     def send_keys(self, pane_index: int, keys: str) -> None:
         """指定したペインにキー入力を送信します。
 
@@ -244,26 +275,26 @@ class TmuxSessionManager:
         if not self.session_exists():
             raise TmuxSessionNotFoundError(f"セッション '{self._session_name}' が存在しません")
 
-        target = f"{self._session_name}:{self._window_index}.{pane_index}"
+        # ペイン番号からペインIDを取得
+        pane_id = self._get_pane_id(pane_index)
 
-        # メッセージを送信
+        # メッセージを送信（ペインIDを使用）
         self._run_tmux_command(
             [
                 "send-keys",
                 "-t",
-                target,
+                pane_id,
                 "-l",  # リテラルモード（特殊文字をそのまま入力）
                 keys,
             ]
         )
-
-        # Enterキーを送信
+        # Enterキーを送信（別コマンド）
         self._run_tmux_command(
             [
                 "send-keys",
                 "-t",
-                target,
-                "C-m",  # Enterキー（Carriage Return）
+                pane_id,
+                "Enter",
             ]
         )
 
@@ -294,11 +325,13 @@ class TmuxSessionManager:
         if not self.session_exists():
             raise TmuxSessionNotFoundError(f"セッション '{self._session_name}' が存在しません")
 
-        target = f"{self._session_name}:{self._window_index}.{pane_index}"
+        # ペイン番号からペインIDを取得
+        pane_id = self._get_pane_id(pane_index)
+
         args = [
             "capture-pane",
             "-t",
-            target,
+            pane_id,
             "-p",
         ]
 
@@ -336,14 +369,15 @@ class TmuxSessionManager:
         if not self.session_exists():
             raise TmuxSessionNotFoundError(f"セッション '{self._session_name}' が存在しません")
 
-        target = f"{self._session_name}:{self._window_index}.{pane_index}"
+        # ペイン番号からペインIDを取得
+        pane_id = self._get_pane_id(pane_index)
 
-        # tmux send-keys -t {target} {key} （-l なしでキーとして送信）
+        # tmux send-keys -t {pane_id} {key} （-l なしでキーとして送信）
         self._run_tmux_command(
             [
                 "send-keys",
                 "-t",
-                target,
+                pane_id,
                 key,
             ]
         )
