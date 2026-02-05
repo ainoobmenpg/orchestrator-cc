@@ -35,7 +35,7 @@ secrets/
 # プロジェクト固有
 /tmp/orchestrator-cc/
 *.log
-/.claude/skills/
+# /.claude/skills/  # チーム共有スキルのため無視を解除
 
 # 実行時ファイル
 queue/

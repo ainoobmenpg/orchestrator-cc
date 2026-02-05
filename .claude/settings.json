@@ -1,0 +1,5 @@
+{
+  "hooks": {
+    "preSession": "bash orchestrator/scripts/verify-agents.sh"
+  }
+}
