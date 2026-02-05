@@ -89,22 +89,23 @@ class TmuxSessionManager:
             TmuxTimeoutError: コマンドがタイムアウトした場合
             TmuxCommandError: コマンドが失敗した場合
         """
-        with TmuxSessionManager._lock:
-            try:
-                result = subprocess.run(
-                    ["tmux"] + args,
-                    capture_output=True,
-                    text=True,
-                    timeout=COMMAND_TIMEOUT,
-                    check=True,
-                )
-                return result.stdout
-            except subprocess.TimeoutExpired as e:
-                raise TmuxTimeoutError(f"tmuxコマンドがタイムアウトしました: {e}") from e
-            except subprocess.CalledProcessError as e:
-                raise TmuxCommandError(f"tmuxコマンドが失敗しました: {e.stderr}") from e
-            except FileNotFoundError as e:
-                raise TmuxCommandError("tmuxがインストールされていません") from e
+        # ロックを一時的に無効化してテスト
+        # with TmuxSessionManager._lock:
+        try:
+            result = subprocess.run(
+                ["tmux"] + args,
+                capture_output=True,
+                text=True,
+                timeout=COMMAND_TIMEOUT,
+                check=True,
+            )
+            return result.stdout
+        except subprocess.TimeoutExpired as e:
+            raise TmuxTimeoutError(f"tmuxコマンドがタイムアウトしました: {e}") from e
+        except subprocess.CalledProcessError as e:
+            raise TmuxCommandError(f"tmuxコマンドが失敗しました: {e.stderr}") from e
+        except FileNotFoundError as e:
+            raise TmuxCommandError("tmuxがインストールされていません") from e
 
     def session_exists(self) -> bool:
         """セッションが存在するか確認します。
@@ -178,18 +179,29 @@ class TmuxSessionManager:
         else:
             target = f"{self._session_name}:{self._window_index}"
 
-        self._run_tmux_command(
+        # デバッグ: ターゲットをログに出力
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Creating pane: target={target}, split={split}")
+
+        # 新しいペインを作成し、ペイン番号を直接取得
+        new_pane_info = self._run_tmux_command(
             [
                 "split-window",
                 f"-{split}",
                 "-t",
                 target,
+                "-P",  # 作成されたペインの情報を印刷
+                "-F", "#{pane_id}:#{pane_index}",
             ]
-        )
+        ).strip()
 
-        pane_index = self._next_pane_index
-        self._next_pane_index += 1
-        return pane_index
+        # デバッグ: 新しいペイン情報をログに出力
+        logger.debug(f"New pane info: {new_pane_info}")
+
+        # 出力からペイン番号を取得
+        pane_id, pane_index = new_pane_info.split(":")
+        return int(pane_index)
 
     def send_keys(self, pane_index: int, keys: str) -> None:
         """指定したペインにキー入力を送信します。

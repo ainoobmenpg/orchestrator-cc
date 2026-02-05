@@ -153,6 +153,18 @@ class CCClusterManager:
         Raises:
             CCProcessLaunchError: エージェントの起動に失敗した場合
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # デバッグ: 起動するエージェント情報をログに出力
+        logger.info(
+            f"Launching agent: name={agent_config.name}, "
+            f"role={agent_config.role.value}, "
+            f"pane={agent_config.pane_index}, "
+            f"prompt_path={agent_config.personality_prompt_path}, "
+            f"marker={agent_config.marker}"
+        )
+
         launcher = CCProcessLauncher(
             agent_config, agent_config.pane_index, self._tmux
         )

@@ -392,6 +392,9 @@ class CCProcessLauncher:
             CCPersonalityPromptNotFoundError: ファイルが見つからない場合
             CCPersonalityPromptReadError: ファイル読み込みに失敗した場合
         """
+        # デバッグ: 読み込むファイルをログに出力
+        logger.info(f"[{self._config.name}] Loading personality prompt from: {self._config.personality_prompt_path}")
+
         # personality_prompt_path は cc_cluster_manager.py で既に絶対パス化されている
         prompt_path = Path(self._config.personality_prompt_path)
 
@@ -436,6 +439,11 @@ class CCProcessLauncher:
         # 性格プロンプトを読み込んで--system-promptに渡す
         # Phase 0.5の検証により、tmux方式では--system-promptが使用可能
         personality_prompt = self._load_personality_prompt()
+
+        # デバッグ: プロンプトの最初の部分をログに出力
+        prompt_preview = personality_prompt[:100] if len(personality_prompt) > 100 else personality_prompt
+        logger.info(f"[{self._config.name}] Prompt preview: {prompt_preview}")
+
         # 改行をスペースに置換（1行のコマンドとして渡すため）
         # まず CRLF を処理してから、残りの LF と CR を処理
         single_line_prompt = personality_prompt.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
