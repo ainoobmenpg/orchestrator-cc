@@ -351,19 +351,17 @@ class CCProcessLauncher:
                 stripped = line.strip()
 
                 # プロンプト文字が含まれるかチェック
-                if "❯" in line:
+                if "❯" in line and (stripped.startswith("❯") or (len(stripped) <= 5 and "❯" in stripped)):
                     # ❯で始まる行、または❯を含む短い行
-                    if stripped.startswith("❯") or (len(stripped) <= 5 and "❯" in stripped):
+                    logger.info(f"[{self._config.name}] Prompt detected: '{stripped[:30]}'")
+                    return True
+                # >も同様にチェック（通常のプロンプト）
+                # 単独の>や、短い行で終わる>
+                if ">" in line and (stripped == ">" or (stripped.endswith(">") and len(stripped) <= 15)):
+                    # シェルプロンプト（user@host: path$）を除外
+                    if "@" not in stripped and "%" not in stripped:
                         logger.info(f"[{self._config.name}] Prompt detected: '{stripped[:30]}'")
                         return True
-                # >も同様にチェック（通常のプロンプト）
-                if ">" in line:
-                    # 単独の>や、短い行で終わる>
-                    if stripped == ">" or (stripped.endswith(">") and len(stripped) <= 15):
-                        # シェルプロンプト（user@host: path$）を除外
-                        if "@" not in stripped and "%" not in stripped:
-                            logger.info(f"[{self._config.name}] Prompt detected: '{stripped[:30]}'")
-                            return True
                     # サジェスト付きプロンプト（例: "Try "fix lint errors">"）
                     if stripped.startswith("Try ") and stripped.endswith(">"):
                         logger.info(f"[{self._config.name}] Suggestion prompt detected: '{stripped[:40]}'")

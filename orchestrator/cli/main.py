@@ -184,7 +184,7 @@ def show_logs(args: argparse.Namespace) -> None:
         # タイムスタンプを整形
         try:
             ts = datetime.fromisoformat(entry.timestamp).strftime("%Y-%m-%d %H:%M:%S")
-        except:
+        except ValueError:
             ts = entry.timestamp
 
         # タイプに応じたアイコン
