@@ -173,6 +173,9 @@ class CCProcessLauncher:
                     f"プロセス '{self._config.name}' のプロンプト起動を確認できませんでした"
                 )
 
+            # プロンプト表示後の安定待機
+            await asyncio.sleep(0.5)
+
             # 起動確認 ping を送って marker を回収
             self._pane_io.send_message(self._pane_index, "起動確認。指示どおりマーカーを含めて一言返答してください。")
 
@@ -345,23 +348,31 @@ class CCProcessLauncher:
             lines = raw_output.split("\n")
             # 直近50行を確認
             for line in reversed(lines[-50:]):
+                stripped = line.strip()
+
                 # プロンプト文字が含まれるかチェック
                 if "❯" in line:
-                    # 行の空白を削除してチェック
-                    stripped = line.strip()
                     # ❯で始まる行、または❯を含む短い行
                     if stripped.startswith("❯") or (len(stripped) <= 5 and "❯" in stripped):
                         logger.info(f"[{self._config.name}] Prompt detected: '{stripped[:30]}'")
                         return True
                 # >も同様にチェック（通常のプロンプト）
                 if ">" in line:
-                    stripped = line.strip()
                     # 単独の>や、短い行で終わる>
                     if stripped == ">" or (stripped.endswith(">") and len(stripped) <= 15):
                         # シェルプロンプト（user@host: path$）を除外
                         if "@" not in stripped and "%" not in stripped:
                             logger.info(f"[{self._config.name}] Prompt detected: '{stripped[:30]}'")
                             return True
+                    # サジェスト付きプロンプト（例: "Try "fix lint errors">"）
+                    if stripped.startswith("Try ") and stripped.endswith(">"):
+                        logger.info(f"[{self._config.name}] Suggestion prompt detected: '{stripped[:40]}'")
+                        return True
+
+                # Claude Codeの起動完了マーカーをチェック
+                if "⏵⏵ bypass permissions on" in line:
+                    logger.info(f"[{self._config.name}] Bypass marker detected")
+                    return True
 
             await asyncio.sleep(self._config.poll_interval)
 
@@ -426,7 +437,11 @@ class CCProcessLauncher:
         # Phase 0.5の検証により、tmux方式では--system-promptが使用可能
         personality_prompt = self._load_personality_prompt()
         # 改行をスペースに置換（1行のコマンドとして渡すため）
-        single_line_prompt = personality_prompt.replace("\n", " ").replace("\r", " ")
+        # まず CRLF を処理してから、残りの LF と CR を処理
+        single_line_prompt = personality_prompt.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+        # 連続するスペースを1つのスペースに圧縮
+        import re
+        single_line_prompt = re.sub(r"\s+", " ", single_line_prompt)
         # シングルクォートをエスケープ
         escaped_prompt = single_line_prompt.replace("'", "'\\''")
         parts.append(f"{claude_path} --dangerously-skip-permissions --system-prompt '{escaped_prompt}'")
