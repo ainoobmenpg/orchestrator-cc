@@ -184,24 +184,41 @@ class TmuxSessionManager:
         logger = logging.getLogger(__name__)
         logger.debug(f"Creating pane: target={target}, split={split}")
 
-        # 新しいペインを作成し、ペイン番号を直接取得
-        new_pane_info = self._run_tmux_command(
+        # ペイン作成前に現在のペインIDを記録
+        old_panes_output = self._run_tmux_command(
+            ["list-panes", "-t", self._session_name, "-F", "#{pane_id}"]
+        )
+        old_pane_ids = set(old_panes_output.strip().split("\n"))
+
+        # ペインを作成
+        self._run_tmux_command(
             [
                 "split-window",
                 f"-{split}",
                 "-t",
                 target,
-                "-P",  # 作成されたペインの情報を印刷
-                "-F", "#{pane_id}:#{pane_index}",
             ]
-        ).strip()
+        )
 
-        # デバッグ: 新しいペイン情報をログに出力
-        logger.debug(f"New pane info: {new_pane_info}")
+        # ペイン作成後に少し待機してtmuxがペインを完全に初期化するのを待つ
+        import time
+        time.sleep(0.5)
 
-        # 出力からペイン番号を取得
-        pane_id, pane_index = new_pane_info.split(":")
-        return int(pane_index)
+        # ペイン作成後に新しいペインIDを取得
+        new_panes_output = self._run_tmux_command(
+            ["list-panes", "-t", self._session_name, "-F", "#{pane_id}:#{pane_index}"]
+        )
+
+        # 新しいペインIDを持つペイン番号を返す
+        for pane_info in new_panes_output.strip().split("\n"):
+            pane_id, pane_index = pane_info.split(":")
+            if pane_id not in old_pane_ids:
+                logger.debug(f"New pane found: ID={pane_id}, Index={pane_index}")
+                return int(pane_index)
+
+        # 新しいペインが見つからない場合のフォールバック
+        logger.warning("New pane not found, using fallback")
+        return len(old_pane_ids)
 
     def send_keys(self, pane_index: int, keys: str) -> None:
         """指定したペインにキー入力を送信します。
