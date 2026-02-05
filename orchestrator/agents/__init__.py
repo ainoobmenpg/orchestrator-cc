@@ -11,6 +11,7 @@ from orchestrator.agents.middle_manager import MiddleManagerAgent
 from orchestrator.agents.specialists import (
     CODING_MARKER,
     CODING_SPECIALIST_NAME,
+    DEFAULT_TASK_TIMEOUT,
     RESEARCH_MARKER,
     RESEARCH_SPECIALIST_NAME,
     TESTING_MARKER,
@@ -18,7 +19,6 @@ from orchestrator.agents.specialists import (
     CodingWritingSpecialist,
     ResearchAnalysisSpecialist,
     TestingSpecialist,
-    DEFAULT_TASK_TIMEOUT,
 )
 
 __all__ = [

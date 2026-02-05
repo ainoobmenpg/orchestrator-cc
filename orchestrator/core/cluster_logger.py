@@ -4,10 +4,8 @@
 """
 
 import json
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 
 @dataclass
@@ -138,7 +136,7 @@ class ClusterLogger:
         entries: list[LogEntry] = []
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line:

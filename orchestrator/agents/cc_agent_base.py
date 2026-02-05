@@ -3,7 +3,6 @@
 このモジュールでは、全エージェントで使用する基底クラスCCAgentBaseを定義します。
 """
 
-import asyncio
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -20,12 +19,14 @@ from orchestrator.core.yaml_protocol import (
     AgentState,
     AgentStatus,
     MessageStatus,
-    MessageType as YAMLMessageType,
     TaskMessage,
     read_message_async,
     read_status_async,
     write_message_async,
     write_status_async,
+)
+from orchestrator.core.yaml_protocol import (
+    MessageType as YAMLMessageType,
 )
 
 

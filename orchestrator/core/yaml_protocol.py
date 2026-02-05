@@ -140,7 +140,7 @@ class TaskMessage:
         """
         path_obj = Path(path)
 
-        with open(path_obj, "r", encoding="utf-8") as f:
+        with open(path_obj, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         return cls.from_dict(data)
@@ -222,7 +222,7 @@ class AgentStatus:
         """
         path_obj = Path(path)
 
-        with open(path_obj, "r", encoding="utf-8") as f:
+        with open(path_obj, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         return cls.from_dict(data)

@@ -6,10 +6,10 @@
 
 import asyncio
 import threading
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Awaitable, Callable
 
-from watchdog.events import FileSystemEventHandler, FileSystemEvent
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 __all__ = ["YAMLMonitor", "MultiPathYAMLMonitor"]
