@@ -20,12 +20,14 @@ ignore = [
     "B008",   # do-not-perform-function-calls-in-argument-defaults
     "C901",   # too-complex
     "SIM110", # Use any() instead of for loop（可読性のためforループを採用）
+    "SIM117", # Use a single with statement（ネストされたwith文を許容）
 ]
 
 [lint.per-file-ignores]
 "tests/**/*.py" = [
     "ARG",    # テストで未使用引数は許容
     "S101",   # assert使用許容
+    "F841",   # テストで未使用変数は許容
 ]
 
 [lint.isort]

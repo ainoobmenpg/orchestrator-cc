@@ -3,191 +3,203 @@
 このモジュールでは、コマンドラインインターフェースを提供します。
 """
 
-import argparse
-import asyncio
 import json
-import sys
+from datetime import datetime
 from pathlib import Path
+from typing import Any
+
+import typer
+
+from orchestrator.core.agent_health_monitor import get_agent_health_monitor
+from orchestrator.core.agent_teams_manager import TeamConfig, get_agent_teams_manager
+from orchestrator.web.teams_monitor import TeamsMonitor
+from orchestrator.web.thinking_log_handler import get_thinking_log_handler
+
+app = typer.Typer(
+    help="orchestrator-cc CLI - Agent Teams管理ツール",
+    add_completion=False,
+)
 
 
-def start_cluster(args: argparse.Namespace) -> None:
-    """クラスタを起動します。
+@app.command()
+def create_team(
+    name: str = typer.Argument(..., help="チーム名"),
+    description: str = typer.Option(..., "--description", "-d", help="チームの説明"),
+    agent_type: str = typer.Option(
+        "general-purpose",
+        "--agent-type",
+        "-t",
+        help="エージェントタイプ（デフォルト: general-purpose）",
+    ),
+    members_file: Path = typer.Option(
+        None,
+        "--members",
+        "-m",
+        help="メンバー定義ファイル（JSON形式）",
+        exists=True,
+    ),
+) -> None:
+    """新しいチームを作成します。
 
-    Args:
-        args: コマンドライン引数
+    チーム設定ファイルを作成し、メンバーをヘルスモニターに登録します。
     """
-    from orchestrator.core.cc_cluster_manager import CCClusterManager
-    from orchestrator.core.yaml_monitor import YAMLMonitor
+    manager = get_agent_teams_manager()
 
-    async def _start() -> None:
-        cluster = CCClusterManager(args.config)
-        # 並列起動パラメータを取得
-        parallel = not args.sequential
-        batch_size = args.batch_size
-        await cluster.start(parallel=parallel, batch_size=batch_size)
-        print(f"クラスタ '{cluster._config.name}' を起動しました")
-        print(f"tmuxセッション: {cluster._config.session_name}")
-        print(f"tmux attach -t {cluster._config.session_name} で確認できます")
+    # メンバーリストの作成
+    members: list[dict[str, Any]] = []
 
-        # YAML監視を開始
-        queue_dir = Path(cluster._config.work_dir) / "queue"
-        queue_dir.mkdir(parents=True, exist_ok=True)
+    if members_file:
+        # ファイルからメンバーを読み込み
+        with open(members_file, encoding="utf-8") as f:
+            members_data = json.load(f)
+            if isinstance(members_data, list):
+                members = members_data
+            else:
+                members = members_data.get("members", [])
+    else:
+        # デフォルトメンバー
+        members = [
+            {"name": "team-lead", "agentType": "general-purpose", "timeoutThreshold": 300.0},
+        ]
 
-        def yaml_callback(file_path: str) -> None:
-            """YAMLファイル変更時のコールバック"""
-            print(f"[YAML Monitor] 変更検知: {file_path}")
-            # 実際のエージェント通知はNotificationServiceで行う
-
-        monitor = YAMLMonitor(str(queue_dir), yaml_callback)
-        monitor.start()
-        print(f"[YAML Monitor] {queue_dir} の監視を開始しました")
-
-        # 監視を続ける（無限ループ）
-        try:
-            while monitor.is_running():
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            print("\nクラスタを停止します...")
-            monitor.stop()
-            await cluster.stop()
-
-    asyncio.run(_start())
-
-
-def execute_task(args: argparse.Namespace) -> None:
-    """タスクを実行します。
-
-    Args:
-        args: コマンドライン引数
-    """
-    from orchestrator.core.cc_cluster_manager import CCClusterManager
-
-    async def _execute() -> None:
-        cluster = CCClusterManager(args.config)
-        # 既存のクラスタに接続
-        cluster.connect()
-        # Grand Bossにタスクを送信
-        result = await cluster.send_message("grand_boss", args.task)
-        print(result)
-
-    asyncio.run(_execute())
-
-
-def stop_cluster(args: argparse.Namespace) -> None:
-    """クラスタを停止します。
-
-    Args:
-        args: コマンドライン引数
-    """
-    from orchestrator.core.cc_cluster_manager import CCClusterManager
-
-    async def _stop() -> None:
-        cluster = CCClusterManager(args.config)
-        await cluster.stop()
-        print("クラスタを停止しました")
-
-    asyncio.run(_stop())
-
-
-def status_cluster(args: argparse.Namespace) -> None:
-    """クラスタの状態を表示します。
-
-    Args:
-        args: コマンドライン引数
-    """
-    from datetime import datetime
-
-    from orchestrator.core.cc_cluster_manager import CCClusterManager
-
-    cluster = CCClusterManager(args.config)
-    status = cluster.get_status()
-
-    print(f"\n{'='*50}")
-    print(f"クラスタ名: {status['cluster_name']}")
-    print(f"tmuxセッション: {status['session_name']}")
-    print(f"セッション状態: {'起動中' if status['session_exists'] else '停止中'}")
-    print(f"{'='*50}")
-    print("\nエージェント状態:")
-    print("-" * 50)
-
-    for agent in status["agents"]:
-        status_str = "🟢 実行中" if agent["running"] else "🔴 停止"
-        last_activity = "N/A"
-        if agent["last_activity"] > 0:
-            last_activity = datetime.fromtimestamp(agent["last_activity"]).strftime("%Y-%m-%d %H:%M:%S")
-
-        print(f"""
-  {agent['name']} ({agent['role']})
-    状態: {status_str}
-    再起動回数: {agent['restart_count']}
-    最終アクティビティ: {last_activity}
-""")
-
-    print("-" * 50)
-
-
-def show_logs(args: argparse.Namespace) -> None:
-    """通信ログを表示します。
-
-    Args:
-        args: コマンドライン引数
-    """
-    from datetime import datetime
-
-    from orchestrator.core.cluster_logger import ClusterLogger, LogFilter
-
-    logger = ClusterLogger(log_file=args.log_file)
-
-    # フィルタ条件を作成
-    log_filter = LogFilter(
-        from_agent=args.from_agent,
-        to_agent=args.to_agent,
-        msg_type=args.msg_type,
-        level=args.level,
-        limit=args.limit,
+    # チーム設定を作成
+    config = TeamConfig(
+        name=name,
+        description=description,
+        agent_type=agent_type,
+        members=members,
     )
 
-    if args.recent:
-        # 最近のログを取得
-        entries = logger.get_recent_logs(count=args.limit or 10)
-    else:
-        # フィルタ適用してログを取得
-        entries = logger.read_logs(log_filter)
+    # チームを作成
+    team_name = manager.create_team(config)
 
-    if not entries:
-        print("ログが見つかりませんでした。")
+    typer.echo(f"チーム '{team_name}' を作成しました")
+    typer.echo(f"  説明: {description}")
+    typer.echo(f"  エージェントタイプ: {agent_type}")
+    typer.echo(f"  メンバー数: {len(members)}")
+
+
+@app.command()
+def delete_team(
+    team_name: str = typer.Argument(..., help="削除するチーム名"),
+) -> None:
+    """チームを削除します。
+
+    チームの設定ファイルとタスクを削除します。
+    """
+    manager = get_agent_teams_manager()
+
+    if not manager.delete_team(team_name):
+        typer.echo(f"エラー: チーム '{team_name}' が見つかりません", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"チーム '{team_name}' を削除しました")
+
+
+@app.command()
+def list_teams(
+    json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
+) -> None:
+    """チーム一覧を表示します。
+
+    登録されている全チームの情報を表示します。
+    """
+    monitor = TeamsMonitor()
+    teams = monitor.get_teams()
+
+    if json_output:
+        typer.echo(json.dumps(teams, ensure_ascii=False, indent=2))
         return
 
-    # JSON出力モード
-    if args.json:
-        data = [
-            {
-                "timestamp": e.timestamp,
-                "id": e.id,
-                "from_agent": e.from_agent,
-                "to_agent": e.to_agent,
-                "type": e.type,
-                "content": e.content,
-                "level": e.level,
-            }
-            for e in entries
-        ]
-        print(json.dumps(data, ensure_ascii=False, indent=2))
+    if not teams:
+        typer.echo("チームが見つかりませんでした")
         return
 
-    # 表形式出力
-    print(f"\n{'='*100}")
-    print(f"通信ログ ({len(entries)}件)")
-    print(f"{'='*100}\n")
+    typer.echo(f"\n{'=' * 60}")
+    typer.echo(f"チーム一覧 ({len(teams)}件)")
+    typer.echo(f"{'=' * 60}\n")
 
-    for entry in entries:
-        # タイムスタンプを整形
-        try:
-            ts = datetime.fromisoformat(entry.timestamp).strftime("%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            ts = entry.timestamp
+    for team in teams:
+        created_at = datetime.fromtimestamp(team.get("createdAt", 0) / 1000).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        typer.echo(f"📁 {team['name']}")
+        typer.echo(f"   説明: {team.get('description', 'N/A')}")
+        typer.echo(f"   作成日時: {created_at}")
+        typer.echo(f"   メンバー数: {len(team.get('members', []))}")
+        typer.echo()
 
-        # タイプに応じたアイコン
+
+@app.command()
+def team_status(
+    team_name: str = typer.Argument(..., help="チーム名"),
+    json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
+) -> None:
+    """チームの状態を表示します。
+
+    指定したチームの詳細な状態情報を表示します。
+    """
+    manager = get_agent_teams_manager()
+    status = manager.get_team_status(team_name)
+
+    if "error" in status:
+        typer.echo(f"エラー: {status['error']}", err=True)
+        raise typer.Exit(1)
+
+    if json_output:
+        typer.echo(json.dumps(status, ensure_ascii=False, indent=2))
+        return
+
+    typer.echo(f"\n{'=' * 60}")
+    typer.echo(f"チーム: {status['name']}")
+    typer.echo(f"{'=' * 60}")
+    typer.echo(f"説明: {status.get('description', 'N/A')}")
+    typer.echo(f"タスク数: {status.get('taskCount', 0)}")
+    typer.echo()
+
+    typer.echo("メンバー:")
+    for member in status.get("members", []):
+        typer.echo(f"  - {member.get('name', 'unknown')}")
+        typer.echo(f"    タイプ: {member.get('agentType', 'N/A')}")
+        typer.echo(f"    モデル: {member.get('model', 'N/A')}")
+
+    typer.echo()
+
+
+@app.command()
+def team_messages(
+    team_name: str = typer.Argument(..., help="チーム名"),
+    limit: int = typer.Option(10, "--limit", "-l", help="表示数（デフォルト: 10）"),
+    json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
+) -> None:
+    """チームのメッセージを表示します。
+
+    チーム内のメッセージ履歴を表示します。
+    """
+    monitor = TeamsMonitor()
+    messages = monitor.get_team_messages(team_name)
+
+    if not messages:
+        typer.echo(f"チーム '{team_name}' のメッセージが見つかりませんでした")
+        return
+
+    # 制限を適用
+    messages = messages[-limit:] if limit > 0 else messages
+
+    if json_output:
+        typer.echo(json.dumps(messages, ensure_ascii=False, indent=2))
+        return
+
+    typer.echo(f"\n{'=' * 60}")
+    typer.echo(f"チーム '{team_name}' のメッセージ ({len(messages)}件)")
+    typer.echo(f"{'=' * 60}\n")
+
+    for msg in messages:
+        timestamp = msg.get("timestamp", "N/A")
+        sender = msg.get("sender", "unknown")
+        content = msg.get("content", "")
+        msg_type = msg.get("type", "info")
+
         type_icons = {
             "task": "📋",
             "result": "✅",
@@ -195,199 +207,283 @@ def show_logs(args: argparse.Namespace) -> None:
             "error": "❌",
             "info": "ℹ️",
         }
-        icon = type_icons.get(entry.type, "📝")
+        icon = type_icons.get(msg_type, "📝")
 
-        print(f"{icon} [{ts}] {entry.from_agent} → {entry.to_agent} ({entry.type})")
-        print(f"   {entry.content[:100]}{'...' if len(entry.content) > 100 else ''}")
-        print()
+        typer.echo(f"{icon} [{timestamp}] {sender}")
+        content_preview = content[:80] + "..." if len(content) > 80 else content
+        typer.echo(f"   {content_preview}")
+        typer.echo()
 
-    print(f"{'='*100}")
 
+@app.command()
+def team_tasks(
+    team_name: str = typer.Argument(..., help="チーム名"),
+    status_filter: str = typer.Option(None, "--status", "-s", help="ステータスでフィルタ"),
+    json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
+) -> None:
+    """チームのタスクを表示します。
 
-def show_tasks(args: argparse.Namespace) -> None:
-    """タスク一覧を表示します。
-
-    Args:
-        args: コマンドライン引数
+    チーム内のタスクリストを表示します。
     """
-    from orchestrator.core.task_tracker import TaskStatus, TaskTracker
+    monitor = TeamsMonitor()
+    tasks = monitor.get_team_tasks(team_name)
 
-    # タスク追跡インスタンスを作成
-    tracker = TaskTracker()
-
-    # 全サブタスクを取得
-    all_tasks = tracker.get_all_subtasks()
-
-    if not all_tasks:
-        print("タスクが見つかりませんでした。")
+    if not tasks:
+        typer.echo(f"チーム '{team_name}' のタスクが見つかりませんでした")
         return
 
     # ステータスでフィルタ
-    if args.status:
-        try:
-            filter_status = TaskStatus(args.status)
-            all_tasks = [t for t in all_tasks if t.status == filter_status]
-        except ValueError:
-            print(f"無効なステータス: {args.status}")
-            print(f"有効なステータス: {[s.value for s in TaskStatus]}")
-            return
+    if status_filter:
+        tasks = [t for t in tasks if t.get("status") == status_filter]
 
-    # エージェントでフィルタ
-    if args.agent:
-        all_tasks = [t for t in all_tasks if t.assigned_to == args.agent]
-
-    if not all_tasks:
-        print("条件に一致するタスクが見つかりませんでした。")
+    if json_output:
+        typer.echo(json.dumps(tasks, ensure_ascii=False, indent=2))
         return
 
-    # JSON出力モード
-    if args.json:
-        data = [
-            {
-                "id": t.id,
-                "description": t.description,
-                "assigned_to": t.assigned_to,
-                "status": t.status.value,
-                "result": t.result,
-                "created_at": t.created_at,
-                "completed_at": t.completed_at,
-            }
-            for t in all_tasks
-        ]
-        print(json.dumps(data, ensure_ascii=False, indent=2))
-        return
+    typer.echo(f"\n{'=' * 60}")
+    typer.echo(f"チーム '{team_name}' のタスク ({len(tasks)}件)")
+    typer.echo(f"{'=' * 60}\n")
 
-    # 表形式出力
-    print(f"\n{'='*100}")
-    print(f"タスク一覧 ({len(all_tasks)}件)")
-    print(f"{'='*100}\n")
+    status_order = ["in_progress", "pending", "completed", "deleted"]
+    grouped: dict[str, list[dict[str, Any]]] = {s: [] for s in status_order}
 
-    # ステータス別にグループ化
-    status_order = [TaskStatus.IN_PROGRESS, TaskStatus.PENDING, TaskStatus.COMPLETED, TaskStatus.FAILED]
-    grouped: dict[TaskStatus, list] = {status: [] for status in status_order}
+    for task in tasks:
+        task_status = task.get("status", "pending")
+        if task_status not in grouped:
+            grouped[task_status] = []
+        grouped[task_status].append(task)
 
-    for task in all_tasks:
-        grouped[task.status].append(task)
+    status_icons = {
+        "pending": "⏳",
+        "in_progress": "🔄",
+        "completed": "✅",
+        "deleted": "🗑️",
+    }
 
     for status in status_order:
-        tasks = grouped[status]
-        if not tasks:
+        tasks_in_status = grouped.get(status, [])
+        if not tasks_in_status:
             continue
 
-        # ステータスに応じたアイコン
-        status_icons = {
-            TaskStatus.PENDING: "⏳",
-            TaskStatus.IN_PROGRESS: "🔄",
-            TaskStatus.COMPLETED: "✅",
-            TaskStatus.FAILED: "❌",
+        icon = status_icons.get(status, "📝")
+        typer.echo(f"{icon} {status.upper()} ({len(tasks_in_status)}件)")
+        typer.echo("-" * 60)
+
+        for task in tasks_in_status:
+            task_id = task.get("id", "unknown")
+            subject = task.get("subject", task.get("description", ""))
+            owner = task.get("owner", "unassigned")
+            active_form = task.get("activeForm", subject)
+
+            typer.echo(f"  [{task_id}] {active_form}")
+            typer.echo(f"    担当: {owner}")
+            typer.echo()
+
+
+@app.command()
+def health(
+    team_name: str = typer.Option(
+        None, "--team", "-t", help="チーム名（指定しない場合は全チーム）"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
+) -> None:
+    """ヘルスステータスを表示します。
+
+    エージェントのヘルス状態を表示します。
+    """
+    monitor = get_agent_health_monitor()
+    health_status = monitor.get_health_status()
+
+    if team_name:
+        if team_name not in health_status:
+            typer.echo(f"エラー: チーム '{team_name}' のヘルス情報が見つかりません", err=True)
+            raise typer.Exit(1)
+        health_status = {team_name: health_status[team_name]}
+
+    if json_output:
+        typer.echo(json.dumps(health_status, ensure_ascii=False, indent=2))
+        return
+
+    typer.echo(f"\n{'=' * 60}")
+    typer.echo("ヘルスステータス")
+    typer.echo(f"{'=' * 60}\n")
+
+    for t_name, agents in health_status.items():
+        typer.echo(f"🏠 チーム: {t_name}")
+
+        for agent_name, status_info in agents.items():
+            is_healthy = status_info.get("isHealthy", True)
+            elapsed = status_info.get("elapsed", 0.0)
+            last_activity = status_info.get("lastActivity", "N/A")
+            threshold = status_info.get("timeoutThreshold", 300.0)
+
+            status_icon = "🟢" if is_healthy else "🔴"
+            typer.echo(f"  {status_icon} {agent_name}")
+            typer.echo(f"     状態: {'健全' if is_healthy else 'タイムアウト'}")
+            typer.echo(f"     経過時間: {elapsed:.1f}秒 / {threshold:.0f}秒")
+            typer.echo(f"     最終アクティビティ: {last_activity}")
+            typer.echo()
+
+
+@app.command()
+def show_logs(
+    team_name: str = typer.Argument(..., help="チーム名"),
+    agent: str = typer.Option(None, "--agent", "-a", help="エージェント名でフィルタ"),
+    limit: int = typer.Option(20, "--limit", "-l", help="表示数（デフォルト: 20）"),
+    json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
+) -> None:
+    """チームの思考ログを表示します。
+
+    チーム内のエージェントの思考ログを表示します。
+    """
+    handler = get_thinking_log_handler()
+    logs = handler.get_logs(team_name)
+
+    if not logs:
+        typer.echo(f"チーム '{team_name}' の思考ログが見つかりませんでした")
+        return
+
+    # エージェントでフィルタ
+    if agent:
+        logs = [log for log in logs if log.get("agentName") == agent]
+
+    # 制限を適用
+    logs = logs[-limit:] if limit > 0 else logs
+
+    if json_output:
+        typer.echo(json.dumps(logs, ensure_ascii=False, indent=2))
+        return
+
+    typer.echo(f"\n{'=' * 60}")
+    typer.echo(f"チーム '{team_name}' の思考ログ ({len(logs)}件)")
+    if agent:
+        typer.echo(f"エージェント: {agent}")
+    typer.echo(f"{'=' * 60}\n")
+
+    for log in logs:
+        agent_name = log.get("agentName", "unknown")
+        timestamp = log.get("timestamp", "")
+        content = log.get("content", "")
+        category = log.get("category", "thinking")
+
+        # カテゴリに応じたアイコン
+        category_icons = {
+            "thinking": "💭",
+            "planning": "📋",
+            "decision": "🎯",
+            "question": "❓",
+            "error": "❌",
         }
-        icon = status_icons[status]
+        icon = category_icons.get(category, "📝")
 
-        print(f"{icon} {status.value.upper()} ({len(tasks)}件)")
-        print("-" * 100)
+        typer.echo(f"{icon} [{timestamp}] {agent_name}")
+        content_preview = content[:100] + "..." if len(content) > 100 else content
+        typer.echo(f"   {content_preview}")
+        typer.echo()
 
-        for task in tasks:
-            created = task.created_at[:19] if task.created_at else "N/A"
-            print(f"  [{task.id}] {task.description}")
-            print(f"    担当: {task.assigned_to} | 作成: {created}")
-            if task.result:
-                result_preview = task.result[:80] + "..." if len(task.result) > 80 else task.result
-                print(f"    結果: {result_preview}")
-            print()
 
-    print(f"{'='*100}")
-    print(f"\nサマリー: {tracker.get_summary()}")
+@app.command()
+def team_activity(
+    team_name: str = typer.Argument(..., help="チーム名"),
+    json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
+) -> None:
+    """チームのアクティビティ概要を表示します。
+
+    チームのメッセージ、タスク、思考ログの概要を表示します。
+    """
+    monitor = TeamsMonitor()
+    handler = get_thinking_log_handler()
+
+    # チーム情報を取得
+    teams = monitor.get_teams()
+    team_info = next((t for t in teams if t["name"] == team_name), None)
+
+    if not team_info:
+        typer.echo(f"エラー: チーム '{team_name}' が見つかりません", err=True)
+        raise typer.Exit(1)
+
+    # 各種データを取得
+    messages = monitor.get_team_messages(team_name)
+    tasks = monitor.get_team_tasks(team_name)
+    thinking_logs = handler.get_logs(team_name)
+
+    activity = {
+        "teamName": team_name,
+        "description": team_info.get("description", ""),
+        "messageCount": len(messages),
+        "taskCount": len(tasks),
+        "thinkingLogCount": len(thinking_logs),
+        "memberCount": len(team_info.get("members", [])),
+        "tasksByStatus": {},
+        "latestActivity": None,
+    }
+
+    # タスクをステータス別に集計
+    for task in tasks:
+        status = task.get("status", "pending")
+        activity["tasksByStatus"][status] = activity["tasksByStatus"].get(status, 0) + 1
+
+    # 最新アクティビティを特定
+    latest_timestamp = None
+    latest_type = None
+
+    for msg in messages:
+        ts = msg.get("timestamp", "")
+        if ts and (not latest_timestamp or ts > latest_timestamp):
+            latest_timestamp = ts
+            latest_type = "message"
+
+    for log in thinking_logs:
+        ts = log.get("timestamp", "")
+        if ts and (not latest_timestamp or ts > latest_timestamp):
+            latest_timestamp = ts
+            latest_type = "thinking"
+
+    activity["latestActivity"] = {
+        "type": latest_type,
+        "timestamp": latest_timestamp,
+    }
+
+    if json_output:
+        typer.echo(json.dumps(activity, ensure_ascii=False, indent=2))
+        return
+
+    typer.echo(f"\n{'=' * 60}")
+    typer.echo(f"チーム: {team_name}")
+    typer.echo(f"{'=' * 60}")
+    typer.echo(f"説明: {activity['description']}")
+    typer.echo(f"メンバー数: {activity['memberCount']}")
+    typer.echo()
+
+    typer.echo("📊 アクティビティ概要:")
+    typer.echo(f"  メッセージ数: {activity['messageCount']}")
+    typer.echo(f"  タスク数: {activity['taskCount']}")
+    typer.echo(f"  思考ログ数: {activity['thinkingLogCount']}")
+    typer.echo()
+
+    if activity["tasksByStatus"]:
+        typer.echo("📋 タスクステータス:")
+        status_labels = {
+            "pending": "待機中",
+            "in_progress": "進行中",
+            "completed": "完了",
+            "deleted": "削除",
+        }
+        for status, count in activity["tasksByStatus"].items():
+            label = status_labels.get(status, status)
+            typer.echo(f"  {label}: {count}件")
+        typer.echo()
+
+    if activity["latestActivity"]["timestamp"]:
+        typer.echo("🕐 最新アクティビティ:")
+        typer.echo(f"  タイプ: {activity['latestActivity']['type'] or 'N/A'}")
+        typer.echo(f"  時刻: {activity['latestActivity']['timestamp']}")
+        typer.echo()
 
 
 def main() -> None:
     """メインエントリーポイント"""
-    parser = argparse.ArgumentParser(description="orchestrator-cc CLI")
-    subparsers = parser.add_subparsers(dest="command", help="サブコマンド")
-
-    # startコマンド
-    start_parser = subparsers.add_parser("start", help="クラスタを起動")
-    start_parser.add_argument(
-        "--config",
-        default="config/cc-cluster.yaml",
-        help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
-    )
-    start_parser.add_argument(
-        "--sequential",
-        action="store_true",
-        help="順次起動モード（デフォルト: バッチサイズ3での並列起動）",
-    )
-    start_parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=3,
-        help="並列起動時のバッチサイズ（デフォルト: 3）",
-    )
-
-    # executeコマンド
-    execute_parser = subparsers.add_parser("execute", help="タスクを実行")
-    execute_parser.add_argument("task", help="実行するタスク")
-    execute_parser.add_argument(
-        "--config",
-        default="config/cc-cluster.yaml",
-        help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
-    )
-
-    # stopコマンド
-    stop_parser = subparsers.add_parser("stop", help="クラスタを停止")
-    stop_parser.add_argument(
-        "--config",
-        default="config/cc-cluster.yaml",
-        help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
-    )
-
-    # statusコマンド
-    status_parser = subparsers.add_parser("status", help="クラスタの状態を表示")
-    status_parser.add_argument(
-        "--config",
-        default="config/cc-cluster.yaml",
-        help="クラスタ設定ファイルのパス（デフォルト: config/cc-cluster.yaml）",
-    )
-
-    # logsコマンド
-    logs_parser = subparsers.add_parser("logs", help="通信ログを表示")
-    logs_parser.add_argument(
-        "--log-file",
-        default="messages.jsonl",
-        help="ログファイルのパス（デフォルト: messages.jsonl）",
-    )
-    logs_parser.add_argument("--from-agent", help="送信元エージェントでフィルタ")
-    logs_parser.add_argument("--to-agent", help="送信先エージェントでフィルタ")
-    logs_parser.add_argument("--msg-type", help="メッセージタイプでフィルタ（task/result/thought/error/info）")
-    logs_parser.add_argument("--level", help="ログレベルでフィルタ（DEBUG/INFO/WARNING/ERROR）")
-    logs_parser.add_argument("--limit", type=int, help="最大表示数")
-    logs_parser.add_argument("--recent", action="store_true", help="最近のログを表示")
-    logs_parser.add_argument("--json", action="store_true", help="JSON形式で出力")
-
-    # tasksコマンド
-    tasks_parser = subparsers.add_parser("tasks", help="タスク一覧を表示")
-    tasks_parser.add_argument("--status", help="ステータスでフィルタ（pending/in_progress/completed/failed）")
-    tasks_parser.add_argument("--agent", help="担当エージェントでフィルタ")
-    tasks_parser.add_argument("--json", action="store_true", help="JSON形式で出力")
-
-    # 引数をパース
-    args = parser.parse_args()
-
-    # コマンドを実行
-    if args.command == "start":
-        start_cluster(args)
-    elif args.command == "execute":
-        execute_task(args)
-    elif args.command == "stop":
-        stop_cluster(args)
-    elif args.command == "status":
-        status_cluster(args)
-    elif args.command == "logs":
-        show_logs(args)
-    elif args.command == "tasks":
-        show_tasks(args)
-    else:
-        parser.print_help()
-        sys.exit(1)
+    app()
 
 
 if __name__ == "__main__":

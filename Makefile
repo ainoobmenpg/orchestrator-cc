@@ -1,4 +1,4 @@
-.PHONY: help check fmt lint test test-all coverage clean install-dev
+.PHONY: help check fmt lint test test-all coverage clean install-dev check-fe fmt-fe lint-fe test-fe install-fe
 
 help: ## ヘルプを表示
 	@echo "使用可能なコマンド:"
@@ -14,13 +14,13 @@ check: ## 全品質チェックを実行（型チェック+リント+フォー�
 	@echo "=== フォーマットチェック ==="
 	ruff format --check .
 	@echo ""
-	@echo "=== 単体テスト ==="
-	pytest tests/ -v -m "not integration"
+	@echo "=== 単体テスト（playwrightテスト除外） ==="
+	pytest tests/ -v -m "not integration and not playwright"
 
-check-all: check ## 全チェック+統合テスト（並列実行）
+check-all: check check-fe ## 全チェック+統合テスト（並列実行）
 	@echo ""
-	@echo "=== 統合テスト（並列実行） ==="
-	pytest tests/ -v -n 4
+	@echo "=== 統合テスト（並列実行、serialテスト除外） ==="
+	pytest tests/ -v -m "not playwright and not serial" -n 4
 
 fmt: ## コードの自動フォーマットとリント修正
 	@echo "=== リント自動修正 ==="
@@ -35,14 +35,20 @@ lint: ## リントチェックのみ
 type-check: ## 型チェックのみ
 	mypy .
 
-test: ## 単体テストのみ
-	pytest tests/ -v -m "not integration"
+test: ## 単体テストのみ（playwrightテスト除外）
+	pytest tests/ -v -m "not integration and not playwright"
 
-test-all: ## 全テスト（統合テスト含む、並列実行）
-	pytest tests/ -v -n 4
+test-ui: ## UIテストのみ（playwright使用）
+	pytest tests/ui -v -m "playwright"
 
-coverage: ## カバレッジレポート生成
-	pytest --cov=. --cov-report=term-missing --cov-report=html
+test-all: ## 全テスト（統合テスト含む、playwrightとserialは除外）
+	pytest tests/ -v -m "not playwright and not serial" -n 4
+
+test-all-with-ui: ## 全テスト（UIテスト含む）
+	pytest tests/ -v
+
+coverage: ## カバレッジレポート生成（playwrightテスト除外）
+	pytest --cov=. --cov-report=term-missing --cov-report=html -m "not playwright"
 	@echo "HTMLレポート: htmlcov/index.html"
 
 clean: ## キャッシュファイルを削除
@@ -56,4 +62,37 @@ clean: ## キャッシュファイルを削除
 install-dev: ## 開発依存関係をインストール
 	pip install -r requirements-dev.txt
 
-pre-commit: fmt check ## プリコミットチェック（フォーマット+全チェック）
+check-fe: ## フロントエンド品質チェック（ESLint + Stylelint + Prettier check）
+	@echo "=== ESLintチェック ==="
+	cd orchestrator/web && npm run lint
+	@echo ""
+	@echo "=== Stylelintチェック ==="
+	cd orchestrator/web && npm run lint:css
+	@echo ""
+	@echo "=== Prettierフォーマットチェック ==="
+	cd orchestrator/web && npm run format:check
+
+fmt-fe: ## フロントエンド自動フォーマット（ESLint --fix + Prettier + Stylelint --fix）
+	@echo "=== ESLint自動修正 ==="
+	cd orchestrator/web && npm run lint:fix
+	@echo ""
+	@echo "=== Stylelint自動修正 ==="
+	cd orchestrator/web && npm run lint:css:fix
+	@echo ""
+	@echo "=== Prettierフォーマット ==="
+	cd orchestrator/web && npm run format
+
+lint-fe: ## フロントエンドリントのみ（ESLint + Stylelint）
+	@echo "=== ESLintチェック ==="
+	cd orchestrator/web && npm run lint
+	@echo ""
+	@echo "=== Stylelintチェック ==="
+	cd orchestrator/web && npm run lint:css
+
+test-fe: ## フロントエンドテスト実行
+	cd orchestrator/web && npm run test
+
+install-fe: ## フロントエンド開発依存関係をインストール
+	cd orchestrator/web && npm ci
+
+pre-commit: fmt fmt-fe check check-fe ## プリコミットチェック（フォーマット+全チェック）

@@ -1,0 +1,44 @@
+# Default Team Configuration
+# Agent Teamsのデフォルト設定
+
+name: "default-team"
+description: "デフォルトの開発チーム"
+
+# チームリーダー
+lead:
+  name: "team-lead"
+  agent_type: "general-purpose"
+  model: "claude-opus-4-6"
+  prompt_file: "agents/team_lead.py"
+
+# チームメンバー
+members:
+  - name: "researcher"
+    agent_type: "general-purpose"
+    model: "claude-sonnet-4-5-20250929"
+    prompt_file: "agents/specialist_research.py"
+
+  - name: "coder"
+    agent_type: "general-purpose"
+    model: "claude-sonnet-4-5-20250929"
+    prompt_file: "agents/specialist_code.py"
+
+  - name: "tester"
+    agent_type: "general-purpose"
+    model: "claude-sonnet-4-5-20250929"
+    prompt_file: "agents/specialist_test.py"
+
+# チーム設定
+settings:
+  # 並列実行許可（デフォルトは順次実行）
+  parallel_execution: false
+
+  # プランモード必須（コーディングエージェントのみ）
+  plan_mode_required:
+    - "coder"
+
+  # 最大ターン数（無制限の場合は0）
+  max_turns: 0
+
+# 作業ディレクトリ
+working_directory: "/Users/m2_macbookair_3911/GitHub/orchestrator-cc"

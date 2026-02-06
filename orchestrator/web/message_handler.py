@@ -166,21 +166,16 @@ class WebSocketMessageHandler:
                 await self._handlers[message_type](data, websocket)
             else:
                 await self._manager.send_personal(
-                    {"type": "error", "message": f"Unknown message type: {message_type}"},
-                    websocket
+                    {"type": "error", "message": f"Unknown message type: {message_type}"}, websocket
                 )
 
         except json.JSONDecodeError:
             await self._manager.send_personal(
-                {"type": "error", "message": "Invalid JSON format"},
-                websocket
+                {"type": "error", "message": "Invalid JSON format"}, websocket
             )
         except Exception as e:
             logger.error(f"メッセージ処理でエラーが発生: {e}")
-            await self._manager.send_personal(
-                {"type": "error", "message": str(e)},
-                websocket
-            )
+            await self._manager.send_personal({"type": "error", "message": str(e)}, websocket)
 
     async def _handle_ping(self, data: dict[str, Any], websocket: WebSocket) -> None:
         """pingメッセージを処理します。
@@ -190,8 +185,7 @@ class WebSocketMessageHandler:
             websocket: WebSocket接続
         """
         await self._manager.send_personal(
-            {"type": "pong", "timestamp": data.get("timestamp")},
-            websocket
+            {"type": "pong", "timestamp": data.get("timestamp")}, websocket
         )
 
     async def _handle_subscribe(self, data: dict[str, Any], websocket: WebSocket) -> None:
@@ -203,8 +197,7 @@ class WebSocketMessageHandler:
         """
         # 将来的にサブスクリプション管理を追加
         await self._manager.send_personal(
-            {"type": "subscribed", "channels": data.get("channels", [])},
-            websocket
+            {"type": "subscribed", "channels": data.get("channels", [])}, websocket
         )
 
     async def _handle_unsubscribe(self, data: dict[str, Any], websocket: WebSocket) -> None:
@@ -216,8 +209,7 @@ class WebSocketMessageHandler:
         """
         # 将来的にサブスクリプション管理を追加
         await self._manager.send_personal(
-            {"type": "unsubscribed", "channels": data.get("channels", [])},
-            websocket
+            {"type": "unsubscribed", "channels": data.get("channels", [])}, websocket
         )
 
     async def _handle_get_status(self, _data: dict[str, Any], websocket: WebSocket) -> None:
@@ -234,9 +226,9 @@ class WebSocketMessageHandler:
                 "type": "status",
                 "data": {
                     "connection_count": self._manager.get_connection_count(),
-                }
+                },
             },
-            websocket
+            websocket,
         )
 
     def set_status_handler(self, handler: Any) -> None:

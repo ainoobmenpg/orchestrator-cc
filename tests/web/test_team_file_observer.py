@@ -6,17 +6,23 @@
 import json
 import time
 from pathlib import Path
+<<<<<<< HEAD
+=======
 from threading import Thread
 from typing import Any
 
 import pytest
+>>>>>>> main
 
 from orchestrator.web.team_file_observer import (
     TaskFileObserver,
     TeamFileObserver,
 )
 
+<<<<<<< HEAD
+=======
 
+>>>>>>> main
 # ============================================================================
 # TeamFileObserver テスト
 # ============================================================================
@@ -110,6 +116,19 @@ class TestTeamFileObserver:
         # テスト用チームを作成
         team_dir = tmp_path / "new-team"
         team_dir.mkdir()
+<<<<<<< HEAD
+        (team_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "name": "new-team",
+                    "createdAt": 1234567890,
+                    "leadAgentId": "lead@test",
+                    "leadSessionId": "session-123",
+                    "members": [],
+                }
+            )
+        )
+=======
         (team_dir / "config.json").write_text(json.dumps({
             "name": "new-team",
             "createdAt": 1234567890,
@@ -117,6 +136,7 @@ class TestTeamFileObserver:
             "leadSessionId": "session-123",
             "members": [],
         }))
+>>>>>>> main
 
         time.sleep(1)
         observer.stop()
