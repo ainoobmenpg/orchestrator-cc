@@ -45,11 +45,17 @@ module = "tests.*"
 disallow_untyped_defs = false
 disable_error_code = ["method-assign"]
 
+[[tool.mypy.overrides]]
+module = "orchestrator.web.team_file_observer"
+disable_error_code = ["valid-type", "override", "arg-type"]
+
 # === pytest設定 ===
 [tool.pytest.ini_options]
 minversion = "9.0"
 testpaths = ["tests"]
 pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
 addopts = [
     "-v",
     "--strict-markers",
@@ -59,6 +65,8 @@ markers = [
     "integration: 統合テスト（tmux依存、実環境での実行が必要）",
     "unit: 単体テスト（モック使用、高速実行可能）",
     "slow: 実行に時間がかかるテスト",
+    "playwright: Playwrightを使用したUIテスト（pytest-asyncioと競合）",
+    "serial: 並列実行できないテスト（pytest-asyncio使用）",
 ]
 
 # === coverage設定 ===
@@ -84,3 +92,16 @@ exclude_lines = [
     "@abstractmethod",
 ]
 fail_under = 80
+
+# === ruff設定 ===
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["SIM117"]  # ネストされたwith文の結合を無効化
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

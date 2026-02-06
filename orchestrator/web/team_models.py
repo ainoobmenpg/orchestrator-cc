@@ -99,9 +99,7 @@ class TeamInfo:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TeamInfo":
         """辞書からTeamInfoを作成します。"""
-        members = [
-            TeamMember.from_dict(m) for m in data.get("members", [])
-        ]
+        members = [TeamMember.from_dict(m) for m in data.get("members", [])]
         return cls(
             name=data.get("name", ""),
             description=data.get("description", ""),
@@ -356,31 +354,19 @@ def _detect_emotion(content: str) -> EmotionType:
     content_lower = content.lower()
 
     # 困惑
-    if any(
-        w in content_lower
-        for w in ["confused", "unclear", "uncertain", "don't know", "?"]
-    ):
+    if any(w in content_lower for w in ["confused", "unclear", "uncertain", "don't know", "?"]):
         return EmotionType.CONFUSION
 
     # 満足
-    if any(
-        w in content_lower
-        for w in ["success", "complete", "solved", "done", "finished"]
-    ):
+    if any(w in content_lower for w in ["success", "complete", "solved", "done", "finished"]):
         return EmotionType.SATISFACTION
 
     # 関心
-    if any(
-        w in content_lower
-        for w in ["error", "problem", "issue", "fail", "wrong"]
-    ):
+    if any(w in content_lower for w in ["error", "problem", "issue", "fail", "wrong"]):
         return EmotionType.CONCERN
 
     # フォーカス
-    if any(
-        w in content_lower
-        for w in ["checking", "verifying", "analyzing", "focus"]
-    ):
+    if any(w in content_lower for w in ["checking", "verifying", "analyzing", "focus"]):
         return EmotionType.FOCUS
 
     return EmotionType.NEUTRAL

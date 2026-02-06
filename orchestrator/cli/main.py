@@ -13,6 +13,7 @@ import typer
 from orchestrator.core.agent_health_monitor import get_agent_health_monitor
 from orchestrator.core.agent_teams_manager import TeamConfig, get_agent_teams_manager
 from orchestrator.web.teams_monitor import TeamsMonitor
+from orchestrator.web.thinking_log_handler import get_thinking_log_handler
 
 app = typer.Typer(
     help="orchestrator-cc CLI - Agent Teams管理ツール",
@@ -114,12 +115,14 @@ def list_teams(
         typer.echo("チームが見つかりませんでした")
         return
 
-    typer.echo(f"\n{'='*60}")
+    typer.echo(f"\n{'=' * 60}")
     typer.echo(f"チーム一覧 ({len(teams)}件)")
-    typer.echo(f"{'='*60}\n")
+    typer.echo(f"{'=' * 60}\n")
 
     for team in teams:
-        created_at = datetime.fromtimestamp(team.get("createdAt", 0) / 1000).strftime("%Y-%m-%d %H:%M:%S")
+        created_at = datetime.fromtimestamp(team.get("createdAt", 0) / 1000).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         typer.echo(f"📁 {team['name']}")
         typer.echo(f"   説明: {team.get('description', 'N/A')}")
         typer.echo(f"   作成日時: {created_at}")
@@ -147,9 +150,9 @@ def team_status(
         typer.echo(json.dumps(status, ensure_ascii=False, indent=2))
         return
 
-    typer.echo(f"\n{'='*60}")
+    typer.echo(f"\n{'=' * 60}")
     typer.echo(f"チーム: {status['name']}")
-    typer.echo(f"{'='*60}")
+    typer.echo(f"{'=' * 60}")
     typer.echo(f"説明: {status.get('description', 'N/A')}")
     typer.echo(f"タスク数: {status.get('taskCount', 0)}")
     typer.echo()
@@ -187,9 +190,9 @@ def team_messages(
         typer.echo(json.dumps(messages, ensure_ascii=False, indent=2))
         return
 
-    typer.echo(f"\n{'='*60}")
+    typer.echo(f"\n{'=' * 60}")
     typer.echo(f"チーム '{team_name}' のメッセージ ({len(messages)}件)")
-    typer.echo(f"{'='*60}\n")
+    typer.echo(f"{'=' * 60}\n")
 
     for msg in messages:
         timestamp = msg.get("timestamp", "N/A")
@@ -237,9 +240,9 @@ def team_tasks(
         typer.echo(json.dumps(tasks, ensure_ascii=False, indent=2))
         return
 
-    typer.echo(f"\n{'='*60}")
+    typer.echo(f"\n{'=' * 60}")
     typer.echo(f"チーム '{team_name}' のタスク ({len(tasks)}件)")
-    typer.echo(f"{'='*60}\n")
+    typer.echo(f"{'=' * 60}\n")
 
     status_order = ["in_progress", "pending", "completed", "deleted"]
     grouped: dict[str, list[dict[str, Any]]] = {s: [] for s in status_order}
@@ -279,7 +282,9 @@ def team_tasks(
 
 @app.command()
 def health(
-    team_name: str = typer.Option(None, "--team", "-t", help="チーム名（指定しない場合は全チーム）"),
+    team_name: str = typer.Option(
+        None, "--team", "-t", help="チーム名（指定しない場合は全チーム）"
+    ),
     json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
 ) -> None:
     """ヘルスステータスを表示します。
@@ -299,9 +304,9 @@ def health(
         typer.echo(json.dumps(health_status, ensure_ascii=False, indent=2))
         return
 
-    typer.echo(f"\n{'='*60}")
+    typer.echo(f"\n{'=' * 60}")
     typer.echo("ヘルスステータス")
-    typer.echo(f"{'='*60}\n")
+    typer.echo(f"{'=' * 60}\n")
 
     for t_name, agents in health_status.items():
         typer.echo(f"🏠 チーム: {t_name}")
@@ -318,6 +323,162 @@ def health(
             typer.echo(f"     経過時間: {elapsed:.1f}秒 / {threshold:.0f}秒")
             typer.echo(f"     最終アクティビティ: {last_activity}")
             typer.echo()
+
+
+@app.command()
+def show_logs(
+    team_name: str = typer.Argument(..., help="チーム名"),
+    agent: str = typer.Option(None, "--agent", "-a", help="エージェント名でフィルタ"),
+    limit: int = typer.Option(20, "--limit", "-l", help="表示数（デフォルト: 20）"),
+    json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
+) -> None:
+    """チームの思考ログを表示します。
+
+    チーム内のエージェントの思考ログを表示します。
+    """
+    handler = get_thinking_log_handler()
+    logs = handler.get_logs(team_name)
+
+    if not logs:
+        typer.echo(f"チーム '{team_name}' の思考ログが見つかりませんでした")
+        return
+
+    # エージェントでフィルタ
+    if agent:
+        logs = [log for log in logs if log.get("agentName") == agent]
+
+    # 制限を適用
+    logs = logs[-limit:] if limit > 0 else logs
+
+    if json_output:
+        typer.echo(json.dumps(logs, ensure_ascii=False, indent=2))
+        return
+
+    typer.echo(f"\n{'=' * 60}")
+    typer.echo(f"チーム '{team_name}' の思考ログ ({len(logs)}件)")
+    if agent:
+        typer.echo(f"エージェント: {agent}")
+    typer.echo(f"{'=' * 60}\n")
+
+    for log in logs:
+        agent_name = log.get("agentName", "unknown")
+        timestamp = log.get("timestamp", "")
+        content = log.get("content", "")
+        category = log.get("category", "thinking")
+
+        # カテゴリに応じたアイコン
+        category_icons = {
+            "thinking": "💭",
+            "planning": "📋",
+            "decision": "🎯",
+            "question": "❓",
+            "error": "❌",
+        }
+        icon = category_icons.get(category, "📝")
+
+        typer.echo(f"{icon} [{timestamp}] {agent_name}")
+        content_preview = content[:100] + "..." if len(content) > 100 else content
+        typer.echo(f"   {content_preview}")
+        typer.echo()
+
+
+@app.command()
+def team_activity(
+    team_name: str = typer.Argument(..., help="チーム名"),
+    json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
+) -> None:
+    """チームのアクティビティ概要を表示します。
+
+    チームのメッセージ、タスク、思考ログの概要を表示します。
+    """
+    monitor = TeamsMonitor()
+    handler = get_thinking_log_handler()
+
+    # チーム情報を取得
+    teams = monitor.get_teams()
+    team_info = next((t for t in teams if t["name"] == team_name), None)
+
+    if not team_info:
+        typer.echo(f"エラー: チーム '{team_name}' が見つかりません", err=True)
+        raise typer.Exit(1)
+
+    # 各種データを取得
+    messages = monitor.get_team_messages(team_name)
+    tasks = monitor.get_team_tasks(team_name)
+    thinking_logs = handler.get_logs(team_name)
+
+    activity = {
+        "teamName": team_name,
+        "description": team_info.get("description", ""),
+        "messageCount": len(messages),
+        "taskCount": len(tasks),
+        "thinkingLogCount": len(thinking_logs),
+        "memberCount": len(team_info.get("members", [])),
+        "tasksByStatus": {},
+        "latestActivity": None,
+    }
+
+    # タスクをステータス別に集計
+    for task in tasks:
+        status = task.get("status", "pending")
+        activity["tasksByStatus"][status] = activity["tasksByStatus"].get(status, 0) + 1
+
+    # 最新アクティビティを特定
+    latest_timestamp = None
+    latest_type = None
+
+    for msg in messages:
+        ts = msg.get("timestamp", "")
+        if ts and (not latest_timestamp or ts > latest_timestamp):
+            latest_timestamp = ts
+            latest_type = "message"
+
+    for log in thinking_logs:
+        ts = log.get("timestamp", "")
+        if ts and (not latest_timestamp or ts > latest_timestamp):
+            latest_timestamp = ts
+            latest_type = "thinking"
+
+    activity["latestActivity"] = {
+        "type": latest_type,
+        "timestamp": latest_timestamp,
+    }
+
+    if json_output:
+        typer.echo(json.dumps(activity, ensure_ascii=False, indent=2))
+        return
+
+    typer.echo(f"\n{'=' * 60}")
+    typer.echo(f"チーム: {team_name}")
+    typer.echo(f"{'=' * 60}")
+    typer.echo(f"説明: {activity['description']}")
+    typer.echo(f"メンバー数: {activity['memberCount']}")
+    typer.echo()
+
+    typer.echo("📊 アクティビティ概要:")
+    typer.echo(f"  メッセージ数: {activity['messageCount']}")
+    typer.echo(f"  タスク数: {activity['taskCount']}")
+    typer.echo(f"  思考ログ数: {activity['thinkingLogCount']}")
+    typer.echo()
+
+    if activity["tasksByStatus"]:
+        typer.echo("📋 タスクステータス:")
+        status_labels = {
+            "pending": "待機中",
+            "in_progress": "進行中",
+            "completed": "完了",
+            "deleted": "削除",
+        }
+        for status, count in activity["tasksByStatus"].items():
+            label = status_labels.get(status, status)
+            typer.echo(f"  {label}: {count}件")
+        typer.echo()
+
+    if activity["latestActivity"]["timestamp"]:
+        typer.echo("🕐 最新アクティビティ:")
+        typer.echo(f"  タイプ: {activity['latestActivity']['type'] or 'N/A'}")
+        typer.echo(f"  時刻: {activity['latestActivity']['timestamp']}")
+        typer.echo()
 
 
 def main() -> None:

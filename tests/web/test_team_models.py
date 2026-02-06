@@ -6,8 +6,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from orchestrator.web.team_models import (
     EmotionType,
     MessageCategory,
@@ -20,9 +18,7 @@ from orchestrator.web.team_models import (
     _detect_emotion,
     load_team_config,
     load_team_messages,
-    load_team_tasks,
 )
-
 
 # ============================================================================
 # TeamMember テスト

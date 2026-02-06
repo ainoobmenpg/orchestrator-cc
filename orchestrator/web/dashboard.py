@@ -45,7 +45,13 @@ async def lifespan(_app: FastAPI):
 
     アプリケーション起動時と終了時の処理を定義します。
     """
-    global _ws_manager, _ws_handler, _teams_monitor, _thinking_log_handler, _teams_manager, _health_monitor
+    global \
+        _ws_manager, \
+        _ws_handler, \
+        _teams_monitor, \
+        _thinking_log_handler, \
+        _teams_manager, \
+        _health_monitor
 
     # 起動時
     logger.info("FastAPIアプリケーションを起動します")
@@ -130,6 +136,7 @@ def _broadcast_teams_update(data: dict) -> None:
     if _ws_manager:
         # 非同期でブロードキャスト
         import asyncio
+
         try:
             asyncio.get_running_loop()
             asyncio.create_task(_ws_manager.broadcast(data))
@@ -147,6 +154,7 @@ def _broadcast_thinking_log(data: dict) -> None:
     if _ws_manager:
         # 非同期でブロードキャスト
         import asyncio
+
         try:
             asyncio.get_running_loop()
             asyncio.create_task(_ws_manager.broadcast(data))
@@ -234,7 +242,7 @@ async def websocket_endpoint(
                 "type": "connected",
                 "message": "Connected to Orchestrator CC Dashboard",
             },
-            websocket
+            websocket,
         )
 
         # 初期システムログを送信
@@ -245,7 +253,7 @@ async def websocket_endpoint(
                 "level": "info",
                 "content": "ダッシュボードに接続しました",
             },
-            websocket
+            websocket,
         )
 
         # チーム状態をログに追加
@@ -258,7 +266,7 @@ async def websocket_endpoint(
                     "level": "info",
                     "content": f"チーム状態: {len(teams)} チーム稼働中",
                 },
-                websocket
+                websocket,
             )
 
         # メッセージ受信ループ
@@ -305,10 +313,7 @@ async def get_team_messages(team_name: str):
     if _teams_monitor is None:
         return {"error": "Teams monitor not initialized"}
 
-    return {
-        "teamName": team_name,
-        "messages": _teams_monitor.get_team_messages(team_name)
-    }
+    return {"teamName": team_name, "messages": _teams_monitor.get_team_messages(team_name)}
 
 
 @app.get("/api/teams/{team_name}/tasks")
@@ -324,10 +329,7 @@ async def get_team_tasks(team_name: str):
     if _teams_monitor is None:
         return {"error": "Teams monitor not initialized"}
 
-    return {
-        "teamName": team_name,
-        "tasks": _teams_monitor.get_team_tasks(team_name)
-    }
+    return {"teamName": team_name, "tasks": _teams_monitor.get_team_tasks(team_name)}
 
 
 def _on_health_event(event) -> None:
@@ -339,12 +341,17 @@ def _on_health_event(event) -> None:
     if _ws_manager:
         # 非同期でブロードキャスト
         import asyncio
+
         try:
             asyncio.get_running_loop()
-            asyncio.create_task(_ws_manager.broadcast({
-                "type": "health_event",
-                "event": event.to_dict(),
-            }))
+            asyncio.create_task(
+                _ws_manager.broadcast(
+                    {
+                        "type": "health_event",
+                        "event": event.to_dict(),
+                    }
+                )
+            )
         except RuntimeError:
             pass
 
@@ -459,11 +466,7 @@ async def get_team_thinking(team_name: str, agent: str | None = None):
     if agent:
         logs = [log for log in logs if log.get("agentName") == agent]
 
-    return {
-        "teamName": team_name,
-        "agent": agent,
-        "thinking": logs
-    }
+    return {"teamName": team_name, "agent": agent, "thinking": logs}
 
 
 @app.post("/api/teams/monitoring/start")

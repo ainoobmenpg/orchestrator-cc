@@ -222,14 +222,20 @@ class TestThinkingLogHandler:
             # 既存のログファイルを作成
             log_file = Path(tmpdir) / "test-team.jsonl"
             with open(log_file, "a", encoding="utf-8") as f:
-                f.write(json.dumps({
-                    "agentName": "agent1",
-                    "content": "Existing log",
-                    "timestamp": "2026-02-06T12:00:00",
-                    "category": "thinking",
-                    "emotion": "neutral",
-                    "teamName": "test-team",
-                }, ensure_ascii=False) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "agentName": "agent1",
+                            "content": "Existing log",
+                            "timestamp": "2026-02-06T12:00:00",
+                            "category": "thinking",
+                            "emotion": "neutral",
+                            "teamName": "test-team",
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
 
             # ハンドラーを初期化（既存ログを読み込む）
             handler = ThinkingLogHandler(log_dir=tmpdir)
@@ -244,8 +250,10 @@ class TestSendThinkingLog:
 
     def test_send_thinking_log(self) -> None:
         """思考ログ送信テスト"""
-        with patch("orchestrator.web.thinking_log_handler._thinking_log_handler"), \
-             patch("orchestrator.web.thinking_log_handler.get_thinking_log_handler") as mock_get:
+        with (
+            patch("orchestrator.web.thinking_log_handler._thinking_log_handler"),
+            patch("orchestrator.web.thinking_log_handler.get_thinking_log_handler") as mock_get,
+        ):
             mock_handler = Mock()
             mock_get.return_value = mock_handler
 
@@ -292,3 +300,161 @@ class TestSingleton:
         handler2 = module.get_thinking_log_handler()
 
         assert handler1 is handler2
+
+
+class TestThinkingLogEventHandler:
+    """_ThinkingLogEventHandlerのテスト"""
+
+    def test_event_handler_filters_non_jsonl_files(self) -> None:
+        """jsonlファイル以外をフィルタするテスト"""
+        from orchestrator.web.thinking_log_handler import _ThinkingLogEventHandler
+
+        handler = _ThinkingLogEventHandler(lambda entry: None)
+
+        # テスト用のイベントオブジェクト
+        class MockEvent:
+            def __init__(self, path):
+                self.src_path = path
+
+        # jsonlファイルでないイベントは無視される
+        event = MockEvent("/path/to/log.txt")
+        handler._handle_log_file(event.src_path)
+
+        # エラーにならず、何もしない
+
+    def test_event_handler_json_decode_error(self) -> None:
+        """JSONデコードエラーのテスト"""
+        import tempfile
+
+        from orchestrator.web.thinking_log_handler import _ThinkingLogEventHandler
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 無効なJSONファイルを作成
+            log_file = Path(tmpdir) / "test.jsonl"
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write("invalid json content\n")
+
+            callback_called = []
+
+            def callback(entry):
+                callback_called.append(entry)
+
+            handler = _ThinkingLogEventHandler(callback)
+
+            # エラーにならず、処理を続行
+            handler._handle_log_file(str(log_file))
+
+            # 無効なJSONはスキップされるため、コールバックは呼ばれない
+            assert len(callback_called) == 0
+
+    def test_event_handler_debounce(self) -> None:
+        """デバウンス処理のテスト"""
+        import tempfile
+        import time
+
+        from orchestrator.web.thinking_log_handler import _ThinkingLogEventHandler
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_file = Path(tmpdir) / "test.jsonl"
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "agentName": "agent1",
+                            "content": "Test log",
+                            "timestamp": "2026-02-06T12:00:00",
+                        }
+                    )
+                    + "\n"
+                )
+
+            callback_called = []
+
+            def callback(entry):
+                callback_called.append(entry)
+
+            handler = _ThinkingLogEventHandler(callback)
+
+            # 1回目の処理
+            handler._handle_log_file(str(log_file))
+            first_count = len(callback_called)
+
+            # デバウンス期間内に2回目を呼び出す（無視される）
+            handler._handle_log_file(str(log_file))
+            second_count = len(callback_called)
+
+            # デバウンス期間が終わるのを待つ
+            time.sleep(0.6)
+
+            # 3回目の処理（デバウンス期間終了後）
+            handler._handle_log_file(str(log_file))
+            third_count = len(callback_called)
+
+            # デバウンスにより2回目はスキップされる
+            assert first_count == second_count
+            assert third_count >= first_count
+
+
+class TestThinkingLogHandlerEdgeCases:
+    """ThinkingLogHandlerのエッジケースのテスト"""
+
+    def test_add_log_with_callback_error(self) -> None:
+        """コールバックエラーのテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            handler = ThinkingLogHandler(log_dir=tmpdir)
+
+            def failing_callback(data):
+                raise RuntimeError("Callback error")
+
+            handler.register_callback(failing_callback)
+
+            entry = ThinkingLogEntry(
+                agent_name="test-agent",
+                content="Test log",
+                timestamp="2026-02-06T12:00:00",
+                team_name="test-team",
+            )
+
+            # エラーが発生してもログは追加される
+            handler.add_log(entry)
+
+            logs = handler.get_logs("test-team")
+            assert len(logs) == 1
+
+    def test_load_existing_logs_invalid_file(self) -> None:
+        """無効な既存ファイルのテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 無効なJSONファイルを作成
+            log_file = Path(tmpdir) / "test.jsonl"
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write("invalid json\n")
+
+            # エラーにならず、ハンドラーを初期化
+            handler = ThinkingLogHandler(log_dir=tmpdir)
+
+            # 空のログが返される
+            logs = handler.get_logs("test")
+            assert logs == []
+
+    def test_start_monitoring_already_running(self) -> None:
+        """既に監視中の場合のテスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            handler = ThinkingLogHandler(log_dir=tmpdir)
+
+            handler.start_monitoring()
+            assert handler.is_running() is True
+
+            # 2回目のstart_monitoringは警告を出すだけ
+            handler.start_monitoring()
+            assert handler.is_running() is True
+
+            handler.stop_monitoring()
+
+    def test_stop_monitoring_when_not_running(self) -> None:
+        """監視未実行時の停止テスト"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            handler = ThinkingLogHandler(log_dir=tmpdir)
+
+            # 監視未実行時にstopを呼んでもエラーにならない
+            handler.stop_monitoring()
+            assert handler.is_running() is False

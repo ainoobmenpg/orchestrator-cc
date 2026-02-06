@@ -14,13 +14,13 @@ check: ## 全品質チェックを実行（型チェック+リント+フォー�
 	@echo "=== フォーマットチェック ==="
 	ruff format --check .
 	@echo ""
-	@echo "=== 単体テスト ==="
-	pytest tests/ -v -m "not integration"
+	@echo "=== 単体テスト（playwrightテスト除外） ==="
+	pytest tests/ -v -m "not integration and not playwright"
 
 check-all: check check-fe ## 全チェック+統合テスト（並列実行）
 	@echo ""
-	@echo "=== 統合テスト（並列実行） ==="
-	pytest tests/ -v -n 4
+	@echo "=== 統合テスト（並列実行、serialテスト除外） ==="
+	pytest tests/ -v -m "not playwright and not serial" -n 4
 
 fmt: ## コードの自動フォーマットとリント修正
 	@echo "=== リント自動修正 ==="
@@ -35,14 +35,20 @@ lint: ## リントチェックのみ
 type-check: ## 型チェックのみ
 	mypy .
 
-test: ## 単体テストのみ
-	pytest tests/ -v -m "not integration"
+test: ## 単体テストのみ（playwrightテスト除外）
+	pytest tests/ -v -m "not integration and not playwright"
 
-test-all: ## 全テスト（統合テスト含む、並列実行）
-	pytest tests/ -v -n 4
+test-ui: ## UIテストのみ（playwright使用）
+	pytest tests/ui -v -m "playwright"
 
-coverage: ## カバレッジレポート生成
-	pytest --cov=. --cov-report=term-missing --cov-report=html
+test-all: ## 全テスト（統合テスト含む、playwrightとserialは除外）
+	pytest tests/ -v -m "not playwright and not serial" -n 4
+
+test-all-with-ui: ## 全テスト（UIテスト含む）
+	pytest tests/ -v
+
+coverage: ## カバレッジレポート生成（playwrightテスト除外）
+	pytest --cov=. --cov-report=term-missing --cov-report=html -m "not playwright"
 	@echo "HTMLレポート: htmlcov/index.html"
 
 clean: ## キャッシュファイルを削除

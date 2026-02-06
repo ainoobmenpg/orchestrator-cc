@@ -191,11 +191,13 @@ class ThinkingLogHandler:
                 # コールバックを呼び出し
                 for callback in self._callbacks:
                     try:
-                        callback({
-                            "type": "thinking_log",
-                            "teamName": team_name,
-                            "log": entry.to_dict(),
-                        })
+                        callback(
+                            {
+                                "type": "thinking_log",
+                                "teamName": team_name,
+                                "log": entry.to_dict(),
+                            }
+                        )
                     except Exception as e:
                         logger.error(f"Thinking log callback error: {e}")
 

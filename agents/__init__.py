@@ -38,6 +38,8 @@ def get_agent_prompt(agent_type: str) -> str:
         ValueError: 不明なエージェントタイプの場合
     """
     if agent_type not in AGENT_PROMPTS:
-        raise ValueError(f"Unknown agent type: {agent_type}. Available: {list(AGENT_PROMPTS.keys())}")
+        raise ValueError(
+            f"Unknown agent type: {agent_type}. Available: {list(AGENT_PROMPTS.keys())}"
+        )
 
     return AGENT_PROMPTS[agent_type]()

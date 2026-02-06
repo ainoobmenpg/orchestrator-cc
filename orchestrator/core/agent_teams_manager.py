@@ -155,6 +155,7 @@ class AgentTeamsManager:
 
         # チームディレクトリを削除
         import shutil
+
         shutil.rmtree(team_dir)
 
         # タスクディレクトリも削除
@@ -264,8 +265,7 @@ class AgentTeamsManager:
         """
         if event.event_type == "timeout_detected":
             logger.warning(
-                f"Agent timeout: {event.team_name}/{event.agent_name} - "
-                f"considering restart"
+                f"Agent timeout: {event.team_name}/{event.agent_name} - considering restart"
             )
             # TODO: 自動再起動ロジックを実装
             # 現在はログ出力のみ
@@ -286,6 +286,7 @@ def get_agent_teams_manager() -> AgentTeamsManager:
 
     if _manager_lock is None:
         import threading
+
         _manager_lock = threading.Lock()
 
     with _manager_lock:

@@ -5,13 +5,10 @@ TeamsMonitor統合監視クラスのテストです。
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
-
-from orchestrator.web.team_models import TeamInfo, TeamMember
+from orchestrator.web.team_models import TeamInfo
 from orchestrator.web.teams_monitor import TeamsMonitor
-
 
 # ============================================================================
 # TeamsMonitor 初期化テスト
@@ -21,26 +18,44 @@ from orchestrator.web.teams_monitor import TeamsMonitor
 class TestTeamsMonitorInit:
     """TeamsMonitor初期化のテスト"""
 
-    @patch('orchestrator.web.teams_monitor.Path')
-    def test_initialization_without_tmux(self, mock_path):
-        """tmuxセッション名なしでの初期化"""
+    @patch("orchestrator.web.teams_monitor.Path")
+    def test_initialization(self, mock_path):
+        """初期化テスト
+
+        Note: tmux_session_name引数は互換性のために残されていますが、
+        使用されていません（ファイルベースの思考ログを使用）。
+        """
         # チームディレクトリが存在しないようにモック
         mock_path.home.return_value = Path("/tmp/empty_teams")
         mock_path.return_value.exists.return_value = False
+        mock_path.return_value.iterdir.return_value = []
 
         monitor = TeamsMonitor()
 
-        assert monitor._tmux_manager is None
+        # チーム状態が初期化されていることを確認
         assert monitor._teams == {}
+        assert monitor._messages == {}
+        assert monitor._tasks == {}
+        assert monitor._thinking_logs == {}
         assert not monitor.is_running()
 
-    def test_initialization_with_tmux(self):
-        """tmuxセッション名ありでの初期化"""
-        with patch('orchestrator.web.teams_monitor.TmuxSessionManager') as mock_tmux:
-            monitor = TeamsMonitor(tmux_session_name="test-session")
+    @patch("orchestrator.web.teams_monitor.Path")
+    def test_initialization_with_session_name(self, mock_path):
+        """tmux_session_nameを指定した初期化テスト
 
-            assert monitor._tmux_manager is not None
-            assert not monitor.is_running()
+        Note: tmux_session_name引数は互換性のために残されていますが、
+        使用されていません。
+        """
+        # チームディレクトリが存在しないようにモック
+        mock_path.home.return_value = Path("/tmp/empty_teams")
+        mock_path.return_value.exists.return_value = False
+        mock_path.return_value.iterdir.return_value = []
+
+        # tmux_session_nameを指定しても例外が発生しないことを確認
+        monitor = TeamsMonitor(tmux_session_name="test-session")
+
+        assert monitor._teams == {}
+        assert not monitor.is_running()
 
 
 # ============================================================================
@@ -51,12 +66,13 @@ class TestTeamsMonitorInit:
 class TestTeamsMonitorTeamManagement:
     """TeamsMonitorチーム管理機能のテスト"""
 
-    @patch('orchestrator.web.teams_monitor.Path')
+    @patch("orchestrator.web.teams_monitor.Path")
     def test_get_teams_empty(self, mock_path):
         """チームがいない場合"""
         # チームディレクトリが存在しないようにモック
         mock_path.home.return_value = Path("/tmp/empty_teams")
         mock_path.return_value.exists.return_value = False
+        mock_path.return_value.iterdir.return_value = []
 
         monitor = TeamsMonitor()
 
@@ -238,14 +254,18 @@ class TestTeamsMonitorEventHandlers:
         team_dir = tmp_path / "test-team"
         team_dir.mkdir()
         config_file = team_dir / "config.json"
-        config_file.write_text(json.dumps({
-            "name": "test-team",
-            "description": "Test team",
-            "createdAt": 1234567890,
-            "leadAgentId": "lead@test",
-            "leadSessionId": "session-123",
-            "members": [],
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "name": "test-team",
+                    "description": "Test team",
+                    "createdAt": 1234567890,
+                    "leadAgentId": "lead@test",
+                    "leadSessionId": "session-123",
+                    "members": [],
+                }
+            )
+        )
 
         monitor._on_team_created("test-team", team_dir)
 
@@ -280,14 +300,18 @@ class TestTeamsMonitorEventHandlers:
         team_dir = tmp_path / "test-team"
         team_dir.mkdir()
         config_file = team_dir / "config.json"
-        config_file.write_text(json.dumps({
-            "name": "test-team",
-            "description": "Updated description",
-            "createdAt": 1234567890,
-            "leadAgentId": "lead@test",
-            "leadSessionId": "session-123",
-            "members": [],
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "name": "test-team",
+                    "description": "Updated description",
+                    "createdAt": 1234567890,
+                    "leadAgentId": "lead@test",
+                    "leadSessionId": "session-123",
+                    "members": [],
+                }
+            )
+        )
 
         monitor._on_config_changed("test-team", config_file)
 
@@ -295,20 +319,25 @@ class TestTeamsMonitorEventHandlers:
 
     def test_on_inbox_changed(self, tmp_path: Path):
         """inbox変更イベントハンドラ"""
-        from orchestrator.web.team_models import TeamMessage
 
         monitor = TeamsMonitor()
 
         inbox_dir = tmp_path / "test-team" / "inboxes"
         inbox_dir.mkdir(parents=True)
         inbox_file = inbox_dir / "agent1.json"
-        inbox_file.write_text(json.dumps([{
-            "id": "msg-001",
-            "sender": "user",
-            "recipient": "agent1",
-            "content": "Hello",
-            "timestamp": "2026-02-06T12:00:00Z",
-        }]))
+        inbox_file.write_text(
+            json.dumps(
+                [
+                    {
+                        "id": "msg-001",
+                        "sender": "user",
+                        "recipient": "agent1",
+                        "content": "Hello",
+                        "timestamp": "2026-02-06T12:00:00Z",
+                    }
+                ]
+            )
+        )
 
         monitor._on_inbox_changed("test-team", inbox_file)
 
@@ -325,29 +354,7 @@ class TestTeamsMonitorEventHandlers:
 class TestTeamsMonitorThinkingCapture:
     """TeamsMonitor思考ログキャプチャのテスト"""
 
-    def test_get_pane_index_for_member(self):
-        """メンバーのペイン番号取得テスト"""
-        monitor = TeamsMonitor()
-
-        # team-lead -> 0
-        assert monitor._get_pane_index_for_member(
-            "test-team",
-            type("obj", (object,), {"name": "team-lead"})
-        ) == 0
-
-        # researcher -> 1
-        assert monitor._get_pane_index_for_member(
-            "test-team",
-            type("obj", (object,), {"name": "researcher"})
-        ) == 1
-
-        # 不明なメンバー -> None
-        assert monitor._get_pane_index_for_member(
-            "test-team",
-            type("obj", (object,), {"name": "unknown"})
-        ) is None
-
-    @patch('orchestrator.web.teams_monitor.ThinkingLog')
+    @patch("orchestrator.web.teams_monitor.ThinkingLog")
     def test_capture_thinking_no_tmux(self, mock_thinking_log):
         """tmuxマネージャーがない場合の思考ログキャプチャ"""
         monitor = TeamsMonitor()  # tmux_session_nameなし

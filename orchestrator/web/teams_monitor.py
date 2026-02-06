@@ -87,9 +87,7 @@ class TeamsMonitor:
                 self._tasks[team_name] = load_team_tasks(team_name)
                 logger.info(f"Loaded existing team: {team_name}")
 
-    def register_update_callback(
-        self, callback: Callable[[dict[str, Any]], None]
-    ) -> None:
+    def register_update_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """更新コールバックを登録します。
 
         Args:
@@ -187,11 +185,13 @@ class TeamsMonitor:
             self._messages[team_name] = load_team_messages(path)
             self._tasks[team_name] = load_team_tasks(team_name)
 
-            self._broadcast({
-                "type": "team_created",
-                "teamName": team_name,
-                "team": team_info.to_dict(),
-            })
+            self._broadcast(
+                {
+                    "type": "team_created",
+                    "teamName": team_name,
+                    "team": team_info.to_dict(),
+                }
+            )
             logger.info(f"Team created event processed: {team_name}")
 
     def _on_team_deleted(self, team_name: str, _path: Path) -> None:
@@ -210,10 +210,12 @@ class TeamsMonitor:
         if team_name in self._thinking_logs:
             del self._thinking_logs[team_name]
 
-        self._broadcast({
-            "type": "team_deleted",
-            "teamName": team_name,
-        })
+        self._broadcast(
+            {
+                "type": "team_deleted",
+                "teamName": team_name,
+            }
+        )
         logger.info(f"Team deleted event processed: {team_name}")
 
     def _on_config_changed(self, team_name: str, path: Path) -> None:
@@ -229,11 +231,13 @@ class TeamsMonitor:
         if team_info:
             self._teams[team_name] = team_info
 
-            self._broadcast({
-                "type": "team_updated",
-                "teamName": team_name,
-                "team": team_info.to_dict(),
-            })
+            self._broadcast(
+                {
+                    "type": "team_updated",
+                    "teamName": team_name,
+                    "team": team_info.to_dict(),
+                }
+            )
             logger.debug(f"Config changed: {team_name}")
 
     def _on_inbox_changed(self, team_name: str, path: Path) -> None:
@@ -250,11 +254,13 @@ class TeamsMonitor:
         # 新しいメッセージのみを送信
         if messages:
             latest_message = messages[-1]
-            self._broadcast({
-                "type": "team_message",
-                "teamName": team_name,
-                "message": latest_message.to_dict(),
-            })
+            self._broadcast(
+                {
+                    "type": "team_message",
+                    "teamName": team_name,
+                    "message": latest_message.to_dict(),
+                }
+            )
 
         logger.debug(f"Inbox changed: {team_name}")
 
@@ -268,11 +274,13 @@ class TeamsMonitor:
         tasks = load_team_tasks(team_name)
         self._tasks[team_name] = tasks
 
-        self._broadcast({
-            "type": "tasks_updated",
-            "teamName": team_name,
-            "tasks": [task.to_dict() for task in tasks],
-        })
+        self._broadcast(
+            {
+                "type": "tasks_updated",
+                "teamName": team_name,
+                "tasks": [task.to_dict() for task in tasks],
+            }
+        )
         logger.debug(f"Tasks changed: {team_name}")
 
     def _start_thinking_polling(self) -> None:
