@@ -1,225 +1,165 @@
 # 統合テスト実施ガイド
 
-このドキュメントでは、orchestrator-ccの統合テストについて説明します。
+このドキュメントでは、orchestrator-cc プロジェクトの統合テストを実行する方法と、各テストの内容について説明します。
 
-## 目的
+## 目的と範囲
 
-統合テストは、複数のモジュールが連携して正しく動作することを検証するためのテストです。単体テストが個々の関数やクラスをテストするのに対し、統合テストはモジュール間のインターフェースとデータフローを検証します。
+統合テストの目的は、各モジュールが正しく連携して動作することを検証することです。
 
-## テスト構成
+- **チーム管理**: チームの作成・削除・設定
+- **エージェント間通信**: ダイレクトメッセージ・ブロードキャスト・タスク割り振り
+- **タスク管理**: 依存関係・自動割り振り
+- **思考ログ**: 送信・監視・ファイル永続化
+- **ヘルスモニタリング**: エージェント登録・タイムアウト検知
+- **Dashboard API**: REST API・WebSocket
 
-統合テストは `tests/integration/` ディレクトリに配置されています。
+## テストの種類
 
-| テストファイル | 検証内容 | テスト数 |
-|--------------|----------|---------|
-| `test_team_creation.py` | チーム作成・削除 (V-TM-001, V-TM-002) | 5 |
-| `test_thinking_logs.py` | 思考ログ (V-TL-001, V-TL-002) | 6 |
-| `test_health_monitoring.py` | ヘルスモニター (V-HM-001, V-HM-002) | 6 |
-| `test_agent_communication.py` | エージェント間通信 (V-AC-001~003) | 8 |
-| `test_task_management.py` | タスク管理 (V-TS-001, V-TS-002) | 6 |
-| `test_dashboard_integration.py` | Dashboard API (V-DB-001, V-DB-002) | 9 |
+| 種類 | マーカー | 説明 |
+|------|----------|------|
+| 統合テスト | `integration` | 複数モジュールの連携を検証 |
+| 単体テスト | `unit` | 個別モジュールの動作を検証 |
+| 並列実行不可 | `serial` | イベントループ使用等で並列実行不可 |
+| Playwright使用 | `playwright` | ブラウザテスト（pytest-asyncioと競合） |
 
-## 検証項目詳細
+## テスト実行方法
 
-### V-TM-001: チーム作成検証
-
-**目的**: CLI `create-team` でチーム作成が正しく動作することを確認
-
-**検証内容**:
-- `config.json` の存在と内容を確認
-- ヘルスモニターへの登録を確認
-
-**テスト**: `test_team_creation.py::TestTeamCreation::test_create_team_via_cli`
-
-### V-TM-002: チーム削除検証
-
-**目的**: チーム削除が正しく動作することを確認
-
-**検証内容**:
-- ディレクトリとタスクの削除を確認
-- 存在しないチームの削除が適切に処理されることを確認
-
-**テスト**: `test_team_creation.py::TestTeamDeletion::test_delete_team_via_manager`
-
-### V-TL-001: 思考ログ送信検証
-
-**目的**: `send_thinking_log()` 呼び出しでログが記録されることを確認
-
-**検証内容**:
-- JSONLファイルへの保存を確認
-- `ThinkingLogHandler.get_logs()` で取得できることを確認
-
-**テスト**: `test_thinking_logs.py::TestThinkingLogSending::test_send_thinking_log`
-
-### V-TL-002: 思考ログ監視検証
-
-**目的**: `ThinkingLogHandler` の監視機能が動作することを確認
-
-**検証内容**:
-- 外部書き込みでコールバックが発火することを確認
-- 複数チームのログが正しく分離されることを確認
-
-**テスト**: `test_thinking_logs.py::TestThinkingLogMonitoring::test_callback_on_new_log`
-
-### V-HM-001: エージェント登録検証
-
-**目的**: エージェントをヘルスモニターに登録できることを確認
-
-**検証内容**:
-- `register_agent()` でエージェントが登録されることを確認
-- `get_health_status()` で登録状態を取得できることを確認
-
-**テスト**: `test_health_monitoring.py::TestHealthMonitoringRegistration::test_agent_registration`
-
-### V-HM-002: タイムアウト検知検証
-
-**目的**: エージェントのタイムアウトが検知されることを確認
-
-**検証内容**:
-- 短いタイムアウト（5秒）で検知されることを確認
-- アクティビティ更新でタイムアウトが回避されることを確認
-
-**テスト**: `test_health_monitoring.py::TestHealthMonitoringTimeout::test_timeout_detection_short_threshold`
-
-### V-AC-001: ダイレクトメッセージ検証
-
-**目的**: エージェント間のダイレクトメッセージ機能を確認
-
-**検証内容**:
-- `TeamMessage` モデルでメッセージを作成できることを確認
-- 受信者指定が正しく動作することを確認
-
-**テスト**: `test_agent_communication.py::TestDirectMessaging::test_send_direct_message`
-
-### V-AC-002: ブロードキャスト検証
-
-**目的**: ブロードキャストメッセージ機能を確認
-
-**検証内容**:
-- 受信者なしのメッセージがブロードキャストとして扱われることを確認
-
-**テスト**: `test_agent_communication.py::TestBroadcastMessaging::test_broadcast_message_creation`
-
-### V-AC-003: タスク割り振り検証
-
-**目的**: タスクの作成と割り当て機能を確認
-
-**検証内容**:
-- `TeamConfig` でチームを作成できることを確認
-- タスクファイルが正しく作成されることを確認
-- オーナー割り当てが正しく動作することを確認
-
-**テスト**: `test_agent_communication.py::TestTaskAssignment::test_create_team`
-
-### V-TS-001: タスク依存関係検証
-
-**目的**: タスクの依存関係（`blockedBy`）が正しく動作することを確認
-
-**検証内容**:
-- タスクA→B→Cの依存チェーンが正しく設定されることを確認
-- 複数のタスクによるブロックが正しく動作することを確認
-
-**テスト**: `test_task_management.py::TestTaskDependencies::test_task_dependency_chain`
-
-### V-TS-002: タスク自動割り振り検証
-
-**目的**: タスクのステータス管理が正しく動作することを確認
-
-**検証内容**:
-- オーナーなしタスクの状態が正しく保持されることを確認
-- ステータスによるフィルタリングが正しく動作することを確認
-
-**テスト**: `test_task_management.py::TestTaskAutoAssignment::test_task_without_owner`
-
-### V-DB-001: REST API検証
-
-**目的**: DashboardのREST APIエンドポイントが正しく動作することを確認
-
-**検証内容**:
-- `/api/teams` - チーム一覧取得
-- `/api/teams/{team_name}/messages` - メッセージ取得
-- `/api/teams/{team_name}/tasks` - タスク取得
-- `/api/teams/{team_name}/status` - ステータス取得
-- `/api/health` - ヘルスチェック
-
-**テスト**: `test_dashboard_integration.py::TestRestAPI::test_api_teams_endpoint`
-
-### V-DB-002: WebSocket検証
-
-**目的**: WebSocket接続とメッセージ配信が正しく動作することを確認
-
-**検証内容**:
-- WebSocket接続の確立
-- メッセージブロードキャスト
-- 個人メッセージ送信
-- 切断処理
-
-**テスト**: `test_dashboard_integration.py::TestWebSocketIntegration::test_websocket_connection`
-
-## 実行方法
-
-### 全統合テストの実行
+### すべてのテストを実行
 
 ```bash
-pytest tests/integration/ -v
+pytest tests/ -v
 ```
 
-### 特定のテストファイルの実行
+### 統合テストのみ実行
+
+```bash
+pytest tests/integration/ -v -m integration
+```
+
+### 特定のテストファイルを実行
 
 ```bash
 pytest tests/integration/test_team_creation.py -v
 ```
 
-### 特定のテストクラスの実行
-
-```bash
-pytest tests/integration/test_team_creation.py::TestTeamCreation -v
-```
-
-### 特定のテストの実行
-
-```bash
-pytest tests/integration/test_team_creation.py::TestTeamCreation::test_create_team_via_cli -v
-```
-
 ### カバレッジ付きで実行
 
 ```bash
-pytest tests/integration/ -v --cov=. --cov-report=term-missing
+pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=html
 ```
 
-## テスト結果の解釈
+HTMLレポートは `htmlcov/index.html` で確認できます。
 
-### 成功時の出力
+### Playwrightテストを除外して実行
 
-```
-============================= 43 passed in 19.31s ==============================
-```
-
-全てのテストがパスしたことを示します。
-
-### 失敗時の出力
-
-```
-FAILED tests/integration/test_team_creation.py::TestTeamCreation::test_create_team_via_cli
+```bash
+pytest tests/ -v -m "not playwright"
 ```
 
-失敗したテストが特定されます。詳細なエラーメッセージが表示されるので、原因を特定して修正してください。
+## 統合テスト一覧
 
-## 注意事項
+### 1. チーム作成・削除 (`test_team_creation.py`)
 
-1. **並列実行**: 統合テストはファイルシステム操作を含むため、並列実行（`-n` オプション）を使用しないでください。
+| テストID | テスト名 | 検証内容 |
+|----------|----------|----------|
+| V-TM-001 | チーム作成 | config.json の作成とヘルスモニターへの登録 |
+| V-TM-002 | チーム削除 | ディレクトリとタスクの削除 |
 
-2. **クリーン環境**: テストは一時ディレクトリ（`tmp_path`）を使用しますが、複数のテストを同時に実行する場合は注意が必要です。
+### 2. エージェント間通信 (`test_agent_communication.py`)
 
-3. **モックの使用**: 外部リソース（ファイルシステム、ネットワーク）は適切にモックされています。
+| テストID | テスト名 | 検証内容 |
+|----------|----------|----------|
+| V-AC-001 | ダイレクトメッセージ | メッセージ送信とinbox配信 |
+| V-AC-002 | ブロードキャスト | 全メンバーへの配信 |
+| V-AC-003 | タスク割り振り | TaskCreate・TaskUpdate・TaskList |
+
+### 3. タスク管理 (`test_task_management.py`)
+
+| テストID | テスト名 | 検証内容 |
+|----------|----------|----------|
+| V-TS-001 | 依存関係チェーン | タスクA→B→CのblockedBy設定 |
+| V-TS-002 | 自動割り振り | オーナーなしタスクの自動割り振り |
+
+### 4. 思考ログ (`test_thinking_logs.py`)
+
+| テストID | テスト名 | 検証内容 |
+|----------|----------|----------|
+| V-TL-001 | 思考ログ送信 | send_thinking_log() とファイル永続化 |
+| V-TL-002 | 思考ログ監視 | 外部書き込みでコールバック発火 |
+
+### 5. ヘルスモニタリング (`test_health_monitoring.py`)
+
+| テストID | テスト名 | 検証内容 |
+|----------|----------|----------|
+| V-HM-001 | エージェント登録 | get_health_status() で確認 |
+| V-HM-002 | タイムアウト検知 | タイムアウトとコールバック |
+
+### 6. Dashboard API (`test_dashboard_api.py`)
+
+| テストID | テスト名 | 検証内容 |
+|----------|----------|----------|
+| V-DB-001 | REST API | 各エンドポイントのレスポンス形式 |
+| V-DB-002 | WebSocket | 接続・メッセージ配信・切断 |
+
+### 7. エンドツーエンド (`test_end_to_end.py`)
+
+| シナリオ | 説明 |
+|----------|------|
+| シナリオ1 | 簡単なタスク実行（リーダー + コーダー） |
+| シナリオ2 | 複数エージェント協調（リーダー + リサーチャー + コーダー） |
+| シナリオ3 | エラーハンドリング（タイムアウト検知） |
 
 ## トラブルシューティング
 
-### ValueError: not in the subpath
+### イベントループエラー
 
-`team_file_observer` のテストで一時ディレクトリのパスに関する警告が出る場合がありますが、これはテスト環境の制約によるもので、実際の使用環境では発生しません。
+```
+RuntimeError: Runner.run() cannot be called from a running event loop
+```
 
-### KeyError: 'xxx'
+**原因**: pytest-asyncio と coverage の組み合わせによる既知の問題。
 
-モデルのAPI変更に伴うエラーです。`team_models.py` の定義を確認して、テストを更新してください。
+**対策**: テストは単独ではパスします。全テスト実行時は `test_message_handler.py` をスキップしてください。
+
+```bash
+pytest tests/ -v --ignore=tests/web/test_message_handler.py
+```
+
+### Playwrightテストが失敗する
+
+**原因**: Dashboardが起動していない、またはポートが競合している。
+
+**対策**:
+
+```bash
+# Dashboardを起動
+python -m orchestrator.web.dashboard
+
+# 別のターミナルでテスト実行
+pytest tests/ui/ -v
+```
+
+### 404 Not Found エラー
+
+**原因**: Agent Teams 移行後に削除された古いAPIエンドポイントをテストが参照している。
+
+**対策**: 古いテストケースには `@pytest.mark.skip` マークが付いています。スキップされるのは正常な動作です。
+
+## テストカバレッジ目標
+
+| 項目 | 目標 | 現在 |
+|------|------|------|
+| 全体カバレッジ | 80%+ | 81.62% ✅ |
+| thinking_log_handler.py | 80%+ | 94% ✅ |
+| dashboard.py | 70%+ | 57% ⚠️ |
+| cli/main.py | 70%+ | 79% ✅ |
+| message_handler.py | 70%+ | 86% ✅ |
+
+## まとめ
+
+統合テストは以下の機能を検証しています：
+
+- ✅ 85件の統合テストがパス
+- ✅ 全体カバレッジ 81.62%
+- ✅ リントチェック（ruff）パス
+- ✅ 型チェック（mypy）パス

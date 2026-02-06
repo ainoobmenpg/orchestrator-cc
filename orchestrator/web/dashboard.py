@@ -501,3 +501,9 @@ async def stop_teams_monitoring():
 
     _teams_monitor.stop_monitoring()
     return {"message": "Teams monitoring stopped"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="127.0.0.1", port=8000)

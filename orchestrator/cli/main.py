@@ -4,6 +4,7 @@
 """
 
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -330,6 +331,7 @@ def show_logs(
     team_name: str = typer.Argument(..., help="チーム名"),
     agent: str = typer.Option(None, "--agent", "-a", help="エージェント名でフィルタ"),
     limit: int = typer.Option(20, "--limit", "-l", help="表示数（デフォルト: 20）"),
+    follow: bool = typer.Option(False, "--follow", "-f", help="リアルタイム監視"),
     json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
 ) -> None:
     """チームの思考ログを表示します。
@@ -360,26 +362,55 @@ def show_logs(
         typer.echo(f"エージェント: {agent}")
     typer.echo(f"{'=' * 60}\n")
 
-    for log in logs:
-        agent_name = log.get("agentName", "unknown")
-        timestamp = log.get("timestamp", "")
-        content = log.get("content", "")
-        category = log.get("category", "thinking")
+    def _display_logs(logs_to_display: list[dict[str, Any]]) -> None:
+        """ログを表示するヘルパー関数"""
+        for log in logs_to_display:
+            agent_name = log.get("agentName", "unknown")
+            timestamp = log.get("timestamp", "")
+            content = log.get("content", "")
+            category = log.get("category", "thinking")
 
-        # カテゴリに応じたアイコン
-        category_icons = {
-            "thinking": "💭",
-            "planning": "📋",
-            "decision": "🎯",
-            "question": "❓",
-            "error": "❌",
-        }
-        icon = category_icons.get(category, "📝")
+            # カテゴリに応じたアイコン
+            category_icons = {
+                "thinking": "💭",
+                "planning": "📋",
+                "decision": "🎯",
+                "question": "❓",
+                "error": "❌",
+            }
+            icon = category_icons.get(category, "📝")
 
-        typer.echo(f"{icon} [{timestamp}] {agent_name}")
-        content_preview = content[:100] + "..." if len(content) > 100 else content
-        typer.echo(f"   {content_preview}")
-        typer.echo()
+            typer.echo(f"{icon} [{timestamp}] {agent_name}")
+            content_preview = content[:100] + "..." if len(content) > 100 else content
+            typer.echo(f"   {content_preview}")
+            typer.echo()
+
+    _display_logs(logs)
+
+    # リアルタイム監視モード
+    if follow:
+        typer.echo("リアルタイム監視中... (Ctrl+C で終了)", err=True)
+        displayed_log_ids = {log.get("id") for log in logs if log.get("id")}
+
+        try:
+            while True:
+                time.sleep(1)
+                new_logs = handler.get_logs(team_name)
+
+                # エージェントでフィルタ
+                if agent:
+                    new_logs = [log for log in new_logs if log.get("agentName") == agent]
+
+                # 新しいログのみを表示
+                fresh_logs = [log for log in new_logs if log.get("id") not in displayed_log_ids]
+                if fresh_logs:
+                    for log in fresh_logs:
+                        if log.get("id"):
+                            displayed_log_ids.add(log["id"])
+                    _display_logs(fresh_logs)
+
+        except KeyboardInterrupt:
+            typer.echo("\n監視を終了しました", err=True)
 
 
 @app.command()
