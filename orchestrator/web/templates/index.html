@@ -12,6 +12,15 @@
             <h1>orchestrator-cc Dashboard</h1>
             <span class="cluster-name" id="cluster-name">クラスタ: connecting...</span>
         </div>
+        <div class="header-center">
+            <!-- チーム選択ドロップダウン -->
+            <div class="team-selector">
+                <label for="team-select">監視対象:</label>
+                <select id="team-select">
+                    <option value="">-- チームを選択 --</option>
+                </select>
+            </div>
+        </div>
         <div id="connection-status" class="status-disconnected">
             <span class="status-dot"></span>
             <span class="status-text">切断中</span>
@@ -56,6 +65,19 @@
                     </div>
                 </div>
                 <div id="messages" class="message-container"></div>
+            </div>
+
+            <!-- 思考ログパネル -->
+            <div class="log-panel thinking-panel">
+                <div class="panel-header">
+                    <h2>思考ログ</h2>
+                    <div class="thinking-controls">
+                        <select id="thinking-agent-filter">
+                            <option value="">全エージェント</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="thinking-logs" class="thinking-container"></div>
             </div>
 
             <!-- システムログ -->

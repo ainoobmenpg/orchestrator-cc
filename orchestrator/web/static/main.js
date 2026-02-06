@@ -34,6 +34,11 @@ const state = {
     // システムログ用状態
     systemLogs: [],
     systemLogAutoScroll: true,
+    // チーム監視用状態
+    teams: new Map(),
+    selectedTeam: null,
+    teamMessages: [],
+    thinkingLogs: [],
 };
 
 // ============================================================================
@@ -79,6 +84,8 @@ class DashboardClient {
             this.fetchAgents();
             // 過去ログをリクエスト
             this.fetchRecentMessages();
+            // チーム一覧をリクエスト
+            this.fetchTeams();
         };
 
         this.ws.onmessage = (event) => {
@@ -123,6 +130,13 @@ class DashboardClient {
         this.on('pong', handlePongMessage);
         this.on('system_log', handleSystemLogMessage);
         this.on('cluster_event', handleClusterEventMessage);
+        // チーム監視用ハンドラー
+        this.on('team_created', handleTeamCreatedMessage);
+        this.on('team_deleted', handleTeamDeletedMessage);
+        this.on('team_updated', handleTeamUpdatedMessage);
+        this.on('team_message', handleTeamMessage);
+        this.on('thinking_log', handleThinkingLogMessage);
+        this.on('tasks_updated', handleTasksUpdatedMessage);
     }
 
     on(type, callback) {
@@ -165,6 +179,22 @@ class DashboardClient {
             }
         } catch (error) {
             console.error('過去ログ取得エラー:', error);
+        }
+    }
+
+    async fetchTeams() {
+        try {
+            const response = await fetch(`${CONFIG.apiUrl}/teams`);
+            if (response.ok) {
+                const data = await response.json();
+                const teams = data.teams || [];
+                teams.forEach(team => {
+                    state.teams.set(team.name, team);
+                });
+                updateTeamSelector();
+            }
+        } catch (error) {
+            console.error('チーム一覧取得エラー:', error);
         }
     }
 
@@ -334,6 +364,155 @@ function handleClusterEventMessage(message) {
         level,
         content,
     });
+}
+
+// ============================================================================
+// チーム監視メッセージハンドラー
+// ============================================================================
+
+function handleTeamCreatedMessage(message) {
+    const { teamName, team } = message;
+    state.teams.set(teamName, team);
+    updateTeamSelector();
+    addSystemLog('success', `チームが作成されました: ${teamName}`);
+}
+
+function handleTeamDeletedMessage(message) {
+    const { teamName } = message;
+    state.teams.delete(teamName);
+    if (state.selectedTeam === teamName) {
+        state.selectedTeam = null;
+    }
+    updateTeamSelector();
+    addSystemLog('warning', `チームが削除されました: ${teamName}`);
+}
+
+function handleTeamUpdatedMessage(message) {
+    const { teamName, team } = message;
+    state.teams.set(teamName, team);
+    addSystemLog('info', `チームが更新されました: ${teamName}`);
+}
+
+function handleTeamMessage(message) {
+    const { teamName, message: msg } = message;
+
+    if (state.selectedTeam !== teamName) {
+        return;
+    }
+
+    state.teamMessages.push(msg);
+    addTeamMessageToDom(msg);
+    updateMessageStats();
+}
+
+function handleThinkingLogMessage(message) {
+    const { teamName, log } = message;
+
+    if (state.selectedTeam !== teamName) {
+        return;
+    }
+
+    state.thinkingLogs.push(log);
+    addThinkingLogToDom(log);
+}
+
+function handleTasksUpdatedMessage(message) {
+    const { teamName, tasks } = message;
+    addSystemLog('info', `タスクが更新されました: ${teamName} (${tasks.length}件)`);
+}
+
+// ============================================================================
+// チーム監視UI
+// ============================================================================
+
+function updateTeamSelector() {
+    const select = document.getElementById('team-select');
+    if (!select) return;
+
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">-- チームを選択 --</option>';
+
+    state.teams.forEach((team, teamName) => {
+        const option = document.createElement('option');
+        option.value = teamName;
+        option.textContent = teamName;
+        select.appendChild(option);
+    });
+
+    // 選択を復元
+    if (currentValue && state.teams.has(currentValue)) {
+        select.value = currentValue;
+    }
+}
+
+function addTeamMessageToDom(message) {
+    const container = document.getElementById('messages');
+    if (!container) return;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message message-team';
+
+    const timestamp = message.timestamp ? formatTime(message.timestamp) : '';
+    const showTime = state.showTimestamp && timestamp;
+
+    messageDiv.innerHTML = `
+        ${showTime ? `<span class="message-timestamp">${escapeHtml(timestamp)}</span>` : ''}
+        <span class="message-agent">${escapeHtml(message.sender || '?')}</span>
+        <span class="message-arrow">→</span>
+        <span class="message-to">${escapeHtml(message.recipient || '全体')}</span>
+        <span class="message-content">${escapeHtml(message.content)}</span>
+    `;
+
+    container.appendChild(messageDiv);
+
+    // メッセージ数制限
+    while (container.children.length > CONFIG.messageBufferSize) {
+        container.removeChild(container.firstChild);
+    }
+
+    // 自動スクロール
+    if (state.isAutoScroll) {
+        scrollToBottom();
+    }
+}
+
+function addThinkingLogToDom(log) {
+    const container = document.getElementById('thinking-logs');
+    if (!container) return;
+
+    const logDiv = document.createElement('div');
+    logDiv.className = `thinking-log thinking-${log.category}`;
+
+    const emotionIcons = {
+        confusion: '🤔',
+        satisfaction: '😊',
+        focus: '🎯',
+        concern: '⚠️',
+        neutral: '',
+    };
+
+    const timestamp = log.timestamp ? formatTime(log.timestamp) : '';
+    const emotionIcon = emotionIcons[log.emotion] || '';
+
+    logDiv.innerHTML = `
+        <span class="thinking-time">${escapeHtml(timestamp)}</span>
+        <span class="thinking-agent">${escapeHtml(log.agentName)}</span>
+        ${emotionIcon ? `<span class="thinking-emotion">${emotionIcon}</span>` : ''}
+        <span class="thinking-category">${log.category}</span>
+        <span class="thinking-content">${escapeHtml(log.content)}</span>
+    `;
+
+    container.appendChild(logDiv);
+
+    // ログ数制限
+    while (container.children.length > 500) {
+        container.removeChild(container.firstChild);
+    }
+
+    // 自動スクロール
+    if (state.isAutoScroll) {
+        container.scrollTop = container.scrollHeight;
+    }
 }
 
 // ============================================================================
@@ -792,12 +971,113 @@ function setupEventListeners() {
     // 通知を閉じる
     document.querySelector('.notification-close').addEventListener('click', hideNotification);
 
+    // チーム選択
+    const teamSelect = document.getElementById('team-select');
+    if (teamSelect) {
+        teamSelect.addEventListener('change', async (e) => {
+            state.selectedTeam = e.target.value || null;
+
+            // チームが選択されたらデータを取得
+            if (state.selectedTeam) {
+                await loadTeamData(state.selectedTeam);
+            } else {
+                // 選択解除時はクリア
+                document.getElementById('messages').innerHTML = '';
+                document.getElementById('thinking-logs').innerHTML = '';
+                state.teamMessages = [];
+                state.thinkingLogs = [];
+            }
+        });
+    }
+
+    // 思考ログエージェントフィルター
+    const thinkingFilter = document.getElementById('thinking-agent-filter');
+    if (thinkingFilter) {
+        thinkingFilter.addEventListener('change', (e) => {
+            filterThinkingLogs(e.target.value);
+        });
+    }
+
     // Ping送信（30秒ごと）
     setInterval(() => {
         if (dashboardClient.ws && dashboardClient.ws.readyState === WebSocket.OPEN) {
             dashboardClient.send({ type: 'ping' });
         }
     }, 30000);
+}
+
+// チームデータの読み込み
+async function loadTeamData(teamName) {
+    try {
+        // メッセージを取得
+        const messagesResponse = await fetch(`${CONFIG.apiUrl}/teams/${teamName}/messages`);
+        if (messagesResponse.ok) {
+            const data = await messagesResponse.json();
+            state.teamMessages = data.messages || [];
+            document.getElementById('messages').innerHTML = '';
+            state.teamMessages.forEach(msg => addTeamMessageToDom(msg));
+        }
+
+        // 思考ログを取得
+        const thinkingResponse = await fetch(`${CONFIG.apiUrl}/teams/${teamName}/thinking`);
+        if (thinkingResponse.ok) {
+            const data = await thinkingResponse.json();
+            state.thinkingLogs = data.thinking || [];
+            document.getElementById('thinking-logs').innerHTML = '';
+            state.thinkingLogs.forEach(log => addThinkingLogToDom(log));
+
+            // エージェントフィルターを更新
+            updateThinkingAgentFilter();
+        }
+
+        addSystemLog('success', `チームデータを読み込みました: ${teamName}`);
+    } catch (error) {
+        console.error('Team data load error:', error);
+        addSystemLog('error', `チームデータの読み込みに失敗しました: ${error.message}`);
+    }
+}
+
+// 思考ログエージェントフィルターの更新
+function updateThinkingAgentFilter() {
+    const filter = document.getElementById('thinking-agent-filter');
+    if (!filter) return;
+
+    // 既存のオプションをクリア（最初の要素は残す）
+    while (filter.options.length > 1) {
+        filter.remove(1);
+    }
+
+    // エージェント名を収集
+    const agents = new Set();
+    state.thinkingLogs.forEach(log => {
+        if (log.agentName) {
+            agents.add(log.agentName);
+        }
+    });
+
+    // オプションを追加
+    agents.forEach(agent => {
+        const option = document.createElement('option');
+        option.value = agent;
+        option.textContent = agent;
+        filter.appendChild(option);
+    });
+}
+
+// 思考ログのフィルタリング
+function filterThinkingLogs(agentName) {
+    const container = document.getElementById('thinking-logs');
+    if (!container) return;
+
+    const logs = container.children;
+    for (let i = 0; i < logs.length; i++) {
+        const log = logs[i];
+        const logAgent = log.querySelector('.thinking-agent');
+        if (logAgent) {
+            const shouldShow = !agentName || logAgent.textContent === agentName;
+            log.style.display = shouldShow ? '' : 'none';
+        }
+    }
 }
 
 // ============================================================================
