@@ -14,6 +14,8 @@ const CONFIG = {
     reconnectDelay: 3000,
     maxReconnectAttempts: 10,
     messageBufferSize: 1000,
+    heartbeatInterval: 15000,  // 15秒ごとにping送信（接続維持のため短縮）
+    heartbeatTimeout: 30000,    // 30秒 pongがない場合、接続切れと判断
 };
 
 // ============================================================================
@@ -38,6 +40,7 @@ const state = {
     teams: new Map(),
     selectedTeam: null,
     teamMessages: [],
+    teamTasks: [],
     thinkingLogs: [],
 };
 
@@ -49,6 +52,8 @@ class DashboardClient {
     constructor() {
         this.ws = null;
         this.messageHandlers = new Map();
+        this.heartbeatTimer = null;
+        this.lastPongTime = null;
         this.setupDefaultHandlers();
     }
 
@@ -70,6 +75,9 @@ class DashboardClient {
             state.reconnectAttempts = 0;
             updateConnectionStatus('connected');
             hideReconnectModal();
+
+            // heartbeatを開始
+            this.startHeartbeat();
 
             // システムログに接続完了を記録
             addSystemLog('success', 'ダッシュボードに接続しました');
@@ -103,6 +111,7 @@ class DashboardClient {
 
         this.ws.onclose = (event) => {
             console.log('WebSocket切断:', event.code, event.reason);
+            this.stopHeartbeat();
             updateConnectionStatus('disconnected');
 
             // システムログに切断を記録
@@ -122,6 +131,8 @@ class DashboardClient {
     }
 
     setupDefaultHandlers() {
+        this.on('connected', handleConnectedMessage);
+        this.on('subscribed', handleSubscribedMessage);
         this.on('status', handleStatusMessage);
         this.on('message', handleAgentMessage);
         this.on('thinking', handleThinkingMessage);
@@ -177,6 +188,10 @@ class DashboardClient {
                     }
                 });
             }
+            // 404はクラスタ未起動時の正常な状態、無視
+            else if (response.status === 404) {
+                console.debug('クラスタメッセージエンドポイントなし（Agent Teamsモード）');
+            }
         } catch (error) {
             console.error('過去ログ取得エラー:', error);
         }
@@ -214,12 +229,42 @@ class DashboardClient {
     }
 
     disconnect() {
+        this.stopHeartbeat();
         if (state.reconnectTimer) {
             clearTimeout(state.reconnectTimer);
         }
         if (this.ws) {
             this.ws.onclose = null;
             this.ws.close();
+        }
+    }
+
+    startHeartbeat() {
+        this.stopHeartbeat();  // 既存のタイマーをクリア
+        this.lastPongTime = Date.now();
+
+        this.heartbeatTimer = setInterval(() => {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                // ping送信
+                this.send({ type: 'ping', timestamp: Date.now() });
+
+                // タイムアウトチェック
+                const timeSinceLastPong = Date.now() - this.lastPongTime;
+                if (timeSinceLastPong > CONFIG.heartbeatTimeout) {
+                    console.warn('heartbeat timeout - 接続が切れた可能性があります');
+                    this.ws.close();  // 接続を閉じて再接続をトリガー
+                }
+            }
+        }, CONFIG.heartbeatInterval);
+
+        console.log(`heartbeat開始 (${CONFIG.heartbeatInterval}ms間隔)`);
+    }
+
+    stopHeartbeat() {
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+            this.heartbeatTimer = null;
+            console.log('heartbeat停止');
         }
     }
 }
@@ -240,6 +285,11 @@ function handleStatusMessage(message) {
 function handleAgentMessage(message) {
     const { timestamp, from_agent, to_agent, content, type = 'task' } = message;
 
+    // アイドル通知をフィルタリング（ノイズ軽減）
+    if (type === 'idle_notification') {
+        return;
+    }
+
     // メッセージカウント更新
     state.messageCount.total++;
     state.messageCount[type === 'task' ? 'task' : 'result']++;
@@ -253,6 +303,9 @@ function handleAgentMessage(message) {
     });
 
     updateMessageStats();
+
+    // 要約カードを更新
+    updateSummaryCards();
 }
 
 function handleThinkingMessage(message) {
@@ -269,6 +322,9 @@ function handleThinkingMessage(message) {
     });
 
     updateMessageStats();
+
+    // 要約カードを更新
+    updateSummaryCards();
 }
 
 function handleAgentsMessage(message) {
@@ -296,6 +352,9 @@ function handleAgentsMessage(message) {
 
     // クラスタ名を更新
     updateClusterName(message.clusterName || 'orchestrator-cc');
+
+    // 要約カードを更新
+    updateSummaryCards();
 }
 
 function handleErrorMessage(message) {
@@ -305,6 +364,19 @@ function handleErrorMessage(message) {
 function handlePongMessage(message) {
     // Pingに対するPong応答
     console.debug('Pong received');
+    if (typeof dashboardClient !== 'undefined' && dashboardClient) {
+        dashboardClient.lastPongTime = Date.now();
+    }
+}
+
+function handleConnectedMessage(message) {
+    // 接続確立応答
+    console.debug('Connected:', message.message);
+}
+
+function handleSubscribedMessage(message) {
+    // 購読確定応答
+    console.debug('Subscribed:', message.channels);
 }
 
 function handleSystemLogMessage(message) {
@@ -400,9 +472,44 @@ function handleTeamMessage(message) {
         return;
     }
 
-    state.teamMessages.push(msg);
-    addTeamMessageToDom(msg);
+    // アイドル通知はフィルタリング
+    if (msg.message_type === 'idle_notification' || msg.type === 'idle_notification') {
+        return;
+    }
+
+    // contentがJSONの場合はパースして整形
+    let processedMsg = { ...msg };
+    if (msg.content) {
+        try {
+            // JSON文字列の場合はパース
+            if (msg.content.trim().startsWith('{')) {
+                const contentData = JSON.parse(msg.content);
+                // task_assignmentメッセージを整形
+                if (contentData.type === 'task_assignment') {
+                    processedMsg.content = `📋 タスク割り当て: #${contentData.taskId}「${contentData.subject}」`;
+                    processedMsg.rawData = contentData;
+                }
+                // idle_notificationはスキップ
+                else if (contentData.type === 'idle_notification') {
+                    return;
+                }
+                // その他のJSONは簡略表示
+                else {
+                    processedMsg.content = `[${contentData.type || 'message'}]`;
+                    processedMsg.rawData = contentData;
+                }
+            }
+        } catch (e) {
+            // JSONでない場合はそのまま
+        }
+    }
+
+    state.teamMessages.push(processedMsg);
+    addTeamMessageToDom(processedMsg);
     updateMessageStats();
+
+    // 要約カードを更新
+    updateSummaryCards();
 }
 
 function handleThinkingLogMessage(message) {
@@ -419,6 +526,9 @@ function handleThinkingLogMessage(message) {
 function handleTasksUpdatedMessage(message) {
     const { teamName, tasks } = message;
     addSystemLog('info', `タスクが更新されました: ${teamName} (${tasks.length}件)`);
+
+    // 要約カードを更新
+    updateSummaryCards();
 }
 
 // ============================================================================
@@ -460,7 +570,7 @@ function addTeamMessageToDom(message) {
         <span class="message-agent">${escapeHtml(message.sender || '?')}</span>
         <span class="message-arrow">→</span>
         <span class="message-to">${escapeHtml(message.recipient || '全体')}</span>
-        <span class="message-content">${escapeHtml(message.content)}</span>
+        <span class="message-content">${formatMessageContent(message.content, message.message_type || 'team')}</span>
     `;
 
     container.appendChild(messageDiv);
@@ -491,14 +601,20 @@ function addThinkingLogToDom(log) {
         neutral: '',
     };
 
+    // timestampがnullの場合は空文字に
     const timestamp = log.timestamp ? formatTime(log.timestamp) : '';
     const emotionIcon = emotionIcons[log.emotion] || '';
 
+    // タスク詳細がある場合は追加表示
+    const taskDetails = log.taskDetails
+        ? `<span class="task-status-badge">${escapeHtml(log.taskDetails.status)}</span>`
+        : '';
+
     logDiv.innerHTML = `
-        <span class="thinking-time">${escapeHtml(timestamp)}</span>
+        ${timestamp ? `<span class="thinking-time">${escapeHtml(timestamp)}</span>` : ''}
         <span class="thinking-agent">${escapeHtml(log.agentName)}</span>
+        ${taskDetails}
         ${emotionIcon ? `<span class="thinking-emotion">${emotionIcon}</span>` : ''}
-        <span class="thinking-category">${log.category}</span>
         <span class="thinking-content">${escapeHtml(log.content)}</span>
     `;
 
@@ -620,8 +736,42 @@ function renderMessageHtml(message) {
         <span class="message-arrow">→</span>
         <span class="message-to">${escapeHtml(message.to || '?')}</span>
         <span class="message-type">[${message.type}]</span>
-        <span class="message-content">${escapeHtml(message.content)}</span>
+        <span class="message-content">${formatMessageContent(message.content, message.type)}</span>
     `;
+}
+
+// メッセージコンテンツを整形する
+function formatMessageContent(content, messageType) {
+    // JSON文字列の場合は整形して表示
+    try {
+        if (content && typeof content === 'string' && content.trim().startsWith('{')) {
+            const parsed = JSON.parse(content);
+
+            // idle_notificationは空文字列にして非表示
+            if (parsed.type === 'idle_notification') {
+                return '<span class="idle-notification"></span>';
+            }
+
+            // task_assignmentメッセージの場合は特別に整形
+            if (parsed.type === 'task_assignment') {
+                return `
+                    <div class="task-assignment">
+                        <strong>📋 タスク割り当て:</strong>
+                        <div class="task-details">
+                            <div><strong>ID:</strong> #${escapeHtml(parsed.taskId || '?')}</div>
+                            <div><strong>件名:</strong> ${escapeHtml(parsed.subject || '')}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            // その他のJSONは整形して表示
+            const formatted = JSON.stringify(parsed, null, 2);
+            return `<pre class="json-content">${escapeHtml(formatted)}</pre>`;
+        }
+    } catch (e) {
+        // JSON解析エラーの場合はそのまま表示
+    }
+    return escapeHtml(content);
 }
 
 function updateConnectionStatus(status) {
@@ -717,6 +867,9 @@ function addSystemLogToDom(logEntry) {
     if (state.systemLogAutoScroll) {
         scrollToSystemLogBottom();
     }
+
+    // 要約カードを更新
+    updateSummaryCards();
 }
 
 function addSystemLog(level, content) {
@@ -971,6 +1124,23 @@ function setupEventListeners() {
     // 通知を閉じる
     document.querySelector('.notification-close').addEventListener('click', hideNotification);
 
+    // エージェントパネルの折りたたみ
+    const toggleAgentsBtn = document.getElementById('toggle-agents');
+    const agentPanel = document.getElementById('agent-panel');
+    if (toggleAgentsBtn && agentPanel) {
+        toggleAgentsBtn.addEventListener('click', () => {
+            agentPanel.classList.toggle('collapsed');
+            // 折りたたみ状態をローカルストレージに保存
+            localStorage.setItem('agentPanelCollapsed', agentPanel.classList.contains('collapsed'));
+        });
+
+        // ローカルストレージから状態を復元
+        const savedState = localStorage.getItem('agentPanelCollapsed');
+        if (savedState === 'true') {
+            agentPanel.classList.add('collapsed');
+        }
+    }
+
     // チーム選択
     const teamSelect = document.getElementById('team-select');
     if (teamSelect) {
@@ -997,13 +1167,6 @@ function setupEventListeners() {
             filterThinkingLogs(e.target.value);
         });
     }
-
-    // Ping送信（30秒ごと）
-    setInterval(() => {
-        if (dashboardClient.ws && dashboardClient.ws.readyState === WebSocket.OPEN) {
-            dashboardClient.send({ type: 'ping' });
-        }
-    }, 30000);
 }
 
 // チームデータの読み込み
@@ -1013,24 +1176,60 @@ async function loadTeamData(teamName) {
         const messagesResponse = await fetch(`${CONFIG.apiUrl}/teams/${teamName}/messages`);
         if (messagesResponse.ok) {
             const data = await messagesResponse.json();
-            state.teamMessages = data.messages || [];
+            const rawMessages = data.messages || [];
+
+            // メッセージをフィルタリング・整形
+            state.teamMessages = rawMessages
+                .filter(msg => msg.message_type !== 'idle_notification' && msg.type !== 'idle_notification')
+                .map(msg => {
+                    // contentがJSONの場合はパースして整形
+                    if (msg.content && msg.content.trim().startsWith('{')) {
+                        try {
+                            const contentData = JSON.parse(msg.content);
+                            if (contentData.type === 'task_assignment') {
+                                return {
+                                    ...msg,
+                                    content: `📋 タスク割り当て: #${contentData.taskId}「${contentData.subject}」`,
+                                    rawData: contentData
+                                };
+                            }
+                        } catch (e) {
+                            // パース失敗は元のcontentを使用
+                        }
+                    }
+                    return msg;
+                });
+
             document.getElementById('messages').innerHTML = '';
             state.teamMessages.forEach(msg => addTeamMessageToDom(msg));
+
+            // メッセージ数を更新
+            state.messageCount.total = state.teamMessages.length;
         }
 
-        // 思考ログを取得
-        const thinkingResponse = await fetch(`${CONFIG.apiUrl}/teams/${teamName}/thinking`);
-        if (thinkingResponse.ok) {
-            const data = await thinkingResponse.json();
-            state.thinkingLogs = data.thinking || [];
-            document.getElementById('thinking-logs').innerHTML = '';
-            state.thinkingLogs.forEach(log => addThinkingLogToDom(log));
+        // タスクを取得（タスクボードとタイムラインに表示）
+        const tasksResponse = await fetch(`${CONFIG.apiUrl}/teams/${teamName}/tasks`);
+        if (tasksResponse.ok) {
+            const data = await tasksResponse.json();
+            const tasks = data.tasks || [];
 
-            // エージェントフィルターを更新
-            updateThinkingAgentFilter();
+            // タスクを保存
+            state.teamTasks = tasks;
+
+            // タスクボードを更新
+            renderTaskBoard(tasks);
+
+            // タイムラインを更新
+            renderTimeline(teamName, tasks, state.teamMessages);
+
+            // タスク統計を更新
+            updateTaskStats(tasks);
         }
 
         addSystemLog('success', `チームデータを読み込みました: ${teamName}`);
+
+        // 要約カードを更新
+        updateSummaryCards();
     } catch (error) {
         console.error('Team data load error:', error);
         addSystemLog('error', `チームデータの読み込みに失敗しました: ${error.message}`);
@@ -1081,6 +1280,104 @@ function filterThinkingLogs(agentName) {
 }
 
 // ============================================================================
+// タブ機能
+// ============================================================================
+
+function setupTabs() {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+    const summaryCards = document.querySelectorAll('.summary-card');
+
+    // タブボタンのクリックイベント
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const targetTab = button.dataset.tab;
+
+            // アクティブクラスの切り替え
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            tabPanels.forEach(panel => {
+                panel.classList.remove('active');
+                if (panel.id === `tab-${targetTab}`) {
+                    panel.classList.add('active');
+                }
+            });
+
+            // 状態を保存
+            localStorage.setItem('activeTab', targetTab);
+        });
+    });
+
+    // 要約カードのクリックイベント（対応するタブを開く）
+    summaryCards.forEach(card => {
+        card.addEventListener('click', () => {
+            const targetTab = card.dataset.targetTab;
+            switchToTab(targetTab);
+        });
+    });
+
+    // 保存された状態を復元
+    const savedTab = localStorage.getItem('activeTab');
+    if (savedTab) {
+        switchToTab(savedTab);
+    }
+}
+
+function switchToTab(tabName) {
+    const button = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    if (button) {
+        button.click();
+    }
+}
+
+// ============================================================================
+// 要約カード更新機能
+// ============================================================================
+
+function updateSummaryCards() {
+    // エージェント状態
+    const agentsArray = Array.from(state.agents.values());
+    const activeAgents = agentsArray.filter(a => a.status === 'running').length;
+    const totalAgents = agentsArray.length;
+    const agentsValue = document.getElementById('summary-agents');
+    if (agentsValue) {
+        agentsValue.textContent = totalAgents > 0 ? `${activeAgents}/${totalAgents}` : '-';
+    }
+
+    // タスク状態
+    const pending = state.teamTasks.filter(t => t.status === 'pending').length;
+    const inProgress = state.teamTasks.filter(t => t.status === 'in_progress').length;
+    const completed = state.teamTasks.filter(t => t.status === 'completed').length;
+    const tasksValue = document.getElementById('summary-tasks');
+    if (tasksValue) {
+        tasksValue.textContent = state.teamTasks.length > 0
+            ? `${pending}/${inProgress}/${completed}`
+            : '-';
+    }
+
+    // メッセージ数
+    const messagesValue = document.getElementById('summary-messages');
+    if (messagesValue) {
+        messagesValue.textContent = state.messageCount.total || 0;
+    }
+
+    // システム状態
+    const hasErrors = state.systemLogs.some(l => l.level === 'error');
+    const systemCard = document.querySelector('.system-card');
+    const systemValue = document.getElementById('summary-system');
+    if (systemValue && systemCard) {
+        if (hasErrors) {
+            systemValue.textContent = 'エラー';
+            systemCard.classList.add('alert');
+        } else {
+            systemValue.textContent = '正常';
+            systemCard.classList.remove('alert');
+        }
+    }
+}
+
+// ============================================================================
 // 初期化
 // ============================================================================
 
@@ -1088,6 +1385,9 @@ let dashboardClient;
 
 function init() {
     console.log('orchestrator-cc Dashboard 初期化...');
+
+    // タブ機能を初期化
+    setupTabs();
 
     // イベントリスナー設定
     setupEventListeners();
@@ -1112,3 +1412,130 @@ window.addEventListener('beforeunload', () => {
         dashboardClient.disconnect();
     }
 });
+
+// ============================================================================
+// タスクボード機能 (Phase 2)
+// ============================================================================
+
+function renderTaskBoard(tasks) {
+    const columns = {
+        pending: document.getElementById('tasks-pending'),
+        'in_progress': document.getElementById('tasks-in-progress'),
+        completed: document.getElementById('tasks-completed')
+    };
+
+    // 各カラムをクリア
+    Object.values(columns).forEach(col => {
+        if (col) col.innerHTML = '';
+    });
+
+    // タスクをカラムに追加
+    tasks.forEach(task => {
+        const column = columns[task.status];
+        if (!column) return;
+
+        const card = document.createElement('div');
+        card.className = 'task-card';
+        card.dataset.taskId = task.taskId;
+
+        const ownerName = task.owner ? task.owner.split('@')[0] : '未割り当て';
+
+        // 依存関係表示
+        let dependenciesHtml = '';
+        if (task.blockedBy && task.blockedBy.length > 0) {
+            dependenciesHtml = '<div class="task-card-dependencies">';
+            dependenciesHtml += '<span>⚠️ 依存:</span>';
+            task.blockedBy.forEach(depId => {
+                dependenciesHtml += `<span class="task-dependency">#${depId}</span>`;
+            });
+            dependenciesHtml += '</div>';
+        }
+
+        card.innerHTML = `
+            <div class="task-card-header">
+                <span class="task-card-id">#${task.taskId}</span>
+                <span class="task-card-owner">${ownerName}</span>
+            </div>
+            <div class="task-card-subject">${escapeHtml(task.subject)}</div>
+            <div class="task-card-description">${escapeHtml((task.description || '').substring(0, 100))}${task.description && task.description.length > 100 ? '...' : ''}</div>
+            ${dependenciesHtml}
+        `;
+
+        column.appendChild(card);
+    });
+}
+
+function updateTaskStats(tasks) {
+    const stats = {
+        pending: tasks.filter(t => t.status === 'pending').length,
+        'in_progress': tasks.filter(t => t.status === 'in_progress').length,
+        completed: tasks.filter(t => t.status === 'completed').length
+    };
+
+    const pendingCount = document.getElementById('task-pending-count');
+    const progressCount = document.getElementById('task-progress-count');
+    const completedCount = document.getElementById('task-completed-count');
+
+    if (pendingCount) pendingCount.textContent = `⏳ ${stats.pending}`;
+    if (progressCount) progressCount.textContent = `🔄 ${stats['in_progress']}`;
+    if (completedCount) completedCount.textContent = `✅ ${stats.completed}`;
+}
+
+// ============================================================================
+// タイムライン機能 (Phase 3)
+// ============================================================================
+
+function renderTimeline(teamName, tasks, messages) {
+    const timelineContainer = document.getElementById('timeline');
+    if (!timelineContainer) return;
+
+    timelineContainer.innerHTML = '<div class="timeline"></div>';
+    const timeline = timelineContainer.querySelector('.timeline');
+
+    // イベントを収集
+    const events = [];
+
+    // タスクイベント
+    tasks.forEach(task => {
+        const ownerName = task.owner ? task.owner.split('@')[0] : '未割り当て';
+        events.push({
+            type: 'task',
+            status: task.status,
+            agent: ownerName,
+            content: `${task.subject}`,
+            timestamp: 'タスク'  // タスクはタイムスタンプなし
+        });
+    });
+
+    // メッセージイベント（最新10件）
+    messages.slice(-10).forEach(msg => {
+        if (msg.message_type !== 'idle_notification') {
+            events.push({
+                type: 'message',
+                agent: msg.sender || '?',
+                content: (msg.content || '').substring(0, 50),
+                timestamp: msg.timestamp || ''
+            });
+        }
+    });
+
+    // タイムラインに表示
+    events.forEach(event => {
+        const item = document.createElement('div');
+        item.className = `timeline-item ${event.type} ${event.status || ''}`;
+
+        const timeLabel = event.timestamp && event.timestamp !== 'タスク'
+            ? formatTime(event.timestamp)
+            : (event.status === 'completed' ? '完了' : '進行中');
+
+        item.innerHTML = `
+            <div class="timeline-time">${escapeHtml(timeLabel)}</div>
+            <div class="timeline-content">
+                <div class="timeline-agent">${escapeHtml(event.agent)}</div>
+                <div class="timeline-message">${escapeHtml(event.content)}</div>
+            </div>
+        `;
+
+        timeline.appendChild(item);
+    });
+}

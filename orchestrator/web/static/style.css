@@ -66,6 +66,179 @@ body {
 }
 
 /* ============================================================================
+   要約カードセクション
+   ============================================================================ */
+
+.summary-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background-color: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.summary-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--spacing-md);
+    background-color: var(--color-bg-tertiary);
+    border-radius: var(--radius-lg);
+    transition: transform var(--transition-fast), background-color var(--transition-fast);
+    cursor: pointer;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    background-color: var(--color-border);
+}
+
+.summary-card.alert {
+    background-color: rgba(239, 68, 68, 0.2);
+    border: 1px solid var(--color-error);
+}
+
+.card-icon {
+    font-size: 1.75rem;
+    margin-bottom: var(--spacing-xs);
+}
+
+.card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.card-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: var(--spacing-xs);
+}
+
+/* ============================================================================
+   タブナビゲーション
+   ============================================================================ */
+
+.tabs-nav {
+    display: flex;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background-color: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 横スクロールバーを非表示（iOS Safari対応） */
+.tabs-nav::-webkit-scrollbar {
+    height: 4px;
+}
+
+.tabs-nav::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 2px;
+}
+
+.tab-btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    white-space: nowrap;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text);
+}
+
+.tab-btn.active {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+/* ============================================================================
+   タブコンテンツ
+   ============================================================================ */
+
+.tab-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.tab-panel {
+    display: none;
+    height: 100%;
+    overflow-y: auto;
+    padding: var(--spacing-md);
+}
+
+.tab-panel.active {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 概要タブコンテンツ */
+.overview-content {
+    display: flex;
+    gap: var(--spacing-md);
+    height: 100%;
+    min-height: 0;
+}
+
+.overview-timeline {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background-color: var(--color-bg);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.overview-timeline .panel-header {
+    padding: var(--spacing-md) var(--spacing-lg);
+    background-color: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.overview-timeline .timeline-container {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* 各タブのパネルヘッダー */
+.tab-panel > .panel-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    margin-bottom: var(--spacing-sm);
+}
+
+/* メッセージコンテナ */
+.tab-panel .message-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-md);
+    background-color: var(--color-bg);
+    border-radius: var(--radius-md);
+}
+
+/* タスクボード */
+.tab-panel .task-board {
+    min-height: auto;
+}
+
+/* ============================================================================
    ヘッダー
    ============================================================================ */
 
@@ -153,11 +326,10 @@ header h1 {
 }
 
 /* ============================================================================
-   メインコンテンツ
+   メインコンテンツ（古いレイアウトは削除）
    ============================================================================ */
 
 main {
-    display: flex;
     flex: 1;
     overflow: hidden;
 }
@@ -168,11 +340,22 @@ main {
 
 .agent-panel {
     width: 300px;
-    min-width: 250px;
+    min-width: 60px;  /* 折りたたみ時の最小幅 */
+    max-width: 400px;
     background-color: var(--color-bg-secondary);
     border-right: 1px solid var(--color-border);
     display: flex;
     flex-direction: column;
+    transition: width var(--transition-normal);
+}
+
+.agent-panel.collapsed {
+    width: 60px;
+    min-width: 60px;
+}
+
+.agent-panel.collapsed .agent-panel-content {
+    display: none;
 }
 
 .panel-header {
@@ -183,9 +366,48 @@ main {
     border-bottom: 1px solid var(--color-border);
 }
 
+.panel-header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
 .panel-header h2 {
     font-size: 1rem;
     font-weight: 600;
+}
+
+.agent-panel.collapsed .panel-header h2 {
+    display: none;
+}
+
+.agent-panel.collapsed .panel-header {
+    justify-content: center;
+    padding: var(--spacing-md);
+}
+
+/* アイコンのみのボタン */
+.btn-icon-only {
+    padding: var(--spacing-xs);
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: var(--transition-fast);
+}
+
+.btn-icon-only:hover {
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text);
+}
+
+.btn-icon-only svg {
+    transition: transform var(--transition-normal);
+}
+
+.agent-panel.collapsed .btn-icon-only svg {
+    transform: rotate(-90deg);
 }
 
 .agent-list {
@@ -258,37 +480,8 @@ main {
 }
 
 /* ============================================================================
-   メッセージパネル
+   メッセージパネル（古いスタイルは削除）
    ============================================================================ */
-
-.log-panels {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background-color: var(--color-bg);
-    overflow: hidden;
-}
-
-.log-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    border-bottom: 1px solid var(--color-border);
-}
-
-.log-panel:last-child {
-    border-bottom: none;
-}
-
-.message-panel {
-    flex: 1.5; /* メッセージログを少し大きく */
-}
-
-.system-log-panel {
-    flex: 1;
-    background-color: rgba(15, 23, 42, 0.5);
-}
 
 .system-log-controls {
     display: flex;
@@ -432,6 +625,7 @@ main {
     min-width: 0;
     word-break: break-word;
     font-size: 0.875rem;
+    white-space: pre-wrap;  /* 改行を保持 */
 }
 
 .message-label {
@@ -731,24 +925,37 @@ button:disabled .spinner {
    レスポンシブデザイン
    ============================================================================ */
 
-@media (max-width: 768px) {
-    main {
+@media (max-width: 1024px) {
+    .summary-section {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .overview-content {
         flex-direction: column;
+    }
+}
+
+@media (max-width: 768px) {
+    .summary-section {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+
+    .tabs-nav {
+        justify-content: flex-start;
+    }
+
+    .tab-btn {
+        flex-shrink: 0;
+        font-size: 0.875rem;
+        padding: var(--spacing-xs) var(--spacing-md);
     }
 
     .agent-panel {
         width: 100%;
-        max-height: 200px;
+        max-height: 250px;
         border-right: none;
         border-bottom: 1px solid var(--color-border);
-    }
-
-    .log-panels {
-        flex-direction: column;
-    }
-
-    .log-panel {
-        min-height: 200px;
     }
 
     footer {
@@ -763,6 +970,10 @@ button:disabled .spinner {
     .message,
     .system-log-entry {
         font-size: 0.8125rem;
+    }
+
+    .task-board {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -959,3 +1170,312 @@ button:disabled .spinner {
     background-color: rgba(239, 68, 68, 0.2);
     color: var(--color-error);
 }
+
+/* ============================================================================
+   タスク割り当て・JSON表示のスタイル
+   ============================================================================ */
+
+/* タスク割り当てメッセージ */
+.task-assignment {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    width: 100%;
+}
+
+.task-assignment strong {
+    color: var(--color-primary);
+    font-size: 0.875rem;
+}
+
+.task-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding-left: var(--spacing-md);
+    font-size: 0.8125rem;
+}
+
+.task-details div {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.task-details strong {
+    color: var(--color-text-muted);
+    min-width: 40px;
+}
+
+/* JSONコンテンツ表示 */
+.json-content {
+    margin: 0;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--color-bg);
+    border-radius: var(--radius-sm);
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* メッセージ内のpre要素 */
+.message pre {
+    margin: 0;
+    padding: 0;
+}
+
+/* メッセージ内のdiv要素 */
+.message div {
+    display: inline;
+}
+
+/* ============================================================================
+   タスクボードスタイル (Phase 2)
+   ============================================================================ */
+
+.task-board-panel {
+    /* 全幅で表示 */
+}
+
+.task-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-md);
+    min-height: 300px;
+}
+
+.task-column {
+    display: flex;
+    flex-direction: column;
+    background-color: var(--color-bg-secondary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.task-column-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--color-bg-tertiary);
+    font-weight: 600;
+    font-size: 0.875rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.task-column-body {
+    flex: 1;
+    padding: var(--spacing-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    min-height: 200px;
+}
+
+.task-card {
+    background-color: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm);
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.task-card:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-sm);
+}
+
+.task-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-xs);
+}
+
+.task-card-id {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-family: monospace;
+}
+
+.task-card-owner {
+    font-size: 0.75rem;
+    color: var(--color-primary);
+}
+
+.task-card-subject {
+    font-weight: 500;
+    font-size: 0.875rem;
+    margin-bottom: var(--spacing-xs);
+}
+
+.task-card-description {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.task-card-dependencies {
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+    font-size: 0.75rem;
+}
+
+.task-dependency {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: var(--spacing-sm);
+    color: var(--color-warning);
+}
+
+.task-stats {
+    display: flex;
+    gap: var(--spacing-md);
+}
+
+.task-stat {
+    font-size: 0.875rem;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg-tertiary);
+}
+
+/* ============================================================================
+   タイムラインスタイル (Phase 3)
+   ============================================================================ */
+
+.timeline-panel {
+    /* 全幅で表示 */
+}
+
+.timeline-container {
+    position: relative;
+    padding: var(--spacing-md);
+    overflow-y: auto;
+    max-height: 250px;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 20px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--color-primary), var(--color-info));
+}
+
+.timeline-item {
+    position: relative;
+    padding-left: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+}
+
+.timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -25px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+    border: 2px solid var(--color-bg);
+}
+
+.timeline-item.message::before {
+    background-color: var(--color-info);
+}
+
+.timeline-item.task::before {
+    background-color: var(--color-warning);
+}
+
+.timeline-item.completed::before {
+    background-color: var(--color-success);
+}
+
+.timeline-time {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-bottom: 4px;
+}
+
+.timeline-content {
+    background-color: var(--color-bg-secondary);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm);
+}
+
+.timeline-agent {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--color-primary);
+}
+
+.timeline-message {
+    margin-top: 4px;
+    font-size: 0.875rem;
+}
+
+/* ============================================================================
+   メッセージフロー図スタイル (Phase 3)
+   ============================================================================ */
+
+.flow-panel {
+    /* 全幅で表示 */
+    min-height: 300px;
+}
+
+.flow-canvas {
+    width: 100%;
+    height: 400px;
+    background-color: var(--color-bg-secondary);
+    border-radius: var(--radius-md);
+    position: relative;
+    overflow: hidden;
+}
+
+.flow-node {
+    position: absolute;
+    background-color: var(--color-bg);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm);
+    min-width: 120px;
+    text-align: center;
+}
+
+.flow-node.active {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+}
+
+.flow-edge {
+    position: absolute;
+    height: 2px;
+    background-color: var(--color-border);
+    transform-origin: left center;
+}
+
+.flow-edge.active {
+    background-color: var(--color-primary);
+    animation: flowPulse 1s infinite;
+}
+
+@keyframes flowPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* レイアウト調整 - パネルは縦に配置（古いスタイルは削除） */
