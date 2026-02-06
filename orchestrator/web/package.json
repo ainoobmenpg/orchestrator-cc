@@ -1,0 +1,28 @@
+{
+  "name": "web",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint \"static/**/*.js\"",
+    "lint:fix": "eslint \"static/**/*.js\" --fix",
+    "format": "prettier --write --no-cache \"static/**/*.{js,css}\"",
+    "format:check": "prettier --check --no-cache \"static/**/*.{js,css}\"",
+    "lint:css": "stylelint \"static/**/*.css\"",
+    "lint:css:fix": "stylelint \"static/**/*.css\" --fix",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "jsdom": "^23.2.0",
+    "prettier": "^3.8.1",
+    "stylelint": "^16.26.1",
+    "stylelint-config-standard": "^36.0.1",
+    "vitest": "^1.6.1"
+  }
+}
