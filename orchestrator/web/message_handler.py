@@ -246,3 +246,11 @@ class WebSocketMessageHandler:
             handler: ステータス取得用ハンドラ関数
         """
         self._handlers["get_status"] = handler
+
+    def set_team_message_handler(self, handler: Any) -> None:
+        """チームメッセージハンドラを設定します。
+
+        Args:
+            handler: チームメッセージ取得用ハンドラ関数
+        """
+        self._handlers["get_teams"] = handler

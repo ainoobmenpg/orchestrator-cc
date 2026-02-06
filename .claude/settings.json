@@ -1,5 +1,15 @@
 {
   "hooks": {
-    "preSession": "bash orchestrator/scripts/verify-agents.sh"
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash orchestrator/scripts/verify-agents.sh"
+          }
+        ]
+      }
+    ]
   }
 }

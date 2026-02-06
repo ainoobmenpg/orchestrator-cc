@@ -12,71 +12,176 @@
             <h1>orchestrator-cc Dashboard</h1>
             <span class="cluster-name" id="cluster-name">クラスタ: connecting...</span>
         </div>
+        <div class="header-center">
+            <!-- チーム選択ドロップダウン -->
+            <div class="team-selector">
+                <label for="team-select">監視対象:</label>
+                <select id="team-select">
+                    <option value="">-- チームを選択 --</option>
+                </select>
+            </div>
+        </div>
         <div id="connection-status" class="status-disconnected">
             <span class="status-dot"></span>
             <span class="status-text">切断中</span>
         </div>
     </header>
 
-    <main>
-        <aside class="agent-panel">
-            <div class="panel-header">
-                <h2>エージェント状態</h2>
-                <button id="refresh-agents" class="btn-small" title="更新">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
-                        <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1-.771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
-                    </svg>
-                </button>
-            </div>
+    <!-- 要約カードセクション -->
+    <section class="summary-section">
+        <div class="summary-card agents-card" data-target-tab="overview">
+            <div class="card-icon">🤖</div>
+            <div class="card-value" id="summary-agents">-</div>
+            <div class="card-label">エージェント</div>
+        </div>
+        <div class="summary-card tasks-card" data-target-tab="tasks">
+            <div class="card-icon">📋</div>
+            <div class="card-value" id="summary-tasks">-</div>
+            <div class="card-label">タスク</div>
+        </div>
+        <div class="summary-card messages-card" data-target-tab="messages">
+            <div class="card-icon">💬</div>
+            <div class="card-value" id="summary-messages">-</div>
+            <div class="card-label">メッセージ</div>
+        </div>
+        <div class="summary-card system-card" data-target-tab="system">
+            <div class="card-icon">⚙️</div>
+            <div class="card-value" id="summary-system">-</div>
+            <div class="card-label">システム</div>
+        </div>
+    </section>
 
-            <!-- クラスタ制御ボタン -->
-            <div class="cluster-controls">
-                <button id="restart-cluster" class="btn-primary">
-                    <span class="btn-icon">🔄</span>
-                    <span>クラスタ再起動</span>
-                </button>
-                <button id="shutdown-cluster" class="btn-danger">
-                    <span class="btn-icon">⏹</span>
-                    <span>クラスタ停止</span>
-                </button>
-            </div>
-            <div id="agent-list" class="agent-list">
-                <div class="loading">エージェント情報を読み込み中...</div>
-            </div>
-        </aside>
+    <!-- タブナビゲーション -->
+    <nav class="tabs-nav">
+        <button class="tab-btn active" data-tab="overview">📊 概要</button>
+        <button class="tab-btn" data-tab="tasks">📋 タスク</button>
+        <button class="tab-btn" data-tab="messages">💬 メッセージ</button>
+        <button class="tab-btn" data-tab="timeline">📊 タイムライン</button>
+        <button class="tab-btn" data-tab="system">⚙️ システム</button>
+    </nav>
 
-        <section class="log-panels">
-            <!-- メッセージログ -->
-            <div class="log-panel message-panel">
-                <div class="panel-header">
-                    <h2>メッセージログ</h2>
-                    <div class="message-stats">
-                        <span id="message-count">0件</span>
-                    </div>
-                </div>
-                <div id="messages" class="message-container"></div>
-            </div>
-
-            <!-- システムログ -->
-            <div class="log-panel system-log-panel">
-                <div class="panel-header">
-                    <h2>システムログ</h2>
-                    <div class="system-log-controls">
-                        <label class="checkbox-label small">
-                            <input type="checkbox" id="system-log-auto-scroll" checked>
-                            <span>自動スクロール</span>
-                        </label>
-                        <button id="clear-system-log" class="btn-small" title="クリア">
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+    <!-- タブコンテンツエリア -->
+    <main class="tab-content">
+        <!-- 概要タブ -->
+        <section id="tab-overview" class="tab-panel active">
+            <div class="overview-content">
+                <!-- エージェントパネル -->
+                <aside class="agent-panel" id="agent-panel">
+                    <div class="panel-header">
+                        <div class="panel-header-left">
+                            <h2>エージェント状態</h2>
+                            <button id="toggle-agents" class="btn-icon-only" title="折りたたみ">
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <button id="refresh-agents" class="btn-small" title="更新">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                                <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1-.771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
                             </svg>
                         </button>
                     </div>
+
+                    <div class="agent-panel-content" id="agent-panel-content">
+                        <!-- クラスタ制御ボタン -->
+                        <div class="cluster-controls">
+                            <button id="restart-cluster" class="btn-primary">
+                                <span class="btn-icon">🔄</span>
+                                <span>クラスタ再起動</span>
+                            </button>
+                            <button id="shutdown-cluster" class="btn-danger">
+                                <span class="btn-icon">⏹</span>
+                                <span>クラスタ停止</span>
+                            </button>
+                        </div>
+                        <div id="agent-list" class="agent-list">
+                            <div class="loading">エージェント情報を読み込み中...</div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- アクティビティタイムライン（概要タブ内） -->
+                <div class="overview-timeline">
+                    <div class="panel-header">
+                        <h2>📊 アクティビティタイムライン</h2>
+                    </div>
+                    <div id="timeline" class="timeline-container"></div>
                 </div>
-                <div id="system-log" class="system-log-container"></div>
             </div>
+        </section>
+
+        <!-- メッセージタブ -->
+        <section id="tab-messages" class="tab-panel">
+            <div class="panel-header">
+                <h2>メッセージログ</h2>
+                <div class="message-stats">
+                    <span id="message-count">0件</span>
+                </div>
+            </div>
+            <div id="messages" class="message-container"></div>
+        </section>
+
+        <!-- タスクタブ -->
+        <section id="tab-tasks" class="tab-panel">
+            <div class="panel-header">
+                <h2>📋 タスクボード</h2>
+                <div class="task-stats">
+                    <span class="task-stat pending" id="task-pending-count">⏳ 0</span>
+                    <span class="task-stat in-progress" id="task-progress-count">🔄 0</span>
+                    <span class="task-stat completed" id="task-completed-count">✅ 0</span>
+                </div>
+            </div>
+            <div class="task-board">
+                <div class="task-column" id="task-column-pending">
+                    <div class="task-column-header">⏳ 待機中</div>
+                    <div class="task-column-body" id="tasks-pending"></div>
+                </div>
+                <div class="task-column" id="task-column-in-progress">
+                    <div class="task-column-header">🔄 進行中</div>
+                    <div class="task-column-body" id="tasks-in-progress"></div>
+                </div>
+                <div class="task-column" id="task-column-completed">
+                    <div class="task-column-header">✅ 完了</div>
+                    <div class="task-column-body" id="tasks-completed"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- タイムラインタブ -->
+        <section id="tab-timeline" class="tab-panel">
+            <div class="panel-header">
+                <h2>📊 アクティビティタイムライン</h2>
+                <div class="timeline-controls">
+                    <select id="timeline-filter-detail">
+                        <option value="all">すべてのアクティビティ</option>
+                        <option value="tasks">タスク</option>
+                        <option value="messages">メッセージ</option>
+                    </select>
+                </div>
+            </div>
+            <div id="timeline-detail" class="timeline-container"></div>
+        </section>
+
+        <!-- システムタブ -->
+        <section id="tab-system" class="tab-panel">
+            <div class="panel-header">
+                <h2>システムログ</h2>
+                <div class="system-log-controls">
+                    <label class="checkbox-label small">
+                        <input type="checkbox" id="system-log-auto-scroll" checked>
+                        <span>自動スクロール</span>
+                    </label>
+                    <button id="clear-system-log" class="btn-small" title="クリア">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div id="system-log" class="system-log-container"></div>
         </section>
     </main>
 
