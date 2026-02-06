@@ -48,7 +48,13 @@ class TeamFileObserver:
         self._observer: Observer | None = None
         self._lock = threading.Lock()
 
+<<<<<<< HEAD
     def register_callback(self, event_type: str, callback: Callable[[str, Path], None]) -> None:
+=======
+    def register_callback(
+        self, event_type: str, callback: Callable[[str, Path], None]
+    ) -> None:
+>>>>>>> main
         """ファイル変更コールバックを登録します。
 
         Args:
@@ -202,7 +208,13 @@ class _TeamFileEventHandler(FileSystemEventHandler):
             self._invoke_callbacks("inbox_changed", team_name, path)
             return
 
+<<<<<<< HEAD
     def _invoke_callbacks(self, event_type: str, team_name: str, file_path: Path) -> None:
+=======
+    def _invoke_callbacks(
+        self, event_type: str, team_name: str, file_path: Path
+    ) -> None:
+>>>>>>> main
         """コールバックを呼び出します。
 
         Args:
@@ -215,7 +227,13 @@ class _TeamFileEventHandler(FileSystemEventHandler):
             try:
                 callback(team_name, file_path)
             except Exception as e:
+<<<<<<< HEAD
                 logger.error(f"Callback error for {event_type} in {team_name}: {e}")
+=======
+                logger.error(
+                    f"Callback error for {event_type} in {team_name}: {e}"
+                )
+>>>>>>> main
 
 
 class TaskFileObserver:
