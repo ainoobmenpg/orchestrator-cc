@@ -10,12 +10,12 @@
 
 const CONFIG = {
     wsUrl: `ws://${window.location.host}/ws`,
-    apiUrl: `/api`,
+    apiUrl: '/api',
     reconnectDelay: 3000,
     maxReconnectAttempts: 10,
     messageBufferSize: 1000,
-    heartbeatInterval: 15000,  // 15秒ごとにping送信（接続維持のため短縮）
-    heartbeatTimeout: 30000,    // 30秒 pongがない場合、接続切れと判断
+    heartbeatInterval: 15000, // 15秒ごとにping送信（接続維持のため短縮）
+    heartbeatTimeout: 30000, // 30秒 pongがない場合、接続切れと判断
 };
 
 // ============================================================================
@@ -85,7 +85,7 @@ class DashboardClient {
             // 初期データをリクエスト
             this.send({
                 type: 'subscribe',
-                channels: ['messages', 'thinking', 'status']
+                channels: ['messages', 'thinking', 'status'],
             });
 
             // エージェント状態をリクエスト
@@ -96,7 +96,7 @@ class DashboardClient {
             this.fetchTeams();
         };
 
-        this.ws.onmessage = (event) => {
+        this.ws.onmessage = event => {
             try {
                 const message = JSON.parse(event.data);
                 this.handleMessage(message);
@@ -105,11 +105,11 @@ class DashboardClient {
             }
         };
 
-        this.ws.onerror = (error) => {
+        this.ws.onerror = error => {
             console.error('WebSocketエラー:', error);
         };
 
-        this.ws.onclose = (event) => {
+        this.ws.onclose = event => {
             console.log('WebSocket切断:', event.code, event.reason);
             this.stopHeartbeat();
             updateConnectionStatus('disconnected');
@@ -240,7 +240,7 @@ class DashboardClient {
     }
 
     startHeartbeat() {
-        this.stopHeartbeat();  // 既存のタイマーをクリア
+        this.stopHeartbeat(); // 既存のタイマーをクリア
         this.lastPongTime = Date.now();
 
         this.heartbeatTimer = setInterval(() => {
@@ -252,7 +252,7 @@ class DashboardClient {
                 const timeSinceLastPong = Date.now() - this.lastPongTime;
                 if (timeSinceLastPong > CONFIG.heartbeatTimeout) {
                     console.warn('heartbeat timeout - 接続が切れた可能性があります');
-                    this.ws.close();  // 接続を閉じて再接続をトリガー
+                    this.ws.close(); // 接続を閉じて再接続をトリガー
                 }
             }
         }, CONFIG.heartbeatInterval);
@@ -361,7 +361,7 @@ function handleErrorMessage(message) {
     showNotification(message.content || 'エラーが発生しました', 'error');
 }
 
-function handlePongMessage(message) {
+function handlePongMessage() {
     // Pingに対するPong応答
     console.debug('Pong received');
     if (typeof dashboardClient !== 'undefined' && dashboardClient) {
@@ -741,7 +741,7 @@ function renderMessageHtml(message) {
 }
 
 // メッセージコンテンツを整形する
-function formatMessageContent(content, messageType) {
+function formatMessageContent(content) {
     // JSON文字列の場合は整形して表示
     try {
         if (content && typeof content === 'string' && content.trim().startsWith('{')) {
@@ -808,7 +808,11 @@ function updateMessageStats() {
 function formatTime(isoString) {
     try {
         const date = new Date(isoString);
-        return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        return date.toLocaleTimeString('ja-JP', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        });
     } catch {
         return isoString;
     }
@@ -949,57 +953,47 @@ function showConfirmModal(title, message, onConfirm) {
     };
 }
 
-function hideConfirmModal() {
-    const modal = document.getElementById('confirm-modal');
-    modal.classList.add('hidden');
-    state.pendingConfirm = null;
-}
-
 async function restartCluster() {
     // 確認モーダルを表示
-    showConfirmModal(
-        'クラスタ再起動',
-        'クラスタを再起動します。よろしいですか？',
-        async () => {
-            const btn = document.getElementById('restart-cluster');
-            const originalContent = btn.innerHTML;
+    showConfirmModal('クラスタ再起動', 'クラスタを再起動します。よろしいですか？', async () => {
+        const btn = document.getElementById('restart-cluster');
+        const originalContent = btn.innerHTML;
 
-            // ボタンを無効化してスピナー表示
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span><span>再起動中...</span>';
+        // ボタンを無効化してスピナー表示
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span><span>再起動中...</span>';
 
-            // システムログに記録
-            addSystemLog('info', 'クラスタの再起動を開始します...');
+        // システムログに記録
+        addSystemLog('info', 'クラスタの再起動を開始します...');
 
-            try {
-                const response = await fetch(`${CONFIG.apiUrl}/cluster/restart`, {
-                    method: 'POST',
-                });
-                const data = await response.json();
+        try {
+            const response = await fetch(`${CONFIG.apiUrl}/cluster/restart`, {
+                method: 'POST',
+            });
+            const data = await response.json();
 
-                if (data.error) {
-                    showNotification(data.error, 'error');
-                    addSystemLog('error', `再起動失敗: ${data.error}`);
-                } else {
-                    showNotification(data.message || 'クラスタを再起動しました', 'success');
-                    addSystemLog('success', data.message || 'クラスタの再起動が完了しました');
-                    // エージェント状態を更新
-                    if (dashboardClient) {
-                        setTimeout(() => dashboardClient.fetchAgents(), 2000);
-                    }
+            if (data.error) {
+                showNotification(data.error, 'error');
+                addSystemLog('error', `再起動失敗: ${data.error}`);
+            } else {
+                showNotification(data.message || 'クラスタを再起動しました', 'success');
+                addSystemLog('success', data.message || 'クラスタの再起動が完了しました');
+                // エージェント状態を更新
+                if (dashboardClient) {
+                    setTimeout(() => dashboardClient.fetchAgents(), 2000);
                 }
-            } catch (error) {
-                const errorMsg = 'クラスタの再起動に失敗しました';
-                showNotification(errorMsg, 'error');
-                addSystemLog('error', `${errorMsg}: ${error.message}`);
-                console.error('Restart error:', error);
-            } finally {
-                // ボタンを元に戻す
-                btn.disabled = false;
-                btn.innerHTML = originalContent;
             }
+        } catch (error) {
+            const errorMsg = 'クラスタの再起動に失敗しました';
+            showNotification(errorMsg, 'error');
+            addSystemLog('error', `${errorMsg}: ${error.message}`);
+            console.error('Restart error:', error);
+        } finally {
+            // ボタンを元に戻す
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
         }
-    );
+    });
 }
 
 async function shutdownCluster() {
@@ -1055,7 +1049,7 @@ async function shutdownCluster() {
 
 function setupEventListeners() {
     // 思考ログ表示切り替え
-    document.getElementById('show-thinking').addEventListener('change', (e) => {
+    document.getElementById('show-thinking').addEventListener('change', e => {
         state.showThinking = e.target.checked;
         document.querySelectorAll('.message-thinking').forEach(el => {
             el.style.display = state.showThinking ? '' : 'none';
@@ -1063,12 +1057,12 @@ function setupEventListeners() {
     });
 
     // 自動スクロール切り替え
-    document.getElementById('auto-scroll').addEventListener('change', (e) => {
+    document.getElementById('auto-scroll').addEventListener('change', e => {
         state.isAutoScroll = e.target.checked;
     });
 
     // タイムスタンプ表示切り替え
-    document.getElementById('show-timestamp').addEventListener('change', (e) => {
+    document.getElementById('show-timestamp').addEventListener('change', e => {
         state.showTimestamp = e.target.checked;
         document.querySelectorAll('.message-timestamp').forEach(el => {
             el.style.display = state.showTimestamp ? '' : 'none';
@@ -1085,7 +1079,9 @@ function setupEventListeners() {
 
     // エクスポート
     document.getElementById('export-messages').addEventListener('click', () => {
-        const messages = Array.from(document.querySelectorAll('.message:not(.message-thinking [style*="display: none"])'));
+        const messages = Array.from(
+            document.querySelectorAll('.message:not(.message-thinking [style*="display: none"])')
+        );
         const data = messages.map(el => el.textContent).join('\n');
         const blob = new Blob([data], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -1108,7 +1104,7 @@ function setupEventListeners() {
     document.getElementById('shutdown-cluster').addEventListener('click', shutdownCluster);
 
     // システムログ自動スクロール切り替え
-    document.getElementById('system-log-auto-scroll').addEventListener('change', (e) => {
+    document.getElementById('system-log-auto-scroll').addEventListener('change', e => {
         state.systemLogAutoScroll = e.target.checked;
     });
 
@@ -1144,7 +1140,7 @@ function setupEventListeners() {
     // チーム選択
     const teamSelect = document.getElementById('team-select');
     if (teamSelect) {
-        teamSelect.addEventListener('change', async (e) => {
+        teamSelect.addEventListener('change', async e => {
             state.selectedTeam = e.target.value || null;
 
             // チームが選択されたらデータを取得
@@ -1163,7 +1159,7 @@ function setupEventListeners() {
     // 思考ログエージェントフィルター
     const thinkingFilter = document.getElementById('thinking-agent-filter');
     if (thinkingFilter) {
-        thinkingFilter.addEventListener('change', (e) => {
+        thinkingFilter.addEventListener('change', e => {
             filterThinkingLogs(e.target.value);
         });
     }
@@ -1180,7 +1176,10 @@ async function loadTeamData(teamName) {
 
             // メッセージをフィルタリング・整形
             state.teamMessages = rawMessages
-                .filter(msg => msg.message_type !== 'idle_notification' && msg.type !== 'idle_notification')
+                .filter(
+                    msg =>
+                        msg.message_type !== 'idle_notification' && msg.type !== 'idle_notification'
+                )
                 .map(msg => {
                     // contentがJSONの場合はパースして整形
                     if (msg.content && msg.content.trim().startsWith('{')) {
@@ -1190,7 +1189,7 @@ async function loadTeamData(teamName) {
                                 return {
                                     ...msg,
                                     content: `📋 タスク割り当て: #${contentData.taskId}「${contentData.subject}」`,
-                                    rawData: contentData
+                                    rawData: contentData,
                                 };
                             }
                         } catch (e) {
@@ -1237,6 +1236,7 @@ async function loadTeamData(teamName) {
 }
 
 // 思考ログエージェントフィルターの更新
+// eslint-disable-next-line no-unused-vars
 function updateThinkingAgentFilter() {
     const filter = document.getElementById('thinking-agent-filter');
     if (!filter) return;
@@ -1351,9 +1351,8 @@ function updateSummaryCards() {
     const completed = state.teamTasks.filter(t => t.status === 'completed').length;
     const tasksValue = document.getElementById('summary-tasks');
     if (tasksValue) {
-        tasksValue.textContent = state.teamTasks.length > 0
-            ? `${pending}/${inProgress}/${completed}`
-            : '-';
+        tasksValue.textContent =
+            state.teamTasks.length > 0 ? `${pending}/${inProgress}/${completed}` : '-';
     }
 
     // メッセージ数
@@ -1420,8 +1419,8 @@ window.addEventListener('beforeunload', () => {
 function renderTaskBoard(tasks) {
     const columns = {
         pending: document.getElementById('tasks-pending'),
-        'in_progress': document.getElementById('tasks-in-progress'),
-        completed: document.getElementById('tasks-completed')
+        in_progress: document.getElementById('tasks-in-progress'),
+        completed: document.getElementById('tasks-completed'),
     };
 
     // 各カラムをクリア
@@ -1468,8 +1467,8 @@ function renderTaskBoard(tasks) {
 function updateTaskStats(tasks) {
     const stats = {
         pending: tasks.filter(t => t.status === 'pending').length,
-        'in_progress': tasks.filter(t => t.status === 'in_progress').length,
-        completed: tasks.filter(t => t.status === 'completed').length
+        in_progress: tasks.filter(t => t.status === 'in_progress').length,
+        completed: tasks.filter(t => t.status === 'completed').length,
     };
 
     const pendingCount = document.getElementById('task-pending-count');
@@ -1503,7 +1502,7 @@ function renderTimeline(teamName, tasks, messages) {
             status: task.status,
             agent: ownerName,
             content: `${task.subject}`,
-            timestamp: 'タスク'  // タスクはタイムスタンプなし
+            timestamp: 'タスク', // タスクはタイムスタンプなし
         });
     });
 
@@ -1514,7 +1513,7 @@ function renderTimeline(teamName, tasks, messages) {
                 type: 'message',
                 agent: msg.sender || '?',
                 content: (msg.content || '').substring(0, 50),
-                timestamp: msg.timestamp || ''
+                timestamp: msg.timestamp || '',
             });
         }
     });
@@ -1524,9 +1523,12 @@ function renderTimeline(teamName, tasks, messages) {
         const item = document.createElement('div');
         item.className = `timeline-item ${event.type} ${event.status || ''}`;
 
-        const timeLabel = event.timestamp && event.timestamp !== 'タスク'
-            ? formatTime(event.timestamp)
-            : (event.status === 'completed' ? '完了' : '進行中');
+        const timeLabel =
+            event.timestamp && event.timestamp !== 'タスク'
+                ? formatTime(event.timestamp)
+                : event.status === 'completed'
+                  ? '完了'
+                  : '進行中';
 
         item.innerHTML = `
             <div class="timeline-time">${escapeHtml(timeLabel)}</div>

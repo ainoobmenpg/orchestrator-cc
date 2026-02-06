@@ -35,9 +35,9 @@
     --radius-lg: 0.75rem;
 
     /* シャドウ */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+    --shadow-md: 0 4px 6px rgb(0 0 0 / 30%);
+    --shadow-lg: 0 10px 15px rgb(0 0 0 / 30%);
 
     /* トランジション */
     --transition-fast: 150ms ease;
@@ -85,7 +85,9 @@ body {
     padding: var(--spacing-md);
     background-color: var(--color-bg-tertiary);
     border-radius: var(--radius-lg);
-    transition: transform var(--transition-fast), background-color var(--transition-fast);
+    transition:
+        transform var(--transition-fast),
+        background-color var(--transition-fast);
     cursor: pointer;
 }
 
@@ -95,7 +97,7 @@ body {
 }
 
 .summary-card.alert {
-    background-color: rgba(239, 68, 68, 0.2);
+    background-color: rgb(239 68 68 / 20%);
     border: 1px solid var(--color-error);
 }
 
@@ -322,8 +324,14 @@ header h1 {
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
 }
 
 /* ============================================================================
@@ -341,7 +349,7 @@ main {
 
 .agent-panel {
     width: 300px;
-    min-width: 60px;  /* 折りたたみ時の最小幅 */
+    min-width: 60px; /* 折りたたみ時の最小幅 */
     max-width: 400px;
     background-color: var(--color-bg-secondary);
     border-right: 1px solid var(--color-border);
@@ -626,7 +634,7 @@ main {
     min-width: 0;
     word-break: break-word;
     font-size: 0.875rem;
-    white-space: pre-wrap;  /* 改行を保持 */
+    white-space: pre-wrap; /* 改行を保持 */
 }
 
 .message-label {
@@ -637,7 +645,7 @@ main {
 
 /* 思考ログ */
 .message-thinking {
-    background-color: rgba(234, 179, 8, 0.1);
+    background-color: rgb(234 179 8 / 10%);
     border-left-color: var(--color-warning);
 }
 
@@ -680,7 +688,7 @@ footer {
     cursor: pointer;
 }
 
-.checkbox-label input[type="checkbox"] {
+.checkbox-label input[type='checkbox'] {
     cursor: pointer;
 }
 
@@ -762,7 +770,7 @@ button:disabled {
     display: inline-block;
     width: 16px;
     height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid rgb(255 255 255 / 30%);
     border-top-color: white;
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
@@ -775,7 +783,7 @@ button:disabled {
 }
 
 button:disabled .spinner {
-    border-top-color: rgba(255, 255, 255, 0.5);
+    border-top-color: rgb(255 255 255 / 50%);
 }
 
 /* ============================================================================
@@ -797,17 +805,17 @@ button:disabled .spinner {
 }
 
 .notification.error {
-    background-color: rgba(239, 68, 68, 0.9);
+    background-color: rgb(239 68 68 / 90%);
     color: white;
 }
 
 .notification.info {
-    background-color: rgba(59, 130, 246, 0.9);
+    background-color: rgb(59 130 246 / 90%);
     color: white;
 }
 
 .notification.success {
-    background-color: rgba(34, 197, 94, 0.9);
+    background-color: rgb(34 197 94 / 90%);
     color: white;
 }
 
@@ -846,11 +854,8 @@ button:disabled .spinner {
 
 .modal {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
+    inset: 0;
+    background-color: rgb(0 0 0 / 70%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -926,7 +931,7 @@ button:disabled .spinner {
    レスポンシブデザイン
    ============================================================================ */
 
-@media (max-width: 1024px) {
+@media (width <= 1024px) {
     .summary-section {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -936,7 +941,7 @@ button:disabled .spinner {
     }
 }
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
     .summary-section {
         grid-template-columns: 1fr;
         gap: var(--spacing-sm);
@@ -978,7 +983,7 @@ button:disabled .spinner {
     }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
     header {
         flex-direction: column;
         align-items: flex-start;
@@ -1029,7 +1034,7 @@ button:disabled .spinner {
 /* 思考ログパネル */
 .thinking-panel {
     flex: 1;
-    background-color: rgba(15, 23, 42, 0.3);
+    background-color: rgb(15 23 42 / 30%);
 }
 
 .thinking-controls {
@@ -1109,7 +1114,7 @@ button:disabled .spinner {
 }
 
 .thinking-action .thinking-category {
-    background-color: rgba(59, 130, 246, 0.2);
+    background-color: rgb(59 130 246 / 20%);
     color: var(--color-primary);
 }
 
@@ -1118,7 +1123,7 @@ button:disabled .spinner {
 }
 
 .thinking-thinking .thinking-category {
-    background-color: rgba(234, 179, 8, 0.2);
+    background-color: rgb(234 179 8 / 20%);
     color: var(--color-warning);
 }
 
@@ -1127,13 +1132,13 @@ button:disabled .spinner {
 }
 
 .thinking-emotion .thinking-category {
-    background-color: rgba(34, 197, 94, 0.2);
+    background-color: rgb(34 197 94 / 20%);
     color: var(--color-success);
 }
 
 /* チームメッセージ */
 .message-team {
-    background-color: rgba(6, 182, 212, 0.05);
+    background-color: rgb(6 182 212 / 5%);
     border-left-color: var(--color-info);
 }
 
@@ -1153,22 +1158,22 @@ button:disabled .spinner {
 }
 
 .emotion-indicator.confusion {
-    background-color: rgba(234, 179, 8, 0.2);
+    background-color: rgb(234 179 8 / 20%);
     color: var(--color-warning);
 }
 
 .emotion-indicator.satisfaction {
-    background-color: rgba(34, 197, 94, 0.2);
+    background-color: rgb(34 197 94 / 20%);
     color: var(--color-success);
 }
 
 .emotion-indicator.focus {
-    background-color: rgba(59, 130, 246, 0.2);
+    background-color: rgb(59 130 246 / 20%);
     color: var(--color-primary);
 }
 
 .emotion-indicator.concern {
-    background-color: rgba(239, 68, 68, 0.2);
+    background-color: rgb(239 68 68 / 20%);
     color: var(--color-error);
 }
 
@@ -1459,7 +1464,7 @@ button:disabled .spinner {
 
 .flow-node.active {
     border-color: var(--color-primary);
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 10px rgb(59 130 246 / 30%);
 }
 
 .flow-edge {
@@ -1475,8 +1480,14 @@ button:disabled .spinner {
 }
 
 @keyframes flowPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.3;
+    }
 }
 
 /* レイアウト調整 - パネルは縦に配置（古いスタイルは削除） */
