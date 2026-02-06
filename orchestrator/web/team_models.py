@@ -356,10 +356,15 @@ def _detect_emotion(content: str) -> EmotionType:
     content_lower = content.lower()
 
     # 困惑
+    # 単語チェック
     if any(
         w in content_lower
-        for w in ["confused", "unclear", "uncertain", "don't know", "?"]
+        for w in ["confused", "unclear", "uncertain", "don't know", "know"]
     ):
+        return EmotionType.CONFUSION
+
+    # 文字 "?" が含まれるかチェック
+    if "?" in content_lower:
         return EmotionType.CONFUSION
 
     # 満足
