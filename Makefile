@@ -1,4 +1,4 @@
-.PHONY: help check fmt lint test test-all coverage clean install-dev
+.PHONY: help check fmt lint test test-all coverage clean install-dev check-fe fmt-fe lint-fe test-fe install-fe
 
 help: ## ヘルプを表示
 	@echo "使用可能なコマンド:"
@@ -17,7 +17,7 @@ check: ## 全品質チェックを実行（型チェック+リント+フォー�
 	@echo "=== 単体テスト ==="
 	pytest tests/ -v -m "not integration"
 
-check-all: check ## 全チェック+統合テスト（並列実行）
+check-all: check check-fe ## 全チェック+統合テスト（並列実行）
 	@echo ""
 	@echo "=== 統合テスト（並列実行） ==="
 	pytest tests/ -v -n 4
@@ -56,4 +56,37 @@ clean: ## キャッシュファイルを削除
 install-dev: ## 開発依存関係をインストール
 	pip install -r requirements-dev.txt
 
-pre-commit: fmt check ## プリコミットチェック（フォーマット+全チェック）
+check-fe: ## フロントエンド品質チェック（ESLint + Stylelint + Prettier check）
+	@echo "=== ESLintチェック ==="
+	cd orchestrator/web && npm run lint
+	@echo ""
+	@echo "=== Stylelintチェック ==="
+	cd orchestrator/web && npm run lint:css
+	@echo ""
+	@echo "=== Prettierフォーマットチェック ==="
+	cd orchestrator/web && npm run format:check
+
+fmt-fe: ## フロントエンド自動フォーマット（ESLint --fix + Prettier + Stylelint --fix）
+	@echo "=== ESLint自動修正 ==="
+	cd orchestrator/web && npm run lint:fix
+	@echo ""
+	@echo "=== Stylelint自動修正 ==="
+	cd orchestrator/web && npm run lint:css:fix
+	@echo ""
+	@echo "=== Prettierフォーマット ==="
+	cd orchestrator/web && npm run format
+
+lint-fe: ## フロントエンドリントのみ（ESLint + Stylelint）
+	@echo "=== ESLintチェック ==="
+	cd orchestrator/web && npm run lint
+	@echo ""
+	@echo "=== Stylelintチェック ==="
+	cd orchestrator/web && npm run lint:css
+
+test-fe: ## フロントエンドテスト実行
+	cd orchestrator/web && npm run test
+
+install-fe: ## フロントエンド開発依存関係をインストール
+	cd orchestrator/web && npm ci
+
+pre-commit: fmt fmt-fe check check-fe ## プリコミットチェック（フォーマット+全チェック）

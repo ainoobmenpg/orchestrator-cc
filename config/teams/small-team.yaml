@@ -1,0 +1,29 @@
+# Small Team Configuration
+# 最小構成のチーム設定
+
+name: "small-team"
+description: "最小構成の開発チーム（リーダー + コーダー）"
+
+# チームリーダー
+lead:
+  name: "team-lead"
+  agent_type: "general-purpose"
+  model: "claude-opus-4-6"
+  prompt_file: "agents/team_lead.py"
+
+# チームメンバー
+members:
+  - name: "coder"
+    agent_type: "general-purpose"
+    model: "claude-sonnet-4-5-20250929"
+    prompt_file: "agents/specialist_code.py"
+
+# チーム設定
+settings:
+  parallel_execution: false
+  plan_mode_required:
+    - "coder"
+  max_turns: 0
+
+# 作業ディレクトリ
+working_directory: "/Users/m2_macbookair_3911/GitHub/orchestrator-cc"
