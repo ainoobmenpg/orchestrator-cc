@@ -25,6 +25,7 @@ from orchestrator.core.cc_cluster_manager import (
 from orchestrator.core.cluster_monitor import ClusterMonitor
 from orchestrator.web.message_handler import WebSocketManager, WebSocketMessageHandler
 from orchestrator.web.monitor import DashboardMonitor, MonitorUpdate
+from orchestrator.web.teams_monitor import TeamsMonitor
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ _cluster_monitor: ClusterMonitor | None = None
 _dashboard_monitor: DashboardMonitor | None = None
 _ws_manager: WebSocketManager | None = None
 _ws_handler: WebSocketMessageHandler | None = None
+_teams_monitor: TeamsMonitor | None = None
 
 
 @asynccontextmanager
@@ -43,7 +45,7 @@ async def lifespan(_app: FastAPI):
 
     アプリケーション起動時と終了時の処理を定義します。
     """
-    global _cluster_manager, _cluster_monitor, _dashboard_monitor, _ws_manager, _ws_handler
+    global _cluster_manager, _cluster_monitor, _dashboard_monitor, _ws_manager, _ws_handler, _teams_monitor
 
     # 起動時
     logger.info("FastAPIアプリケーションを起動します")
@@ -57,6 +59,10 @@ async def lifespan(_app: FastAPI):
         lambda data, ws: _handle_get_status(data, ws)
     )
 
+    # TeamsMonitorを初期化
+    _teams_monitor = TeamsMonitor()
+    _teams_monitor.register_update_callback(_broadcast_teams_update)
+
     yield
 
     # 終了時
@@ -65,6 +71,10 @@ async def lifespan(_app: FastAPI):
     # ダッシュボード監視を停止
     if _dashboard_monitor and _dashboard_monitor.is_running():
         await _dashboard_monitor.stop_monitoring()
+
+    # Teams監視を停止
+    if _teams_monitor and _teams_monitor.is_running():
+        _teams_monitor.stop_monitoring()
 
     # 全てのWebSocket接続を閉じる
     if _ws_manager:
@@ -135,6 +145,23 @@ async def _broadcast_to_websockets(update: MonitorUpdate) -> None:
         await _ws_manager.broadcast(update.to_dict())
 
 
+def _broadcast_teams_update(data: dict) -> None:
+    """TeamsMonitorの更新をWebSocketにブロードキャストします。
+
+    Args:
+        data: 更新データ
+    """
+    if _ws_manager:
+        # 非同期でブロードキャスト
+        import asyncio
+        try:
+            asyncio.get_running_loop()
+            asyncio.create_task(_ws_manager.broadcast(data))
+        except RuntimeError:
+            # イベントループが実行中でない場合は無視
+            pass
+
+
 async def _handle_get_status(_data: dict, websocket: WebSocket) -> None:
     """ステータス取得リクエストを処理します。
 
@@ -155,9 +182,6 @@ async def _handle_get_status(_data: dict, websocket: WebSocket) -> None:
 # ============================================================================
 # REST APIエンドポイント
 # ============================================================================
-
-
-from pathlib import Path
 
 # テンプレートディレクトリのパス
 _templates_dir = Path(__file__).parent / "templates"
@@ -494,3 +518,119 @@ async def websocket_endpoint(
     except Exception as e:
         logger.error(f"WebSocketエラーが発生: {e}")
         _ws_manager.disconnect(websocket)
+
+
+# ============================================================================
+# Agent Teams APIエンドポイント
+# ============================================================================
+
+
+@app.get("/api/teams")
+async def get_teams():
+    """チーム一覧を取得します。
+
+    Returns:
+        チーム情報のリスト
+    """
+    if _teams_monitor is None:
+        return {"error": "Teams monitor not initialized"}
+
+    return {"teams": _teams_monitor.get_teams()}
+
+
+@app.get("/api/teams/{team_name}/messages")
+async def get_team_messages(team_name: str):
+    """チームのメッセージ履歴を取得します。
+
+    Args:
+        team_name: チーム名
+
+    Returns:
+        メッセージのリスト
+    """
+    if _teams_monitor is None:
+        return {"error": "Teams monitor not initialized"}
+
+    return {
+        "teamName": team_name,
+        "messages": _teams_monitor.get_team_messages(team_name)
+    }
+
+
+@app.get("/api/teams/{team_name}/tasks")
+async def get_team_tasks(team_name: str):
+    """チームのタスクリストを取得します。
+
+    Args:
+        team_name: チーム名
+
+    Returns:
+        タスクのリスト
+    """
+    if _teams_monitor is None:
+        return {"error": "Teams monitor not initialized"}
+
+    return {
+        "teamName": team_name,
+        "tasks": _teams_monitor.get_team_tasks(team_name)
+    }
+
+
+@app.get("/api/teams/{team_name}/thinking")
+async def get_team_thinking(team_name: str, agent: str | None = None):
+    """チームの思考ログを取得します。
+
+    Args:
+        team_name: チーム名
+        agent: エージェント名でフィルタ（オプション）
+
+    Returns:
+        思考ログのリスト
+    """
+    if _teams_monitor is None:
+        return {"error": "Teams monitor not initialized"}
+
+    logs = _teams_monitor.get_team_thinking(team_name)
+
+    if agent:
+        logs = [log for log in logs if log.get("agentName") == agent]
+
+    return {
+        "teamName": team_name,
+        "agent": agent,
+        "thinking": logs
+    }
+
+
+@app.post("/api/teams/monitoring/start")
+async def start_teams_monitoring():
+    """Teams監視を開始します。
+
+    Returns:
+        成功メッセージ
+    """
+    if _teams_monitor is None:
+        return {"error": "Teams monitor not initialized"}
+
+    if _teams_monitor.is_running():
+        return {"message": "Teams monitoring already running"}
+
+    _teams_monitor.start_monitoring()
+    return {"message": "Teams monitoring started"}
+
+
+@app.post("/api/teams/monitoring/stop")
+async def stop_teams_monitoring():
+    """Teams監視を停止します。
+
+    Returns:
+        成功メッセージ
+    """
+    if _teams_monitor is None:
+        return {"error": "Teams monitor not initialized"}
+
+    if not _teams_monitor.is_running():
+        return {"message": "Teams monitoring not running"}
+
+    _teams_monitor.stop_monitoring()
+    return {"message": "Teams monitoring stopped"}
