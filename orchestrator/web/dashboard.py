@@ -62,6 +62,8 @@ async def lifespan(_app: FastAPI):
     # TeamsMonitorを初期化
     _teams_monitor = TeamsMonitor()
     _teams_monitor.register_update_callback(_broadcast_teams_update)
+    _teams_monitor.start_monitoring()
+    logger.info("Teams monitoring started")
 
     yield
 

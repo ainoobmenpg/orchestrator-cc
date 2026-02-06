@@ -120,6 +120,69 @@ mypy . && ruff check . && ruff format --check . && pytest tests/ -v -m "not inte
 
 ---
 
+## フロントエンド品質チェックツール
+
+| ツール | 役割 | 対象 |
+|--------|------|------|
+| **ESLint** | JavaScriptリント | `orchestrator/web/static/**/*.js` |
+| **Prettier** | コードフォーマット | `orchestrator/web/static/**/*.{js,css}` |
+| **Stylelint** | CSSリント | `orchestrator/web/static/**/*.css` |
+| **Vitest** | テスト実行 | `orchestrator/web/**/*.{test,spec}.{js,ts}` |
+
+---
+
+## Makefileコマンド（フロントエンド）
+
+```bash
+# フロントエンド品質チェック
+make check-fe
+
+# フロントエンド自動フォーマット
+make fmt-fe
+
+# フロントエンドリントのみ
+make lint-fe
+
+# フロントエンドテスト
+make test-fe
+
+# 全品質チェック（バックエンド + フロントエンド）
+make check-all
+```
+
+---
+
+## フロントエンド品質チェックコマンド（直接実行）
+
+Makefileを使用しない場合、以下のコマンドを直接実行できます。
+
+```bash
+cd orchestrator/web
+
+# ESLintチェック
+npm run lint
+
+# ESLint自動修正
+npm run lint:fix
+
+# Prettierフォーマットチェック
+npm run format:check
+
+# Prettierフォーマット実行
+npm run format
+
+# Stylelintチェック
+npm run lint:css
+
+# Stylelint自動修正
+npm run lint:css:fix
+
+# テスト実行
+npm run test
+```
+
+---
+
 ## 関連ドキュメント
 
 - [../workflows/review-process.md](../workflows/review-process.md) - レビュー運用フロー
