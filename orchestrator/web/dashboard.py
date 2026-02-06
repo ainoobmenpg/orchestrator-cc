@@ -26,6 +26,9 @@ from orchestrator.core.cluster_monitor import ClusterMonitor
 from orchestrator.web.message_handler import WebSocketManager, WebSocketMessageHandler
 from orchestrator.web.monitor import DashboardMonitor, MonitorUpdate
 from orchestrator.web.teams_monitor import TeamsMonitor
+from orchestrator.web.thinking_log_handler import ThinkingLogHandler, get_thinking_log_handler
+from orchestrator.core.agent_teams_manager import AgentTeamsManager, TeamConfig, get_agent_teams_manager
+from orchestrator.core.agent_health_monitor import AgentHealthMonitor, get_agent_health_monitor
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
@@ -37,6 +40,9 @@ _dashboard_monitor: DashboardMonitor | None = None
 _ws_manager: WebSocketManager | None = None
 _ws_handler: WebSocketMessageHandler | None = None
 _teams_monitor: TeamsMonitor | None = None
+_thinking_log_handler: ThinkingLogHandler | None = None
+_teams_manager: AgentTeamsManager | None = None
+_health_monitor: AgentHealthMonitor | None = None
 
 
 @asynccontextmanager
@@ -45,7 +51,7 @@ async def lifespan(_app: FastAPI):
 
     アプリケーション起動時と終了時の処理を定義します。
     """
-    global _cluster_manager, _cluster_monitor, _dashboard_monitor, _ws_manager, _ws_handler, _teams_monitor
+    global _cluster_manager, _cluster_monitor, _dashboard_monitor, _ws_manager, _ws_handler, _teams_monitor, _thinking_log_handler
 
     # 起動時
     logger.info("FastAPIアプリケーションを起動します")
@@ -65,6 +71,22 @@ async def lifespan(_app: FastAPI):
     _teams_monitor.start_monitoring()
     logger.info("Teams monitoring started")
 
+    # ThinkingLogHandlerを初期化
+    _thinking_log_handler = get_thinking_log_handler()
+    _thinking_log_handler.register_callback(_broadcast_thinking_log)
+    _thinking_log_handler.start_monitoring()
+    logger.info("Thinking log monitoring started")
+
+    # AgentTeamsManagerを初期化
+    _teams_manager = get_agent_teams_manager()
+    logger.info("AgentTeamsManager initialized")
+
+    # AgentHealthMonitorを初期化
+    _health_monitor = get_agent_health_monitor()
+    _health_monitor.register_callback(_on_health_event)
+    _health_monitor.start_monitoring()
+    logger.info("AgentHealthMonitor started")
+
     yield
 
     # 終了時
@@ -77,6 +99,14 @@ async def lifespan(_app: FastAPI):
     # Teams監視を停止
     if _teams_monitor and _teams_monitor.is_running():
         _teams_monitor.stop_monitoring()
+
+    # 思考ログ監視を停止
+    if _thinking_log_handler and _thinking_log_handler.is_running():
+        _thinking_log_handler.stop_monitoring()
+
+    # ヘルスモニターを停止
+    if _health_monitor and _health_monitor.is_running():
+        _health_monitor.stop_monitoring()
 
     # 全てのWebSocket接続を閉じる
     if _ws_manager:
@@ -149,6 +179,23 @@ async def _broadcast_to_websockets(update: MonitorUpdate) -> None:
 
 def _broadcast_teams_update(data: dict) -> None:
     """TeamsMonitorの更新をWebSocketにブロードキャストします。
+
+    Args:
+        data: 更新データ
+    """
+    if _ws_manager:
+        # 非同期でブロードキャスト
+        import asyncio
+        try:
+            asyncio.get_running_loop()
+            asyncio.create_task(_ws_manager.broadcast(data))
+        except RuntimeError:
+            # イベントループが実行中でない場合は無視
+            pass
+
+
+def _broadcast_thinking_log(data: dict) -> None:
+    """思考ログの更新をWebSocketにブロードキャストします。
 
     Args:
         data: 更新データ
@@ -578,6 +625,116 @@ async def get_team_tasks(team_name: str):
     }
 
 
+def _on_health_event(event) -> None:
+    """ヘルスチェックイベントを処理します。
+
+    Args:
+        event: ヘルスチェックイベント
+    """
+    if _ws_manager:
+        # 非同期でブロードキャスト
+        import asyncio
+        try:
+            asyncio.get_running_loop()
+            asyncio.create_task(_ws_manager.broadcast({
+                "type": "health_event",
+                "event": event.to_dict(),
+            }))
+        except RuntimeError:
+            pass
+
+
+# ============================================================================
+# Agent Teams Management APIエンドポイント
+# ============================================================================
+
+
+@app.get("/api/teams/{team_name}/status")
+async def get_team_status(team_name: str):
+    """チームの状態を取得します。
+
+    Args:
+        team_name: チーム名
+
+    Returns:
+        チーム状態
+    """
+    if _teams_manager is None:
+        return {"error": "Teams manager not initialized"}
+
+    return _teams_manager.get_team_status(team_name)
+
+
+@app.post("/api/teams/{team_name}/activity")
+async def update_agent_activity(team_name: str, agent_name: str):
+    """エージェントのアクティビティを更新します。
+
+    Args:
+        team_name: チーム名
+        agent_name: エージェント名
+
+    Returns:
+        成功メッセージ
+    """
+    if _teams_manager is None:
+        return {"error": "Teams manager not initialized"}
+
+    _teams_manager.update_agent_activity(team_name, agent_name)
+    return {"message": "Activity updated"}
+
+
+@app.get("/api/health")
+async def get_health_status():
+    """ヘルスモニターの状態を取得します。
+
+    Returns:
+        ヘルス状態
+    """
+    if _health_monitor is None:
+        return {"error": "Health monitor not initialized"}
+
+    return _health_monitor.get_health_status()
+
+
+@app.post("/api/health/start")
+async def start_health_monitoring():
+    """ヘルスモニタリングを開始します。
+
+    Returns:
+        成功メッセージ
+    """
+    if _health_monitor is None:
+        return {"error": "Health monitor not initialized"}
+
+    if _health_monitor.is_running():
+        return {"message": "Health monitoring already running"}
+
+    _health_monitor.start_monitoring()
+    return {"message": "Health monitoring started"}
+
+
+@app.post("/api/health/stop")
+async def stop_health_monitoring():
+    """ヘルスモニタリングを停止します。
+
+    Returns:
+        成功メッセージ
+    """
+    if _health_monitor is None:
+        return {"error": "Health monitor not initialized"}
+
+    if not _health_monitor.is_running():
+        return {"message": "Health monitoring not running"}
+
+    _health_monitor.stop_monitoring()
+    return {"message": "Health monitoring stopped"}
+
+
+# ============================================================================
+# 既存のAgent Teams APIエンドポイント
+# ============================================================================
+
+
 @app.get("/api/teams/{team_name}/thinking")
 async def get_team_thinking(team_name: str, agent: str | None = None):
     """チームの思考ログを取得します。
@@ -589,10 +746,10 @@ async def get_team_thinking(team_name: str, agent: str | None = None):
     Returns:
         思考ログのリスト
     """
-    if _teams_monitor is None:
-        return {"error": "Teams monitor not initialized"}
+    if _thinking_log_handler is None:
+        return {"error": "Thinking log handler not initialized"}
 
-    logs = _teams_monitor.get_team_thinking(team_name)
+    logs = _thinking_log_handler.get_logs(team_name)
 
     if agent:
         logs = [log for log in logs if log.get("agentName") == agent]
