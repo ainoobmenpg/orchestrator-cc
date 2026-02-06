@@ -4,19 +4,11 @@
 """
 
 import logging
-<<<<<<< HEAD
-=======
-import threading
->>>>>>> main
 from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-<<<<<<< HEAD
-=======
-from orchestrator.core.tmux_session_manager import TmuxSessionManager
->>>>>>> main
 from orchestrator.web.team_file_observer import TaskFileObserver, TeamFileObserver
 from orchestrator.web.team_models import (
     TaskInfo,
@@ -45,24 +37,15 @@ class TeamsMonitor:
         _file_observer: ファイル監視オブザーバー
         _task_observer: タスク監視オブザーバー
         _update_callbacks: 更新コールバックのリスト
-<<<<<<< HEAD
         _thinking_polling_active: 思考ログポーリング中フラグ（現在は未使用）
-=======
-        _tmux_manager: tmuxセッションマネージャー（オプション）
-        _thinking_polling_active: 思考ログポーリング中フラグ
->>>>>>> main
     """
 
     def __init__(self, tmux_session_name: str | None = None):
         """TeamsMonitorを初期化します。
 
         Args:
-<<<<<<< HEAD
             tmux_session_name: この引数は互換性のために残されていますが、
                               現在は使用されていません（ファイルベースの思考ログを使用）。
-=======
-            tmux_session_name: tmuxセッション名（指定すると思考ログキャプチャを有効化）
->>>>>>> main
         """
         self._teams: dict[str, TeamInfo] = {}
         self._messages: dict[str, list[TeamMessage]] = defaultdict(list)
@@ -71,7 +54,6 @@ class TeamsMonitor:
         self._file_observer = TeamFileObserver()
         self._task_observer = TaskFileObserver()
         self._update_callbacks: list[Callable[[dict[str, Any]], None]] = []
-<<<<<<< HEAD
         self._thinking_polling_active = False
         self._thinking_polling_interval = 2.0  # 秒
 
@@ -81,18 +63,6 @@ class TeamsMonitor:
                 f"tmux_session_name '{tmux_session_name}' was provided but is not used "
                 "(thinking logs are now file-based)"
             )
-=======
-        self._tmux_manager: TmuxSessionManager | None = None
-        self._thinking_polling_active = False
-        self._thinking_polling_interval = 2.0  # 秒
-
-        if tmux_session_name:
-            try:
-                self._tmux_manager = TmuxSessionManager(tmux_session_name)
-                logger.info(f"TmuxSessionManager initialized: {tmux_session_name}")
-            except Exception as e:
-                logger.warning(f"Failed to initialize TmuxSessionManager: {e}")
->>>>>>> main
 
         # 既存のチームを読み込み
         self._load_existing_teams()
@@ -117,13 +87,7 @@ class TeamsMonitor:
                 self._tasks[team_name] = load_team_tasks(team_name)
                 logger.info(f"Loaded existing team: {team_name}")
 
-<<<<<<< HEAD
     def register_update_callback(self, callback: Callable[[dict[str, Any]], None]) -> None:
-=======
-    def register_update_callback(
-        self, callback: Callable[[dict[str, Any]], None]
-    ) -> None:
->>>>>>> main
         """更新コールバックを登録します。
 
         Args:
@@ -144,14 +108,8 @@ class TeamsMonitor:
         self._file_observer.start()
         self._task_observer.start()
 
-<<<<<<< HEAD
         # 思考ログポーリングはファイルベースに移行したため開始しない
         # （tmux依存削除）
-=======
-        # 思考ログポーリングを開始（tmuxマネージャーがある場合）
-        if self._tmux_manager:
-            self._start_thinking_polling()
->>>>>>> main
 
         logger.info("Teams monitoring started")
 
@@ -227,7 +185,6 @@ class TeamsMonitor:
             self._messages[team_name] = load_team_messages(path)
             self._tasks[team_name] = load_team_tasks(team_name)
 
-<<<<<<< HEAD
             self._broadcast(
                 {
                     "type": "team_created",
@@ -235,13 +192,6 @@ class TeamsMonitor:
                     "team": team_info.to_dict(),
                 }
             )
-=======
-            self._broadcast({
-                "type": "team_created",
-                "teamName": team_name,
-                "team": team_info.to_dict(),
-            })
->>>>>>> main
             logger.info(f"Team created event processed: {team_name}")
 
     def _on_team_deleted(self, team_name: str, _path: Path) -> None:
@@ -260,19 +210,12 @@ class TeamsMonitor:
         if team_name in self._thinking_logs:
             del self._thinking_logs[team_name]
 
-<<<<<<< HEAD
         self._broadcast(
             {
                 "type": "team_deleted",
                 "teamName": team_name,
             }
         )
-=======
-        self._broadcast({
-            "type": "team_deleted",
-            "teamName": team_name,
-        })
->>>>>>> main
         logger.info(f"Team deleted event processed: {team_name}")
 
     def _on_config_changed(self, team_name: str, path: Path) -> None:
@@ -288,7 +231,6 @@ class TeamsMonitor:
         if team_info:
             self._teams[team_name] = team_info
 
-<<<<<<< HEAD
             self._broadcast(
                 {
                     "type": "team_updated",
@@ -296,13 +238,6 @@ class TeamsMonitor:
                     "team": team_info.to_dict(),
                 }
             )
-=======
-            self._broadcast({
-                "type": "team_updated",
-                "teamName": team_name,
-                "team": team_info.to_dict(),
-            })
->>>>>>> main
             logger.debug(f"Config changed: {team_name}")
 
     def _on_inbox_changed(self, team_name: str, path: Path) -> None:
@@ -319,7 +254,6 @@ class TeamsMonitor:
         # 新しいメッセージのみを送信
         if messages:
             latest_message = messages[-1]
-<<<<<<< HEAD
             self._broadcast(
                 {
                     "type": "team_message",
@@ -327,13 +261,6 @@ class TeamsMonitor:
                     "message": latest_message.to_dict(),
                 }
             )
-=======
-            self._broadcast({
-                "type": "team_message",
-                "teamName": team_name,
-                "message": latest_message.to_dict(),
-            })
->>>>>>> main
 
         logger.debug(f"Inbox changed: {team_name}")
 
@@ -347,7 +274,6 @@ class TeamsMonitor:
         tasks = load_team_tasks(team_name)
         self._tasks[team_name] = tasks
 
-<<<<<<< HEAD
         self._broadcast(
             {
                 "type": "tasks_updated",
@@ -376,96 +302,6 @@ class TeamsMonitor:
         """
         # tmuxへの依存削除により、このメソッドは何もしません
         pass
-=======
-        self._broadcast({
-            "type": "tasks_updated",
-            "teamName": team_name,
-            "tasks": [task.to_dict() for task in tasks],
-        })
-        logger.debug(f"Tasks changed: {team_name}")
-
-    def _start_thinking_polling(self) -> None:
-        """思考ログポーリングを開始します。"""
-
-        def poll_loop():
-            self._thinking_polling_active = True
-
-            while self._thinking_polling_active:
-                try:
-                    self._capture_thinking()
-                except Exception as e:
-                    logger.error(f"Thinking capture error: {e}")
-
-                import time
-                time.sleep(self._thinking_polling_interval)
-
-        thread = threading.Thread(target=poll_loop, daemon=True)
-        thread.start()
-        logger.info("Thinking polling started")
-
-    def _capture_thinking(self) -> None:
-        """tmuxペインから思考ログをキャプチャします。"""
-        if not self._tmux_manager:
-            return
-
-        for team_name, team_info in self._teams.items():
-            try:
-                for member in team_info.members:
-                    # ペイン番号を取得（メタデータ等から推定）
-                    # ここでは簡易的にメンバー名からマッピング
-                    pane_index = self._get_pane_index_for_member(team_name, member)
-
-                    if pane_index is not None:
-                        # 最近の100行を取得
-                        output = self._tmux_manager.capture_pane(
-                            pane_index, start_line=-100
-                        )
-
-                        # 思考ログをパース
-                        logs = ThinkingLog.from_pane_output(member.name, output)
-
-                        # 新しいログのみを追加
-                        existing_contents = {
-                            log.content for log in self._thinking_logs[team_name]
-                        }
-
-                        for log in logs:
-                            if log.content not in existing_contents:
-                                self._thinking_logs[team_name].append(log)
-
-                                # ブロードキャスト
-                                self._broadcast({
-                                    "type": "thinking_log",
-                                    "teamName": team_name,
-                                    "log": log.to_dict(),
-                                })
-
-            except Exception as e:
-                logger.debug(f"Failed to capture thinking for {team_name}: {e}")
-
-    def _get_pane_index_for_member(
-        self, _team_name: str, member
-    ) -> int | None:
-        """メンバーに対応するペイン番号を取得します。
-
-        Args:
-            _team_name: チーム名
-            member: チームメンバー
-
-        Returns:
-            ペイン番号、不明な場合はNone
-        """
-        # 現在の実装では固定のマッピングを使用
-        # 将来的にはconfig.json等から取得可能にする
-        member_pane_map = {
-            "team-lead": 0,
-            "researcher": 1,
-            "coder": 2,
-            "tester": 3,
-        }
-
-        return member_pane_map.get(member.name)
->>>>>>> main
 
     def _broadcast(self, data: dict[str, Any]) -> None:
         """更新を全コールバックに通知します。

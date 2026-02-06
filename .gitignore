@@ -50,6 +50,8 @@ package-lock.json
 
 # テスト結果
 test_results/
+test_results.txt
+test_stability_results.txt
 .playwright-mcp/
 
 # 開発ツール
@@ -65,3 +67,6 @@ scripts/run-ui-tests.sh
 .coverage
 htmlcov/
 .orchestrator-worktrees/
+
+# レビュードキュメント（ローカルレビュー用）
+reviews/
