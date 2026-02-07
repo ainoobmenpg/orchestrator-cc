@@ -25,6 +25,7 @@ export function Header() {
   }, []);
 
   // teamNamesの変更を監視（selectedTeamNameが変わらない場合のみ更新）
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- teamsDataを依存配列から除外することで無限レンダリングを防ぐ
   useEffect(() => {
     if (isInitializedRef.current) {
       const unsubscribe = useTeamStore.subscribe((state) => {
@@ -43,7 +44,7 @@ export function Header() {
 
       return unsubscribe;
     }
-  }, [selectedTeamName, teamsData.length]); // selectedTeamNameとteamsData.lengthのみを依存配列に含める
+  }, [selectedTeamName]); // selectedTeamNameのみを依存配列に含める（teamsData.lengthを含めると無限レンダリングが発生する）
 
   const selectedTeam = useMemo(
     () => teamsData.find((t: TeamInfo) => t.name === selectedTeamName) || null,
