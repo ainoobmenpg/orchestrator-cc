@@ -25,11 +25,11 @@ PR番号を省略すると、オープン中のPR一覧を表示します。
 
 ```bash
 # ドキュメントの存在確認
-ls docs/workflows/pr-review-process.md
+ls docs/workflows/review-process.md
 ```
 
 ドキュメントが存在する場合：
-1. `Read: docs/workflows/pr-review-process.md` でレビュー運用フローを読み込む
+1. `Read: docs/workflows/review-process.md` でレビュー運用フローを読み込む
 2. ドキュメントに記載されたチェックリストを適用する
 
 ドキュメントが存在しない場合：
@@ -41,11 +41,43 @@ ls docs/workflows/pr-review-process.md
 
 ```bash
 # PR詳細の取得
-gh pr view <PR_NUMBER> --json title,body,author,headRefName,baseRefName,additions,deletions,changedFiles,commits,state,mergedAt,url
+gh pr view <PR_NUMBER> --json title,body,author,headRefName,baseRefName,additions,deletions,changedFiles,commits,state,mergedAt,url,files
 
-# PRのdiffを取得
-gh pr diff <PR_NUMBER>
+# ファイル一覧の取得（変更ファイル数の確認）
+gh pr view <PR_NUMBER> --json files --jq '.files | length'
 ```
+
+**重要: diff取得の制限（フリーズ回避）**
+
+**デフォルトでは `gh pr diff` を実行しないでください。** 以下の理由でフリーズや分析無限ループの原因になります：
+
+1. diff形式のパース処理が重い
+2. 変更内容の詳細分析でコンテキストを消費しすぎる
+3. 「すべてをレビューせよ」という指示で終わりのない分析に陥る
+
+**代わりに以下の方法で変更内容を確認してください：**
+
+1. **ファイル一覧と統計で全体を把握**
+   ```bash
+   gh pr view <PR_NUMBER> --json title,files,additions,deletions,changedFiles
+   ```
+
+2. **変更ファイルのパス一覧を取得**
+   ```bash
+   gh pr view <PR_NUMBER> --json files --jq '.files[].path'
+   ```
+
+3. **特定ファイルが必要な場合のみ個別取得**
+   ```bash
+   gh pr diff <PR_NUMBER> -- <特定のファイルパス>
+   ```
+
+4. **コミット単位で確認**
+   ```bash
+   gh pr view <PR_NUMBER> --json commits --jq '.commits[] | {message: .messageHeadline}'
+   ```
+
+diff全体がどうしても必要な場合は、ユーザーに明示的に確認してください。
 
 引数がない場合：
 
@@ -354,7 +386,7 @@ gh pr comment <PR_NUMBER> --body "<コメント内容>"
 
 ## デフォルトチェックリスト
 
-プロジェクトに `docs/workflows/pr-review-process.md` がない場合、以下のデフォルトチェックリストを使用してください：
+プロジェクトに `docs/workflows/review-process.md` がない場合、以下のデフォルトチェックリストを使用してください：
 
 ### 全レベル共通
 
