@@ -22,6 +22,7 @@ import type {
 interface TeamState {
   // チーム
   teams: Map<string, TeamInfo>;
+  teamNames: string[]; // チーム名の配列（Headerコンポーネント用）
   selectedTeamName: string | null;
 
   // エージェント
@@ -97,6 +98,7 @@ interface TeamActions {
 
 const initialState: TeamState = {
   teams: new Map(),
+  teamNames: [],
   selectedTeamName: null,
   agents: new Map(),
   messages: [],
@@ -127,14 +129,19 @@ export const useTeamStore = create<TeamStore>()(
         // チーム操作
         setTeams: (teams) => {
           const teamsMap = new Map(teams.map((t) => [t.name, t]));
-          set({ teams: teamsMap });
+          const teamNames = teams.map((t) => t.name);
+          set({ teams: teamsMap, teamNames });
         },
 
         addTeam: (team) => {
           set((state) => {
             const newTeams = new Map(state.teams);
             newTeams.set(team.name, team);
-            return { teams: newTeams };
+            // チーム名がまだない場合のみ追加
+            const newTeamNames = state.teamNames.includes(team.name)
+              ? state.teamNames
+              : [...state.teamNames, team.name];
+            return { teams: newTeams, teamNames: newTeamNames };
           });
         },
 
@@ -144,6 +151,7 @@ export const useTeamStore = create<TeamStore>()(
             newTeams.delete(teamName);
             return {
               teams: newTeams,
+              teamNames: state.teamNames.filter((n) => n !== teamName),
               selectedTeamName:
                 state.selectedTeamName === teamName ? null : state.selectedTeamName,
             };
