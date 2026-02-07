@@ -116,6 +116,9 @@ class AgentTeamsManager:
     def delete_team(self, team_name: str) -> bool:
         """チームを削除します。
 
+        注: このメソッドはディレクトリを削除するだけです。
+        本来のクリーンアップフローでは、Team LeadがTeamDeleteツールを使用してください。
+
         Args:
             team_name: チーム名
 
@@ -140,6 +143,100 @@ class AgentTeamsManager:
 
         logger.info(f"Team deleted: {team_name}")
         return True
+
+    def graceful_shutdown_team(
+        self, team_name: str, timeout: float = 30.0
+    ) -> dict[str, Any]:
+        """チームをグレースフルシャットダウンします。
+
+        注: このメソッドは手動実行用のフォールバック機能です。
+        本来のフローでは、Team Leadが以下の手順でクリーンアップしてください：
+        1. 各メンバーにshutdown_requestを送信（SendMessageツール）
+        2. shutdown_responseを待機（最大30秒）
+        3. TeamDeleteツールを呼び出す
+
+        このメソッドは、上記フローが失敗した場合の手動クリーンアップ用です。
+
+        Args:
+            team_name: チーム名
+            timeout: メンバー応答待機のタイムアウト（秒）
+                     注: このPythonメソッドからは実際の待機は行いません
+
+        Returns:
+            シャットダウン結果の辞書
+            {
+                "team_name": str,
+                "success": bool,
+                "message": str,
+                "members_shutdown": list[str],  # シャットダウン確認できたメンバー
+                "members_timeout": list[str],  # タイムアウトしたメンバー
+                "directories_removed": bool,   # ディレクトリ削除の成否
+            }
+        """
+        # noqa: ARG002 - timeout は API 互換性のために残されています
+        _ = timeout  # 使用されていない引数を明示的に無視
+        result: dict[str, Any] = {
+            "team_name": team_name,
+            "success": False,
+            "message": "",
+            "members_shutdown": [],
+            "members_timeout": [],
+            "directories_removed": False,
+        }
+
+        # チームディレクトリの存在確認
+        team_dir = self._teams_dir / team_name
+        if not team_dir.exists():
+            result["message"] = f"チーム '{team_name}' が見つかりません"
+            result["success"] = True  # 既に削除されている場合は成功とみなす
+            return result
+
+        # config.jsonからメンバー情報を取得
+        config_file = team_dir / "config.json"
+        members: list[dict[str, Any]] = []
+        if config_file.exists():
+            try:
+                with open(config_file, encoding="utf-8") as f:
+                    config_data = json.load(f)
+                members = config_data.get("members", [])
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                logger.warning(f"Failed to read config.json: {e}")
+        else:
+            logger.warning(f"config.json not found for team '{team_name}'")
+
+        # メンバー名を抽出
+        member_names = [m.get("name", "unknown") for m in members]
+
+        # 注: このPythonメソッドからは実際のshutdown_requestを送信できません
+        # Team LeadがSendMessageツールを使用する必要があります
+        # ここではメンバー情報をログに出力するだけです
+        if member_names:
+            logger.info(f"Team '{team_name}' has members: {member_names}")
+            result["message"] = (
+                f"Team Leadが各メンバーにshutdown_requestを送信してください: {member_names}"
+            )
+            # 手動実行用なので、すべてのメンバーをタイムアウトとして記録
+            result["members_timeout"] = member_names
+        else:
+            result["message"] = "メンバーが存在しません"
+
+        # ディレクトリを削除
+        import shutil
+
+        try:
+            shutil.rmtree(team_dir)
+            task_dir = self._tasks_dir / team_name
+            if task_dir.exists():
+                shutil.rmtree(task_dir)
+            result["directories_removed"] = True
+            result["success"] = True
+            result["message"] += "\nディレクトリを削除しました"
+            logger.info(f"Team directories removed: {team_name}")
+        except OSError as e:
+            result["message"] += f"\nディレクトリ削除に失敗: {e}"
+            logger.error(f"Failed to remove team directories: {e}")
+
+        return result
 
     def get_team_tasks(self, team_name: str) -> list[dict[str, Any]]:
         """チームのタスクリストを取得します。
