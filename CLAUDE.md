@@ -10,7 +10,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 詳細は [docs/workflows/development-process.md](docs/workflows/development-process.md) を参照してください。
 
-### ルール0: 作業開始前に必ずブランチを作成
+### ルール0: 常にAgent Teamsを使用する
+
+**このプロジェクトでは、すべての作業においてAgent Teams機能を使用してください。**
+
+ユーザーからタスクを受け取った場合、**必ず最初にTeamCreateを使用してチームを作成し、タスクを割り振ってください。**
+
+**例外なく、すべての作業で適用してください：**
+- コードの読み取り・分析
+- コードの記述・修正
+- ファイルの検索
+- テストの実行
+- ドキュメントの作成
+- 問題の調査・デバッグ
+
+**チーム作成の基本パターン:**
+
+1. **シンプルなタスク（1〜2ステップ）:**
+   - Team Leader（自分） + 1つのスペシャリスト
+
+2. **標準的なタスク（3〜5ステップ）:**
+   - Team Leader（自分）
+   - Coding Specialist（実装）
+   - Testing Specialist（検証）
+
+3. **複雑なタスク（6ステップ以上）:**
+   - Team Leader（自分）
+   - Research Specialist（調査）
+   - Coding Specialist（実装）
+   - Testing Specialist（検証）
+
+**重要:** Agent Teamsを使用することで、タスクの並列実行、専門的な処理の委譲、効率的な進捗管理が可能になります。
+
+### ルール1: 作業開始前に必ずブランチを作成
 
 **絶対に main ブランチで作業しないでください。必ず作業ブランチを作成してから作業を開始してください。**
 
@@ -39,24 +71,22 @@ git checkout -b feature/<task-name>
 - マーカーのみの1行で返す
 - 理由：ユーザーは簡潔な確認を求めており、冗長な説明は不要
 
-### マルチインスタンス起動時のルール
+### Agent Teamsの運用ルール
 
-複数のスペシャリストインスタンスやエージェントを起動する場合：
+Agent Teamsを使用する場合：
 
-- **常に `batch_size=1`（順次起動）を使用する**
-- 並列起動は明示的に指示された場合のみ使用する
-- 理由：並列起動は競合（race condition）を引き起こす可能性がある
+- **SendMessageでエージェント間通信を行う** - メッセージには明確な目的と recipient を指定
+- **TaskUpdateでタスク状態を常に最新に保つ** - 進捗、完了、失敗を適時更新
+- **思考ログを活用する** - 複雑な判断プロセスをログに残す
 
-### 検証マーカーの例
+### エージェント間通信のベストプラクティス
 
-| ペルソナ | マーカー |
-|---------|---------|
-| Research Specialist | `RESEARCH OK` |
-| Coding Specialist | `CODING OK` |
-| Writing Specialist | `WRITING OK` |
-| Testing Specialist | `TESTING OK` |
-| Middle Manager | `MIDDLE MANAGER OK` |
-| Grand Boss | `GRAND BOSS OK` |
+| 原則 | 説明 |
+|------|------|
+| **明確なrecipient** | SendMessageでは必ず相手を指定する |
+| **簡潔なメッセージ** | 要点を絞った通信を心がける |
+| **ステータス更新** | タスクの開始、進捗、完了をTaskUpdateで通知 |
+| **エラーハンドリング** | 問題が発生したら速やかに報告 |
 
 ### 問題解決時のアプローチ
 
@@ -65,7 +95,7 @@ git checkout -b feature/<task-name>
 1. **現象を正確に把握する** - 何が起きているのかをログから確認
 2. **根本原因を特定する** - 表面的な症状ではなく、根本原因を探る
 3. **最小限の変更で解決を試みる** - 大幅な変更の前に簡単な解決策を検討
-4. **並列処理関連問題はまず順次処理を試す** - batch_size=1で問題が再現するか確認
+4. **チームメンバーに相談する** - 困ったときはSendMessageで助けを求める
 
 ---
 

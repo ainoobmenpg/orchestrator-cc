@@ -2,6 +2,8 @@
  * チーム状態管理ストア
  *
  * チーム情報、メンバー、メッセージ、タスク、思考ログの状態を管理します
+ *
+ * 重要: Mapではなく配列を使用して、persistミドルウェアとの互換性を確保します
  */
 
 import { create } from "zustand";
@@ -20,13 +22,12 @@ import type {
 // ============================================================================
 
 interface TeamState {
-  // チーム
-  teams: Map<string, TeamInfo>;
-  teamNames: string[]; // チーム名の配列（Headerコンポーネント用）
+  // チーム（配列として格納）
+  teams: TeamInfo[];
   selectedTeamName: string | null;
 
-  // エージェント
-  agents: Map<string, AgentInfo>;
+  // エージェント（配列として格納）
+  agents: AgentInfo[];
 
   // メッセージ
   messages: TeamMessage[];
@@ -97,10 +98,9 @@ interface TeamActions {
 // ============================================================================
 
 const initialState: TeamState = {
-  teams: new Map(),
-  teamNames: [],
+  teams: [],
   selectedTeamName: null,
-  agents: new Map(),
+  agents: [],
   messages: [],
   messageCount: {
     total: 0,
@@ -128,42 +128,38 @@ export const useTeamStore = create<TeamStore>()(
 
         // チーム操作
         setTeams: (teams) => {
-          const teamsMap = new Map(teams.map((t) => [t.name, t]));
-          const teamNames = teams.map((t) => t.name);
-          set({ teams: teamsMap, teamNames });
+          set({ teams });
         },
 
         addTeam: (team) => {
           set((state) => {
-            const newTeams = new Map(state.teams);
-            newTeams.set(team.name, team);
-            // チーム名がまだない場合のみ追加
-            const newTeamNames = state.teamNames.includes(team.name)
-              ? state.teamNames
-              : [...state.teamNames, team.name];
-            return { teams: newTeams, teamNames: newTeamNames };
+            // 既存のチームをチェック
+            const existingIndex = state.teams.findIndex((t) => t.name === team.name);
+            if (existingIndex >= 0) {
+              // 既存の場合は更新
+              const newTeams = [...state.teams];
+              newTeams[existingIndex] = team;
+              return { teams: newTeams };
+            }
+            // 新規の場合は追加
+            return { teams: [...state.teams, team] };
           });
         },
 
         removeTeam: (teamName) => {
-          set((state) => {
-            const newTeams = new Map(state.teams);
-            newTeams.delete(teamName);
-            return {
-              teams: newTeams,
-              teamNames: state.teamNames.filter((n) => n !== teamName),
-              selectedTeamName:
-                state.selectedTeamName === teamName ? null : state.selectedTeamName,
-            };
-          });
+          set((state) => ({
+            teams: state.teams.filter((t) => t.name !== teamName),
+            selectedTeamName:
+              state.selectedTeamName === teamName ? null : state.selectedTeamName,
+          }));
         },
 
         updateTeam: (teamName, team) => {
-          set((state) => {
-            const newTeams = new Map(state.teams);
-            newTeams.set(teamName, team);
-            return { teams: newTeams };
-          });
+          set((state) => ({
+            teams: state.teams.map((t) =>
+              t.name === teamName ? team : t,
+            ),
+          }));
         },
 
         setSelectedTeam: (teamName) => {
@@ -172,24 +168,25 @@ export const useTeamStore = create<TeamStore>()(
 
         // エージェント操作
         setAgents: (agents) => {
-          const agentsMap = new Map(agents.map((a) => [a.name, a]));
-          set({ agents: agentsMap });
+          set({ agents });
         },
 
         upsertAgent: (agent) => {
           set((state) => {
-            const newAgents = new Map(state.agents);
-            newAgents.set(agent.name, agent);
-            return { agents: newAgents };
+            const existingIndex = state.agents.findIndex((a) => a.name === agent.name);
+            if (existingIndex >= 0) {
+              const newAgents = [...state.agents];
+              newAgents[existingIndex] = agent;
+              return { agents: newAgents };
+            }
+            return { agents: [...state.agents, agent] };
           });
         },
 
         removeAgent: (agentName) => {
-          set((state) => {
-            const newAgents = new Map(state.agents);
-            newAgents.delete(agentName);
-            return { agents: newAgents };
-          });
+          set((state) => ({
+            agents: state.agents.filter((a) => a.name !== agentName),
+          }));
         },
 
         // メッセージ操作
@@ -299,10 +296,9 @@ export const useTeamStore = create<TeamStore>()(
       }),
       {
         name: "team-store",
-        // MapオブジェクトはJSONでシリアライズできないため、特別な処理が必要
+        // 選択中のチームのみ永続化（リアルタイムデータは永続化しない）
         partialize: (state) => ({
           selectedTeamName: state.selectedTeamName,
-          // その他の状態は永続化しない（リアルタイムデータのため）
         }),
       },
     ),
@@ -316,15 +312,14 @@ export const useTeamStore = create<TeamStore>()(
 
 /**
  * 選択中のチーム情報を取得する
- *
- * 重要: このフックは非推奨です。直接selectedTeamNameを使用してください。
- * 無限レンダリングを回避するために、このフックは単にnullを返します。
- *
- * @deprecated 直接selectedTeamNameを使用してください
  */
-export const useSelectedTeam = (): TeamInfo | null => {
-  // 常にnullを返す（無限レンダリング防止）
-  return null;
+export const useSelectedTeam = () => {
+  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
+  const teams = useTeamStore((state) => state.teams);
+
+  return selectedTeamName
+    ? teams.find((t) => t.name === selectedTeamName) || null
+    : null;
 };
 
 /**
@@ -332,9 +327,7 @@ export const useSelectedTeam = (): TeamInfo | null => {
  */
 export const useActiveAgentCount = () => {
   const agents = useTeamStore((state) => state.agents);
-  return Array.from(agents.values()).filter(
-    (a) => a.status === "running",
-  ).length;
+  return agents.filter((a) => a.status === "running").length;
 };
 
 /**

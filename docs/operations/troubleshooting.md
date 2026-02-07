@@ -2,71 +2,44 @@
 
 このドキュメントでは、orchestrator-cc で発生する可能性のある問題と、その解決方法について説明します。
 
+**注意**: 2026-02-07をもって、tmux方式からAgent Teams方式へ完全移行しました。古いtmux方式に関するトラブルシューティングは `docs/archive/` にアーカイブされています。
+
 ---
 
 ## よくある問題と解決方法
 
-### エージェントが起動しない
+### チームが作成できない
 
 #### 症状
 
 ```bash
-$ python -m orchestrator.cli start
-Error: エージェント 'grand_boss' の起動に失敗しました
+$ python -m orchestrator.cli create-team my-team
+Error: チーム 'my-team' の作成に失敗しました
 ```
 
 #### 原因と解決方法
 
 | 原因 | 解決方法 |
 |------|----------|
-| **tmux がインストールされていない** | `brew install tmux` (macOS) または `apt-get install tmux` (Ubuntu) |
-| **設定ファイルが見つからない** | `config/cc-cluster.yaml` の存在を確認 |
-| **作業ディレクトリが存在しない** | `work_dir` で指定されたパスが存在するか確認 |
-| **既存の tmux セッションが残っている** | `tmux kill-session -t orchestrator-cc` でセッションを削除 |
-| **性格プロンプトファイルが見つからない** | `config/personalities/` 以下のファイルを確認 |
+| **Claude Codeがインストールされていない** | Claude Codeをインストールしてください |
+| **`~/.claude/teams/` ディレクトリの権限問題** | `mkdir -p ~/.claude/teams` で作成 |
+| **既存のチームが存在する** | 別のチーム名を使用するか、既存チームを削除 |
+| **members.jsonファイルのフォーマットエラー** | JSONの形式を確認 |
 
 #### デバッグ手順
 
 ```bash
-# 1. tmux セッションの確認
-tmux ls
+# 1. Claude Codeの確認
+claude --version
 
-# 既存のセッションがある場合は削除
-tmux kill-session -t orchestrator-cc
+# 2. teamsディレクトリの確認
+ls -la ~/.claude/teams/
 
-# 2. 設定ファイルの確認
-cat config/cc-cluster.yaml
+# 3. 既存チームの確認
+python -m orchestrator.cli list-teams
 
-# 3. 作業ディレクトリの確認
-ls -la $(grep work_dir config/cc-cluster.yaml | awk '{print $2}')
-
-# 4. 再起動
-python -m orchestrator.cli start
-```
-
----
-
-### tmux セッションが残っている
-
-#### 症状
-
-```bash
-$ python -m orchestrator.cli start
-Error: セッション 'orchestrator-cc' は既に存在します
-```
-
-#### 解決方法
-
-```bash
-# セッションの確認
-tmux ls
-
-# セッションの削除
-tmux kill-session -t orchestrator-cc
-
-# 強制終了（プロセスレベル）
-ps aux | grep tmux
-kill <pid>
+# 4. メンバーファイルの検証
+python -m json.tool members.json
 ```
 
 ---
@@ -82,10 +55,10 @@ kill <pid>
 
 | 原因 | 解決方法 |
 |------|----------|
-| **ダッシュボードが起動していない** | `python -m orchestrator.cli dashboard` を実行 |
+| **ダッシュボードが起動していない** | `python -m orchestrator.web.dashboard` を実行 |
 | **ポートが使用中** | `lsof -i :8000` でプロセスを確認 |
-| **クラスタが起動していない** | `python -m orchestrator.cli start` を実行 |
 | **ファイアウォールがブロックしている** | ポート 8000 を開放 |
+| **Pythonモジュールが見つからない** | `pip install -e .` を実行 |
 
 #### デバッグ手順
 
@@ -96,11 +69,11 @@ lsof -i :8000
 # 2. ダッシュボードプロセスの確認
 ps aux | grep dashboard
 
-# 3. クラスタステータスの確認
-python -m orchestrator.cli status
+# 3. API エンドポイントの確認
+curl http://localhost:8000/api/health
 
-# 4. API エンドポイントの確認
-curl http://localhost:8000/api/status
+# 4. ログの確認
+tail -f logs/dashboard.log
 ```
 
 ---
@@ -111,89 +84,121 @@ curl http://localhost:8000/api/status
 
 - エージェントが「実行中」と表示されるが応答がない
 - メッセージが送信されない
+- ヘルスチェックでタイムアウト
 
 #### 原因と解決方法
 
 | 原因 | 解決方法 |
 |------|----------|
-| **Claude Code プロセスが停止している** | tmux セッションにアタッチして状態を確認 |
-| **プロンプト検出キーワードが間違っている** | `marker` 設定を確認 |
-| **メッセージファイルの権限問題** | `queue/` ディレクトリの権限を確認 |
+| **Claude Codeプロセスが停止している** | Claude Code Desktopを再起動 |
+| **タイムアウト値が短すぎる** | `timeoutThreshold` を増やす |
+| **メッセージファイルの権限問題** | `~/.claude/teams/` の権限を確認 |
+| **ネットワーク接続の問題** | インターネット接続を確認 |
 
 #### デバッグ手順
 
 ```bash
-# 1. tmux セッションにアタッチ
-tmux attach -t orchestrator-cc
+# 1. チームの状態を確認
+python -m orchestrator.cli team-status my-team
 
-# 各ペインを確認して、エージェントが応答しているかチェック
+# 2. チームのメッセージを確認
+python -m orchestrator.cli team-messages my-team
 
-# デタッチ: Ctrl+B, D
+# 3. ヘルスステータスを確認
+python -m orchestrator.cli health
 
-# 2. メッセージファイルの確認
-ls -la queue/
-
-# 3. エージェントステータスの確認
-python -m orchestrator.cli status
-
-# 4. 再起動
-python -m orchestrator.cli restart
+# 4. Claude Codeのプロセス確認
+ps aux | grep -i claude
 ```
 
 ---
 
-### YAML 通信が動作しない
+### ヘルスモニタリングが動作しない
 
 #### 症状
 
-- エージェント間でメッセージが送信されない
-- `queue/` ディレクトリにファイルが作成されない
+- エージェントのタイムアウトが検知されない
+- ヘルスステータスが更新されない
 
 #### 原因と解決方法
 
 | 原因 | 解決方法 |
 |------|----------|
-| **watchdog がインストールされていない** | `pip install watchdog` |
-| **YAML ファイルのパースエラー** | `queue/` 以下の YAML ファイルを確認 |
-| **ファイル監視が動作していない** | YAMLMonitor のログを確認 |
+| **ヘルスモニターが起動していない** | `get_agent_health_monitor().start_monitoring()` を実行 |
+| **エージェントが登録されていない** | `register_agent()` でエージェントを登録 |
+| **タイムアウト値が長すぎる** | 適切な値に調整（デフォルト: 300秒） |
 
 #### デバッグ手順
 
 ```bash
-# 1. watchdog の確認
-pip show watchdog
+# 1. ヘルスステータスを確認
+python -m orchestrator.cli health
 
-# 2. YAML ファイルの確認
-ls -la queue/
-cat queue/grand_boss_to_middle_manager.yaml
+# 2. チームの状態を確認
+python -m orchestrator.cli team-status my-team
 
-# 3. ログの確認
-tail -f logs/orchestrator.log
-
-# 4. ファイル監視の再起動
-python -m orchestrator.cli restart
+# 3. ダッシュボードで確認
+open http://localhost:8000
 ```
 
 ---
 
-### メモリ不足
+### 思考ログが保存されない
 
 #### 症状
 
-- エージェントが頻繁にクラッシュする
-- システムが重くなる
+- 思考ログがダッシュボードに表示されない
+- `~/.claude/thinking-logs/` にファイルが作成されない
 
-#### 解決方法
+#### 原因と解決方法
+
+| 原因 | 解決方法 |
+|------|----------|
+| **思考ログハンドラーが起動していない** | `ThinkingLogHandler.start_monitoring()` を実行 |
+| **ログディレクトリの権限問題** | `mkdir -p ~/.claude/thinking-logs` を実行 |
+| **エージェントがログを出力していない** | エージェントの設定を確認 |
+
+#### デバッグ手順
 
 ```bash
-# 1. メモリ使用状況の確認
-ps aux | grep python
+# 1. 思考ログを確認
+python -m orchestrator.cli show-logs my-team
 
-# 2. エージェント数の削減
-# config/cc-cluster.yaml でエージェント数を減らす
+# 2. ログディレクトリの確認
+ls -la ~/.claude/thinking-logs/
 
-# 3. 再起動
-python -m orchestrator.cli restart
+# 3. ログファイルの確認
+cat ~/.claude/thinking-logs/my-team/*.json
+```
+
+---
+
+### WebSocket接続が不安定
+
+#### 症状
+
+- ダッシュボードのリアルタイム更新が動作しない
+- WebSocket接続が頻繁に切断される
+
+#### 原因と解決方法
+
+| 原因 | 解決方法 |
+|------|----------|
+| **ファイアウォール/プロキシの問題** | WebSocket接続を許可 |
+| **ブラウザの拡張機能** | プライベートモードで確認 |
+| **ダッシュボードのバージョン** | 最新版にアップデート |
+
+#### デバッグ手順
+
+```bash
+# 1. ダッシュボードを再起動
+python -m orchestrator.web.dashboard
+
+# 2. ブラウザの開発者ツールで確認
+# ConsoleタブでWebSocketエラーを確認
+
+# 3. ログを確認
+tail -f logs/dashboard.log
 ```
 
 ---
@@ -207,7 +212,7 @@ orchestrator-cc/
 ├── logs/
 │   ├── orchestrator.log        # メインログ
 │   ├── dashboard.log           # ダッシュボードログ
-│   └── agent_*.log            # エージェントログ
+│   └── health_monitor.log      # ヘルスモニターログ
 ```
 
 ### ログレベル
@@ -229,11 +234,11 @@ tail -f logs/orchestrator.log
 # エラーログのみ表示
 grep ERROR logs/orchestrator.log
 
-# 特定のエージェントのログを確認
-tail -f logs/agent_grand_boss.log
-
 # 過去100行を表示
 tail -n 100 logs/orchestrator.log
+
+# 特定のチームのログを確認
+grep "my-team" logs/orchestrator.log
 ```
 
 ---
@@ -245,85 +250,69 @@ tail -n 100 logs/orchestrator.log
 ```bash
 # 環境変数でログレベルを設定
 export ORCHESTRATOR_LOG_LEVEL=DEBUG
-python -m orchestrator.cli start
-```
-
-### tmux セッションでの直接確認
-
-```bash
-# tmux セッションにアタッチ
-tmux attach -t orchestrator-cc
-
-# ペインの切り替え: Ctrl+B, 0-4
-# ペインの分割表示: Ctrl+B, q
-
-# デタッチ: Ctrl+B, D
+python -m orchestrator.web.dashboard
 ```
 
 ---
 
 ## 状態確認コマンド
 
-### クラスタステータス
+### チームステータス
 
 ```bash
 # CLI からの確認
-python -m orchestrator.cli status
+python -m orchestrator.cli list-teams
+python -m orchestrator.cli team-status my-team
+python -m orchestrator.cli team-messages my-team
+python -m orchestrator.cli team-tasks my-team
 
 # 出力例
-# Cluster: orchestrator-cc
-# Session: orchestrator-cc (exists)
-# Agents:
-#   - grand_boss: running
-#   - middle_manager: running
-#   - coding_writing_specialist: running
-#   - research_analysis_specialist: running
-#   - testing_specialist: running
+# Team: my-team
+# Status: active
+# Members: 3
+# Tasks: 5
 ```
 
 ### API からの確認
 
 ```bash
-# ステータス確認
-curl http://localhost:8000/api/status
+# ヘルスチェック
+curl http://localhost:8000/api/health
 
-# メトリクス確認
-curl http://localhost:8000/api/metrics
+# チーム一覧
+curl http://localhost:8000/api/teams
 
-# アラート確認
-curl http://localhost:8000/api/alerts
+# チーム詳細
+curl http://localhost:8000/api/teams/my-team/status
 ```
 
 ---
 
 ## 緊急対応手順
 
-### クラスタの完全再起動
+### ダッシュボードの完全再起動
 
 ```bash
-# 1. シャットダウン
-python -m orchestrator.cli shutdown
+# 1. ダッシュボードプロセスの停止
+pkill -f "orchestrator.web.dashboard"
 
-# 2. tmux セッションの確認と削除
-tmux ls
-tmux kill-session -t orchestrator-cc
+# 2. プロセスの確認
+ps aux | grep dashboard
 
-# 3. プロセスの確認と強制終了
-ps aux | grep python
-kill <pid>
-
-# 4. 再起動
-python -m orchestrator.cli start
+# 3. ダッシュボードの再起動
+python -m orchestrator.web.dashboard
 ```
 
-### 設定のリセット
+### チームの再作成
 
 ```bash
-# 1. バックアップから復元
-cp config/cc-cluster.yaml.backup config/cc-cluster.yaml
+# 1. チームの削除
+python -m orchestrator.cli delete-team my-team
 
-# 2. 再起動
-python -m orchestrator.cli restart
+# 2. チームの再作成
+python -m orchestrator.cli create-team my-team \
+  --description "My team" \
+  --members members.json
 ```
 
 ---
@@ -344,9 +333,9 @@ python -m orchestrator.cli restart
    python --version
    ```
 
-3. **tmux バージョン**
+3. **Claude Code バージョン**
    ```bash
-   tmux -V
+   claude --version
    ```
 
 4. **エラーメッセージ**
@@ -359,15 +348,23 @@ python -m orchestrator.cli restart
    # logs/ 以下の関連ログを添付
    ```
 
-6. **設定ファイル**
-   ```bash
-   # シークレットを削除した設定ファイル
+6. **再現手順**
+   ```markdown
+   ## 再現手順
+   1. コマンドXを実行
+   2. 設定Yを変更
+   3. コマンドZを実行
+   ## 期待される動作
+   XXX
+   ## 実際の動作
+   YYY
    ```
 
 ---
 
 ## 関連ドキュメント
 
-- [deployment.md](deployment.md) - デプロイ手順
+- [README.md](README.md) - デプロイ手順
 - [configuration.md](configuration.md) - 設定管理
 - [monitoring.md](monitoring.md) - 監視とアラート
+- [../architecture.md](../architecture.md) - アーキテクチャ詳細
