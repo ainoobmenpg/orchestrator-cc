@@ -10,8 +10,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "../ui/Button";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const useUIStore = require("../../stores/uiStore").useUIStore;
+import { useUIStore } from "../../stores/uiStore";
 
 interface ErrorBoundaryProps {
   /** 子コンポーネント */

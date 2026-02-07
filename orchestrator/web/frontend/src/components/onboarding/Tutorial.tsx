@@ -4,7 +4,7 @@
  * 初回アクセス時に基本機能の説明を表示します
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import {
+  getTutorialCompleted,
   markFirstVisit,
   useTutorialState,
 } from "../../hooks/useFirstVisit";
@@ -68,13 +69,27 @@ export interface TutorialProps {
   onClose?: () => void;
 }
 
-export function Tutorial({ isOpen = true, onClose }: TutorialProps) {
+export function Tutorial({ onClose }: TutorialProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const { isCompleted, markCompleted } = useTutorialState();
+  const { markCompleted } = useTutorialState();
+  const [shouldShow, setShouldShow] = useState(false);
+  const initialized = useRef(false);
+
+  // 初回のみ実行（依存配列は空）
+  useEffect(() => {
+    if (initialized.current) return; // 2回目以降はスキップ
+    initialized.current = true;
+
+    const hasVisited = localStorage.getItem("orchestrator-cc-first-visit");
+    const currentIsCompleted = getTutorialCompleted(); // 直接チェック
+    if (!hasVisited && !currentIsCompleted) {
+      setShouldShow(true);
+    }
+  }, []); // 空の依存配列
 
   // 既に完了している場合は表示しない
-  if (isCompleted && !isOpen) {
+  if (!shouldShow) {
     return null;
   }
 
@@ -102,12 +117,13 @@ export function Tutorial({ isOpen = true, onClose }: TutorialProps) {
       markCompleted();
     }
     markFirstVisit();
+    setShouldShow(false);
     onClose?.();
   };
 
   return (
     <AnimatePresence>
-      {(isOpen || !isCompleted) && (
+      {shouldShow && (
         <>
           {/* オーバーレイ */}
           <motion.div
