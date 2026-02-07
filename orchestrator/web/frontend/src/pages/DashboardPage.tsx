@@ -11,7 +11,6 @@ import { useTeamStore } from "../stores/teamStore";
 import { useAgentStats } from "../hooks/useAgents";
 import { useTaskStats } from "../stores/teamStore";
 import { useMessageStats } from "../hooks/useMessages";
-import { useSelectedTeam } from "../stores/teamStore";
 import { SummaryCards } from "../components/dashboard/SummaryCards";
 import { AgentPanel } from "../components/dashboard/AgentPanel";
 import { Timeline } from "../components/dashboard/Timeline";
@@ -24,9 +23,9 @@ import { PageTransition } from "../components/ui/PageTransition";
 
 export function DashboardPage() {
   const activeTab = useUIStore((state) => state.activeTab);
-  const selectedTeam = useSelectedTeam();
+  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
 
-  if (!selectedTeam) {
+  if (!selectedTeamName) {
     return (
       <div className="flex h-full items-center justify-center">
         <EmptyState

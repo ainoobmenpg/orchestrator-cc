@@ -1,9 +1,3 @@
-/**
- * Headerコンポーネント
- *
- * ダッシュボードのヘッダーを表示します
- */
-
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { RefreshCw } from "lucide-react";
 import { useWebSocket } from "../../hooks/useWebSocket";
@@ -14,21 +8,27 @@ import type { TeamInfo } from "../../services/types";
 
 export function Header() {
   const { reconnect } = useWebSocket();
-  const teams = useTeamStore((state) => state.teams);
-  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
+  const [localSelectedTeamName, setLocalSelectedTeamName] = useState<string>("");
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [teamsData, setTeamsData] = useState<TeamInfo[]>([]);
 
-  // ストアからチームリストを取得
-  const teamsData = useMemo(() => Array.from(teams.values()), [teams]);
+  // チームリストを初期化（初回のみ）
+  useEffect(() => {
+    const teams = useTeamStore.getState().teams;
+    const selectedTeamName = useTeamStore.getState().selectedTeamName;
+    setTeamsData(Array.from(teams.values()));
+    setLocalSelectedTeamName(selectedTeamName ?? "");
+  }, []);
 
   const selectedTeam = useMemo(
-    () => teamsData.find((t: TeamInfo) => t.name === selectedTeamName) || null,
-    [teamsData, selectedTeamName]
+    () => teamsData.find((t: TeamInfo) => t.name === localSelectedTeamName) || null,
+    [teamsData, localSelectedTeamName]
   );
 
   const handleTeamChange = useCallback((teamName: string) => {
     useTeamStore.getState().setSelectedTeam(teamName);
+    setLocalSelectedTeamName(teamName);
   }, []);
 
   const handleReconnect = async () => {
@@ -89,7 +89,7 @@ export function Header() {
         </label>
         <select
           id="team-select"
-          value={selectedTeam?.name ?? ""}
+          value={localSelectedTeamName}
           onChange={(e) => handleTeamChange(e.target.value)}
           className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >

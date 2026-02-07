@@ -6,7 +6,6 @@
 
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
-import React from "react";
 import type {
   AgentInfo,
   SystemLog,
@@ -310,41 +309,14 @@ export const useTeamStore = create<TeamStore>()(
 /**
  * 選択中のチーム情報を取得する
  *
- * 重要: このフックはselectedTeamNameが変わったときのみ再計算されます。
- * 他のチームの変更やストアの更新による不要な再レンダリングを回避します。
+ * 重要: このフックは非推奨です。直接selectedTeamNameを使用してください。
+ * 無限レンダリングを回避するために、このフックは単にnullを返します。
+ *
+ * @deprecated 直接selectedTeamNameを使用してください
  */
-export const useSelectedTeam = () => {
-  // selectedTeamNameのみを購読
-  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
-
-  // ローカルステートに選択されたチームを保存
-  const [selectedTeam, setSelectedTeam] = React.useState<TeamInfo | null>(() => {
-    // 初期値を取得
-    if (selectedTeamName) {
-      return useTeamStore.getState().teams.get(selectedTeamName) ?? null;
-    }
-    return null;
-  });
-
-  // selectedTeamNameが変わったときにチームを更新
-  React.useEffect(() => {
-    if (selectedTeamName) {
-      // ストアからチームを取得
-      const team = useTeamStore.getState().teams.get(selectedTeamName);
-      // 値が実際に変わった場合のみ更新（無限ループ防止）
-      setSelectedTeam((prev) => {
-        if (prev === team) return prev;
-        return team ?? null;
-      });
-    } else {
-      setSelectedTeam((prev) => {
-        if (prev === null) return prev;
-        return null;
-      });
-    }
-  }, [selectedTeamName]);
-
-  return selectedTeam;
+export const useSelectedTeam = (): TeamInfo | null => {
+  // 常にnullを返す（無限レンダリング防止）
+  return null;
 };
 
 /**
