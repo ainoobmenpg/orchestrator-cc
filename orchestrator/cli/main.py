@@ -98,6 +98,31 @@ def delete_team(
 
 
 @app.command()
+def cleanup_team(
+    team_name: str = typer.Argument(..., help="クリーンアップするチーム名"),
+    timeout: int = typer.Option(30, "--timeout", "-t", help="タイムアウト秒数（デフォルト: 30）"),
+) -> None:
+    """チームをグレースフルシャットダウンします。
+
+    これは手動実行用のフォールバックコマンドです。
+    本来のフローでは、Team LeadがTeamDeleteツールを使用してください。
+    """
+    manager = get_agent_teams_manager()
+
+    result = manager.graceful_shutdown_team(team_name, timeout=float(timeout))
+
+    if result["success"]:
+        typer.echo(f"✅ {result['message']}")
+        if result["members_shutdown"]:
+            typer.echo(f"シャットダウンしたメンバー: {result['members_shutdown']}")
+        if result["members_timeout"]:
+            typer.echo(f"タイムアウトしたメンバー: {result['members_timeout']}")
+    else:
+        typer.echo(f"❌ {result['message']}", err=True)
+        raise typer.Exit(1)
+
+
+@app.command()
 def list_teams(
     json_output: bool = typer.Option(False, "--json", help="JSON形式で出力"),
 ) -> None:

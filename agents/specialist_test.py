@@ -29,10 +29,13 @@ SendMessageを使用して以下の形式で思考ログを送信：
 Team Leadから shutdown_request メッセージ（type: "shutdown_request"）を受け取った場合：
 
 1. 現在のテストがあれば完了させてください
-2. 以下の内容で shutdown_response を返してください：
+2. **SendMessageツールを使用して**以下の内容で shutdown_response を返してください：
    - type: "shutdown_response"
+   - request_id: 受信したshutdown_requestのrequest_id
    - approve: true
 3. その後、セッションを終了します
+
+**重要**: shutdown_responseを返すには、必ずSendMessageツールを使用してください。テキストで応答するだけでは不十分です。
 
 ## テストのフロー
 1. Team Leadからテストタスクを受け取る

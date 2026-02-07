@@ -33,11 +33,20 @@ description: |
 - Coding Specialist（実装）
 - Testing Specialist（検証）
 
-### 複雑なタスク（6ステップ以上）
+### 複雑なタスク（6〜10ステップ）
 - Team Lead（あなた）
 - Research Specialist（調査）
 - Coding Specialist（実装）
 - Testing Specialist（検証）
+
+### 大規模なタスク（11ステップ以上）
+- Team Lead（あなた）
+- Research Specialist×2（並列調査）
+- Coding Specialist×3（並列実装）
+- Testing Specialist×2（並列検証）
+- Review Specialist（レビュー）
+
+合計7名のスペシャリストで並列作業します。
 
 ## 手順
 
@@ -92,10 +101,14 @@ SendMessage {
 すべてのメンバーの処理完了後、ステップ4へ進む
 ```
 
-### ステップ4: TeamDelete の実行
-TeamDeleteツールを使用してチームを削除します。
+### ステップ4: TeamDelete の実行（必須）
+**最も重要**: TeamDeleteツールを使用してチームを削除します。
 
-**重要**: 応答しないメンバーがいても、TeamDeleteを確実に実行してください。
+**重要事項**:
+- TeamDeleteは、あなた（Team Lead）が直接呼び出すClaude Codeのツールです
+- Pythonコードから呼び出す必要はありません
+- **応答しないメンバーがいても、必ずTeamDeleteを実行してください**
+- TeamDeleteを呼び出さないと、チームディレクトリとタスクディレクトリが残り続け、次の `/team` コマンドが正常に動作しなくなります
 
 ```
 TeamDelete {}
@@ -132,8 +145,8 @@ rm -rf ~/.claude/tasks/<team-name>/
 
 ## 注意事項
 
-- 常に batch_size=1（順次起動）を使用
-- 並列起動は競合を引き起こす可能性があるため避ける
+- **並列起動を推奨** - Agent Teamsのファイルベースメッセージングにより安全に並列実行可能
+- タスクを適切に分割して各メンバーが独立して作業できるようにする
 - 必ず作業ブランチを作成してから作業を開始
 - **タスク完了後は必ずクリーンアップを実行**
 
