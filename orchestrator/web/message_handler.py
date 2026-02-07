@@ -27,12 +27,12 @@ class WebSocketManager:
     個別送信を行います。
 
     Attributes:
-        _active_connections: アクティブなWebSocket接続のリスト
+        active_connections: アクティブなWebSocket接続のリスト
     """
 
     def __init__(self) -> None:
         """WebSocketManagerを初期化します。"""
-        self._active_connections: list[WebSocket] = []
+        self.active_connections: list[WebSocket] = []
 
     async def connect(self, websocket: WebSocket) -> None:
         """新しい接続を受け入れます。
@@ -41,7 +41,7 @@ class WebSocketManager:
             websocket: WebSocket接続オブジェクト
         """
         await websocket.accept()
-        self._active_connections.append(websocket)
+        self.active_connections.append(websocket)
         logger.info(f"WebSocket接続を確立しました: {websocket.client}")
 
     def disconnect(self, websocket: WebSocket) -> None:
@@ -50,8 +50,8 @@ class WebSocketManager:
         Args:
             websocket: WebSocket接続オブジェクト
         """
-        if websocket in self._active_connections:
-            self._active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
             logger.info(f"WebSocket接続を解除しました: {websocket.client}")
 
     async def send_personal(self, message: dict[str, Any], websocket: WebSocket) -> None:
@@ -74,7 +74,7 @@ class WebSocketManager:
             message: 送信するメッセージ（辞書形式）
         """
         disconnected = []
-        for connection in self._active_connections:
+        for connection in self.active_connections:
             try:
                 await connection.send_json(message)
             except Exception as e:
@@ -92,7 +92,7 @@ class WebSocketManager:
             message: 送信するテキストメッセージ
         """
         disconnected = []
-        for connection in self._active_connections:
+        for connection in self.active_connections:
             try:
                 await connection.send_text(message)
             except Exception as e:
@@ -109,7 +109,7 @@ class WebSocketManager:
         Returns:
             アクティブな接続数
         """
-        return len(self._active_connections)
+        return len(self.active_connections)
 
     def get_connections(self) -> list[WebSocket]:
         """全てのアクティブな接続を取得します。
@@ -117,14 +117,14 @@ class WebSocketManager:
         Returns:
             アクティブなWebSocket接続のリスト
         """
-        return self._active_connections.copy()
+        return self.active_connections.copy()
 
     async def close_all(self) -> None:
         """全ての接続を閉じます。"""
-        for connection in self._active_connections:
+        for connection in self.active_connections:
             with suppress(Exception):
                 await connection.close()
-        self._active_connections.clear()
+        self.active_connections.clear()
         logger.info("全てのWebSocket接続を閉じました")
 
 

@@ -6,7 +6,6 @@
 import json
 import logging
 import threading
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -15,34 +14,9 @@ from orchestrator.core.agent_health_monitor import (
     HealthCheckEvent,
     get_agent_health_monitor,
 )
+from orchestrator.core.models import TeamConfig
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class TeamConfig:
-    """チーム設定
-
-    Attributes:
-        name: チーム名
-        description: 説明
-        agent_type: エージェントタイプ
-        members: メンバーリスト
-    """
-
-    name: str
-    description: str
-    agent_type: str = "general-purpose"
-    members: list[dict[str, Any]] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        """辞書に変換します。"""
-        return {
-            "name": self.name,
-            "description": self.description,
-            "agentType": self.agent_type,
-            "members": self.members,
-        }
 
 
 class AgentTeamsManager:
@@ -289,3 +263,6 @@ def get_agent_teams_manager() -> AgentTeamsManager:
         if _teams_manager is None:
             _teams_manager = AgentTeamsManager()
         return _teams_manager
+
+
+__all__ = ["AgentTeamsManager", "TeamConfig", "get_agent_teams_manager"]
