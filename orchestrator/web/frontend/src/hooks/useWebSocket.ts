@@ -46,7 +46,7 @@ function setConnectionState(state: ConnectionState): void {
   wsConnectionState = state;
   // グローバル変数にも設定（Header コンポーネントから監視するため）
   if (typeof window !== "undefined") {
-    (window as any).__wsConnectionState = state;
+    window.__wsConnectionState = state;
   }
 }
 
@@ -211,7 +211,7 @@ function cleanupWebSocket(): void {
   unsubscribers.forEach((unsub) => {
     try {
       unsub();
-    } catch (e) {
+    } catch {
       // エラーを無視
     }
   });
@@ -235,7 +235,7 @@ export function useWebSocket() {
   useEffect(() => {
     // グローバル変数を初期化
     if (typeof window !== "undefined") {
-      (window as any).__wsConnectionState = wsConnectionState;
+      window.__wsConnectionState = wsConnectionState;
     }
 
     if (!isInitialized) {

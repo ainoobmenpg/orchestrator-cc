@@ -32,8 +32,6 @@ export function Header() {
     try {
       reconnect();
       notify.info("再接続を試みています...");
-    } catch (error) {
-      notify.error("再接続に失敗しました");
     } finally {
       setTimeout(() => setIsReconnecting(false), 1000);
     }
@@ -43,7 +41,6 @@ export function Header() {
   useEffect(() => {
     const updateConnectionState = () => {
       // グローバル変数から直接接続状態を取得
-      // @ts-ignore - グローバル変数にアクセス
       const state = window.__wsConnectionState ?? "disconnected";
       setConnectionState(state);
     };
