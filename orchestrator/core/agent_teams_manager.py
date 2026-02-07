@@ -5,6 +5,7 @@
 
 import json
 import logging
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -273,7 +274,7 @@ class AgentTeamsManager:
 
 # シングルトンインスタンス
 _teams_manager: AgentTeamsManager | None = None
-_manager_lock = None
+_manager_lock = threading.Lock()
 
 
 def get_agent_teams_manager() -> AgentTeamsManager:
@@ -282,12 +283,7 @@ def get_agent_teams_manager() -> AgentTeamsManager:
     Returns:
         AgentTeamsManagerインスタンス
     """
-    global _teams_manager, _manager_lock
-
-    if _manager_lock is None:
-        import threading
-
-        _manager_lock = threading.Lock()
+    global _teams_manager
 
     with _manager_lock:
         if _teams_manager is None:

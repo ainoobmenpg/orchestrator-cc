@@ -6,10 +6,10 @@
 
 import { useEffect, useRef, useMemo } from "react";
 import { MessageSquare, List, CheckCircle } from "lucide-react";
-import { useTeamStore } from "../../stores/teamStore";
 import { useUIStore } from "../../stores/uiStore";
 import { formatTime } from "../../lib/utils";
 import { cn } from "../../lib/utils";
+import type { TeamMessage, TaskInfo } from "../../services/types";
 
 type TimelineItemType = "message" | "task" | "completed";
 
@@ -23,20 +23,8 @@ interface TimelineItem {
 
 // ストアからタイムラインアイテムを生成
 function generateTimelineItems(
-  messages: Array<{
-    id: string;
-    sender: string;
-    content: string;
-    timestamp: string;
-    messageType: string;
-  }>,
-  tasks: Array<{
-    taskId: string;
-    subject: string;
-    status: string;
-    owner: string;
-    updatedAt?: string;
-  }>
+  messages: TeamMessage[],
+  tasks: TaskInfo[]
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
 
@@ -71,8 +59,9 @@ function generateTimelineItems(
 }
 
 export function Timeline() {
-  const messages = useTeamStore((state) => state.messages);
-  const tasks = useTeamStore((state) => state.tasks);
+  // TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に空配列）
+  const messages: TeamMessage[] = [];
+  const tasks: TaskInfo[] = [];
   const isAutoScrollEnabled = useUIStore((state) => state.isAutoScrollEnabled);
   const scrollRef = useRef<HTMLDivElement>(null);
 

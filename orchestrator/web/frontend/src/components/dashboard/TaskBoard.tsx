@@ -5,7 +5,6 @@
  */
 
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { useTeamStore } from "../../stores/teamStore";
 import { useTasksStats } from "../../hooks/useTasks";
 import { TaskColumn } from "./TaskColumn";
 
@@ -18,7 +17,10 @@ export function TaskBoard() {
     })
   );
 
-  const updateTask = useTeamStore((state) => state.updateTask);
+  // TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に空関数）
+  const updateTask = (_taskId: string, _updates: unknown) => {
+    // TODO: 実装
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;

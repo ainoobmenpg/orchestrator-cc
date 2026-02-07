@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useTeams } from "../../hooks/useTeams";
-import { useTeamStore } from "../../stores/teamStore";
+import { useSelectedTeamName } from "../../hooks/useSelectedTeamName";
 import { notify } from "../../stores/uiStore";
 import type { ConnectionState } from "../../hooks/useWebSocket";
 import type { TeamInfo } from "../../services/types";
@@ -16,8 +16,7 @@ import type { TeamInfo } from "../../services/types";
 export function Header() {
   const { reconnect } = useWebSocket();
   const { data: teamsData } = useTeams();
-  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
-  const setSelectedTeamName = useTeamStore((state) => state.setSelectedTeam);
+  const { selectedTeamName, setSelectedTeamName } = useSelectedTeamName();
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
 

@@ -6,8 +6,8 @@
 
 import { Trash2, Download } from "lucide-react";
 import { useUIStore } from "../../stores/uiStore";
-import { useTeamStore } from "../../stores/teamStore";
 import { notify } from "../../stores/uiStore";
+import type { TeamMessage } from "../../services/types";
 
 export function Footer() {
   const {
@@ -19,9 +19,10 @@ export function Footer() {
     toggleTimestampVisibility,
   } = useUIStore();
 
-  const clearMessages = useTeamStore((state) => state.clearMessages);
-  const clearSystemLogs = useTeamStore((state) => state.clearSystemLogs);
-  const messages = useTeamStore((state) => state.messages);
+  // TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に空配列・空関数）
+  const clearMessages = () => {};
+  const clearSystemLogs = () => {};
+  const messages: TeamMessage[] = [];
 
   const handleClearLogs = () => {
     clearMessages();

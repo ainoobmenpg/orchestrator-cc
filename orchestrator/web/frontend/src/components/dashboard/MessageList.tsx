@@ -8,15 +8,16 @@
 import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bot, AlertCircle, CheckCircle, Clock } from "lucide-react";
-import { useTeamStore } from "../../stores/teamStore";
 import { useUIStore } from "../../stores/uiStore";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { formatTime, cn } from "../../lib/utils";
 import { slideInBottom } from "../../lib/animations";
+import type { TeamMessage } from "../../services/types";
 
 export function MessageList() {
-  const messages = useTeamStore((state) => state.messages);
+  // TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に空配列）
+  const messages: TeamMessage[] = [];
   const isAutoScrollEnabled = useUIStore((state) => state.isAutoScrollEnabled);
   const scrollRef = useRef<HTMLDivElement>(null);
 

@@ -6,11 +6,11 @@
 
 import { useEffect, useRef, memo } from "react";
 import { Info, CheckCircle, AlertTriangle, AlertCircle, X } from "lucide-react";
-import { useTeamStore } from "../../stores/teamStore";
 import { useUIStore } from "../../stores/uiStore";
 import { Button } from "../ui/Button";
 import { formatTime } from "../../lib/utils";
 import { cn } from "../../lib/utils";
+import type { SystemLog } from "../../services/types";
 
 const logLevelConfig = {
   info: { icon: Info, color: "text-blue-500", bgColor: "bg-blue-500/10" },
@@ -24,7 +24,7 @@ const LogItem = memo(function LogItem({
   log,
   index,
 }: {
-  log: { level: keyof typeof logLevelConfig; timestamp: string | null; content: string };
+  log: SystemLog;
   index: number;
 }) {
   const config = logLevelConfig[log.level];
@@ -56,8 +56,9 @@ const LogItem = memo(function LogItem({
 });
 
 export function SystemLog() {
-  const systemLogs = useTeamStore((state) => state.systemLogs);
-  const clearSystemLogs = useTeamStore((state) => state.clearSystemLogs);
+  // TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に空配列・空関数）
+  const systemLogs: SystemLog[] = [];
+  const clearSystemLogs = () => {};
   const isAutoScrollEnabled = useUIStore((state) => state.isSystemLogAutoScrollEnabled);
   const scrollRef = useRef<HTMLDivElement>(null);
 

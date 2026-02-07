@@ -5,17 +5,15 @@
  */
 
 import { Bot, ChevronDown, ChevronUp, RefreshCw, RotateCcw, Power } from "lucide-react";
-import { useState, useCallback, useMemo } from "react";
-import { useTeamStore } from "../../stores/teamStore";
+import { useState, useCallback } from "react";
 import { useAgentStats } from "../../hooks/useAgents";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { cn } from "../../lib/utils";
-import { formatRelativeTime } from "../../lib/utils";
-import type { AgentStatus } from "../../services/types";
+import { cn, formatRelativeTime } from "../../lib/utils";
+import type { AgentInfo } from "../../services/types";
 
-const statusConfig: Record<AgentStatus, { label: string; variant: "success" | "warning" | "error" | "secondary" }> = {
+const statusConfig: Record<string, { label: string; variant: "success" | "warning" | "error" | "secondary" } | undefined> = {
   running: { label: "実行中", variant: "success" },
   idle: { label: "アイドル", variant: "secondary" },
   stopped: { label: "停止", variant: "error" },
@@ -25,7 +23,8 @@ const statusConfig: Record<AgentStatus, { label: string; variant: "success" | "w
 
 export function AgentPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const agents = useTeamStore((state) => Array.from(state.agents.values()));
+  // TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に空配列）
+  const agents: AgentInfo[] = [];
   const stats = useAgentStats();
 
   const handleRefresh = useCallback(() => {
@@ -35,9 +34,6 @@ export function AgentPanel() {
   const toggleCollapse = useCallback(() => {
     setIsCollapsed((prev) => !prev);
   }, []);
-
-  // エージェントリストをステータス別にフィルタリング（キャッシュ用）
-  const filteredAgents = useMemo(() => agents, [agents]);
 
   return (
     <Card className={cn("transition-all duration-300", isCollapsed && "w-16")}>
@@ -85,13 +81,14 @@ export function AgentPanel() {
 
           {/* エージェント一覧 */}
           <div className="space-y-2">
-            {filteredAgents.length === 0 ? (
+            {agents.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 エージェント情報がありません
               </div>
             ) : (
-              filteredAgents.map((agent) => {
-                const config = statusConfig[agent.status];
+              agents.map((agent) => {
+                const config = statusConfig[agent.status] ?? statusConfig.unknown;
+                if (!config) return null;
                 return (
                   <div
                     key={agent.name}

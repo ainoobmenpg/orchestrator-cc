@@ -6,12 +6,11 @@
 
 import { useEffect, useRef, memo } from "react";
 import { Brain, Zap, Heart } from "lucide-react";
-import { useTeamStore } from "../../stores/teamStore";
 import { useUIStore } from "../../stores/uiStore";
 import { formatTime } from "../../lib/utils";
 import { cn } from "../../lib/utils";
 import { Badge } from "../ui/Badge";
-import type { MessageCategory } from "../../services/types";
+import type { MessageCategory, ThinkingLog } from "../../services/types";
 
 const categoryConfig: Record<MessageCategory, { icon: React.ComponentType<{ className?: string }>; color: string; bgColor: string; label: string }> = {
   action: { icon: Zap, color: "text-blue-500", bgColor: "bg-blue-500/10", label: "行動" },
@@ -32,14 +31,7 @@ const ThinkingLogItem = memo(function ThinkingLogItem({
   log,
   index,
 }: {
-  log: {
-    timestamp: string;
-    agentName: string;
-    category: MessageCategory;
-    emotion?: string;
-    content: string;
-    taskDetails?: { taskId?: string; status: string };
-  };
+  log: ThinkingLog;
   index: number;
 }) {
   const config = categoryConfig[log.category];
@@ -94,7 +86,8 @@ const ThinkingLogItem = memo(function ThinkingLogItem({
 });
 
 export function ThinkingLog() {
-  const thinkingLogs = useTeamStore((state) => state.thinkingLogs);
+  // TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に空配列）
+  const thinkingLogs: ThinkingLog[] = [];
   const isAutoScrollEnabled = useUIStore((state) => state.isAutoScrollEnabled);
   const scrollRef = useRef<HTMLDivElement>(null);
 

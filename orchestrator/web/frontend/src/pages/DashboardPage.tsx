@@ -7,11 +7,10 @@
 
 import { AnimatePresence } from "framer-motion";
 import { useUIStore } from "../stores/uiStore";
-import { useTeamStore } from "../stores/teamStore";
 import { useAgentStats } from "../hooks/useAgents";
-import { useTaskStats } from "../stores/teamStore";
 import { useMessageStats } from "../hooks/useMessages";
-import { useSelectedTeam } from "../stores/teamStore";
+import { useTeams } from "../hooks/useTeams";
+import { useSelectedTeamName } from "../hooks/useSelectedTeamName";
 import { SummaryCards } from "../components/dashboard/SummaryCards";
 import { AgentPanel } from "../components/dashboard/AgentPanel";
 import { Timeline } from "../components/dashboard/Timeline";
@@ -21,10 +20,15 @@ import { SystemLog } from "../components/dashboard/SystemLog";
 import { EmptyState } from "../components/common/EmptyState";
 import { Bot } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
+import type { TeamInfo } from "../services/types";
 
 export function DashboardPage() {
   const activeTab = useUIStore((state) => state.activeTab);
-  const selectedTeam = useSelectedTeam();
+  const { data: teamsData } = useTeams();
+  const { selectedTeamName } = useSelectedTeamName();
+
+  // 選択されたチームを取得（teamsDataから直接）
+  const selectedTeam = teamsData?.find((t: TeamInfo) => t.name === selectedTeamName);
 
   if (!selectedTeam) {
     return (
@@ -73,9 +77,9 @@ export function DashboardPage() {
 // 各タブのビューコンポーネント
 function DashboardView() {
   const stats = useAgentStats();
-  const taskStats = useTaskStats();
+  // TODO: 無限ループ回避のため一時的に固定値を使用
+  // const taskStats = useTaskStats();
   const messageStats = useMessageStats();
-  const hasErrors = useTeamStore((state) => state.hasErrors);
 
   return (
     <div className="flex h-full gap-4 p-4">
@@ -83,9 +87,9 @@ function DashboardView() {
       <div className="flex-1 flex flex-col gap-4">
         <SummaryCards
           agentCount={stats.total}
-          taskCount={taskStats.total}
+          taskCount={0}  // 一時的に固定値
           messageCount={messageStats.total}
-          hasErrors={hasErrors}
+          hasErrors={false}
         />
         <div className="flex-1 min-h-0">
           <Timeline />

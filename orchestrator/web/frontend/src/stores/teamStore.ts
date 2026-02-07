@@ -5,7 +5,7 @@
  */
 
 import { create } from "zustand";
-import { devtools, persist } from "zustand/middleware";
+import { devtools } from "zustand/middleware";
 import type {
   AgentInfo,
   SystemLog,
@@ -120,8 +120,7 @@ type TeamStore = TeamState & TeamActions;
 
 export const useTeamStore = create<TeamStore>()(
   devtools(
-    persist(
-      (set) => ({
+    (set) => ({
         ...initialState,
 
         // チーム操作
@@ -289,15 +288,6 @@ export const useTeamStore = create<TeamStore>()(
           set(initialState);
         },
       }),
-      {
-        name: "team-store",
-        // MapオブジェクトはJSONでシリアライズできないため、特別な処理が必要
-        partialize: (state) => ({
-          selectedTeamName: state.selectedTeamName,
-          // その他の状態は永続化しない（リアルタイムデータのため）
-        }),
-      },
-    ),
     { name: "TeamStore" },
   ),
 );
@@ -313,7 +303,13 @@ export const useSelectedTeam = () => {
   const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
   const teams = useTeamStore((state) => state.teams);
 
-  return selectedTeamName ? teams.get(selectedTeamName) : null;
+  // teams Map から取得（チームデータが teamStore に同期されている場合）
+  if (selectedTeamName && teams.size > 0) {
+    return teams.get(selectedTeamName) ?? null;
+  }
+
+  // teams Map が空の場合は null を返す（選択されていない状態）
+  return null;
 };
 
 /**

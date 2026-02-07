@@ -6,14 +6,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getTeamMessages } from "../services/api";
-import { useTeamStore } from "../stores/teamStore";
 
 /**
  * チームメッセージ一覧を取得するフック
  */
 export function useMessages(teamName: string | null) {
-  const clearMessages = useTeamStore((state) => state.clearMessages);
-
   const query = useQuery({
     queryKey: ["messages", teamName],
     queryFn: async () => {
@@ -33,20 +30,20 @@ export function useMessages(teamName: string | null) {
   return {
     ...query,
     messages: query.data ?? [],  // クエリデータを直接返す
-    clearMessages,
+    clearMessages: () => {},  // TODO: 無限ループ回避のため空関数
   };
 }
 
 /**
  * メッセージ統計を取得するフック
+ * TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に固定値）
  */
 export function useMessageStats() {
-  const messageCount = useTeamStore((state) => state.messageCount);
-
+  // TODO: teamStore を使わずに、選択されたチームのメッセージから計算する
   return {
-    total: messageCount.total,
-    thinking: messageCount.thinking,
-    task: messageCount.task,
-    result: messageCount.result,
+    total: 0,
+    thinking: 0,
+    task: 0,
+    result: 0,
   };
 }

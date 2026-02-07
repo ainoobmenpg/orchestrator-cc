@@ -6,9 +6,9 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useTeamStore } from "../../stores/teamStore";
 import { Badge } from "../ui/Badge";
 import { TaskCard } from "./TaskCard";
+import type { TaskInfo } from "../../services/types";
 
 interface TaskColumnProps {
   title: string;
@@ -22,9 +22,8 @@ export function TaskColumn({ title, status, icon, count }: TaskColumnProps) {
     id: status,
   });
 
-  const tasks = useTeamStore((state) =>
-    state.tasks.filter((t) => t.status === status)
-  );
+  // TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に空配列）
+  const tasks: TaskInfo[] = [];
 
   return (
     <div className="flex flex-col min-w-[280px] flex-1">

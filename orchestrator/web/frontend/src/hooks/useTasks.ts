@@ -4,10 +4,8 @@
  * タスク情報の取得と管理を提供します
  */
 
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTeamTasks } from "../services/api";
-import { useTeamStore } from "../stores/teamStore";
 
 /**
  * チームタスクリストを取得するフック
@@ -31,32 +29,32 @@ export function useTasks(teamName: string | null) {
 
 /**
  * 特定のタスクを取得するフック
+ * TODO: teamStore からの取得を無効化（無限ループ回避のため一時的にnullを返す）
  */
-export function useTask(taskId: string | null) {
-  const tasks = useTeamStore((state) => state.tasks);
-
-  return taskId ? tasks.find((t) => t.taskId === taskId) : null;
+export function useTask(_taskId: string | null) {
+  // TODO: teamStore を使わずに、選択されたチームのタスクから取得する
+  return null;
 }
 
 /**
  * タスク統計を取得するフック
+ * TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に固定値）
  */
 export function useTasksStats() {
-  const tasks = useTeamStore((state) => state.tasks);
-
-  return useMemo(() => ({
-    pending: tasks.filter((t) => t.status === "pending").length,
-    inProgress: tasks.filter((t) => t.status === "in_progress").length,
-    completed: tasks.filter((t) => t.status === "completed").length,
-    total: tasks.length,
-  }), [tasks]);
+  // TODO: teamStore を使わずに、選択されたチームのタスクから計算する
+  return {
+    pending: 0,
+    inProgress: 0,
+    completed: 0,
+    total: 0,
+  };
 }
 
 /**
  * ステータス別のタスクリストを取得するフック
+ * TODO: teamStore からの取得を無効化（無限ループ回避のため一時的に空配列を返す）
  */
-export function useTasksByStatus(status: import("../services/types").TaskStatus) {
-  const tasks = useTeamStore((state) => state.tasks);
-
-  return useMemo(() => tasks.filter((t) => t.status === status), [tasks, status]);
+export function useTasksByStatus(_status: import("../services/types").TaskStatus) {
+  // TODO: teamStore を使わずに、選択されたチームのタスクからフィルタリングする
+  return [];
 }
