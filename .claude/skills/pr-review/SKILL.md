@@ -62,42 +62,22 @@ gh pr view <PR_NUMBER> --json files --jq '.files | length'
    gh pr view <PR_NUMBER> --json title,files,additions,deletions,changedFiles
    ```
 
-2. **特定ファイルが必要な場合のみ個別取得**
+2. **変更ファイルのパス一覧を取得**
+   ```bash
+   gh pr view <PR_NUMBER> --json files --jq '.files[].path'
+   ```
+
+3. **特定ファイルが必要な場合のみ個別取得**
    ```bash
    gh pr diff <PR_NUMBER> -- <特定のファイルパス>
    ```
 
-3. **コミット単位で確認**
+4. **コミット単位で確認**
    ```bash
    gh pr view <PR_NUMBER> --json commits --jq '.commits[] | {message: .messageHeadline}'
    ```
 
 diff全体がどうしても必要な場合は、ユーザーに明示的に確認してください。
-
-1. **ファイル単位で重要なものを確認**
-   ```bash
-   # 変更ファイルのパス一覧を取得
-   gh pr view <PR_NUMBER> --json files --jq '.files[].path'
-   ```
-
-2. **特定ファイルのdiffのみを取得**
-   ```bash
-   # 重要なファイルのdiffのみを個別に取得
-   gh pr diff <PR_NUMBER> -- <特定のファイルパス>
-   ```
-
-3. **コミット単位で確認**
-   ```bash
-   # コミット履歴を確認
-   gh pr view <PR_NUMBER> --json commits --jq '.commits[] | {message: .messageHeadline, author: .author}'
-   ```
-
-変更ファイル数が少ない（20ファイル以下）場合のみ、diff全体を取得してください：
-
-```bash
-# PRのdiffを取得（小規模PRのみ）
-gh pr diff <PR_NUMBER>
-```
 
 引数がない場合：
 
