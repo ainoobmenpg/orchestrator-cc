@@ -87,7 +87,6 @@ class AgentTeamsManager:
                     "agentType": member.get("agentType", "general-purpose"),
                     "model": member.get("model", "claude-sonnet-4-5-20250929"),
                     "joinedAt": int(datetime.now().timestamp() * 1000),
-                    "tmuxPaneId": "",
                     "cwd": str(Path.cwd()),
                     "subscriptions": [],
                     "planModeRequired": member.get("planModeRequired", False),

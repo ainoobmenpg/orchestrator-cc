@@ -37,7 +37,6 @@ class TestTeamMember:
             "model": "claude-opus-4-6",
             "joinedAt": 1234567890,
             "cwd": "/path/to/dir",
-            "tmuxPaneId": "%0",
         }
         member = TeamMember.from_dict(data)
 
@@ -47,7 +46,6 @@ class TestTeamMember:
         assert member.model == "claude-opus-4-6"
         assert member.joined_at == 1234567890
         assert member.cwd == "/path/to/dir"
-        assert member.tmux_pane_id == "%0"
 
     def test_from_dict_minimal(self):
         """最小限のデータからのTeamMember作成"""
@@ -62,7 +60,6 @@ class TestTeamMember:
 
         assert member.agent_id == "test-agent"
         assert member.cwd == ""  # デフォルト値
-        assert member.tmux_pane_id == ""  # デフォルト値
 
     def test_to_dict(self):
         """TeamMemberの辞書変換"""
@@ -73,7 +70,6 @@ class TestTeamMember:
             model="test-model",
             joined_at=1234567890,
             cwd="/path",
-            tmux_pane_id="%0",
         )
         data = member.to_dict()
 
@@ -83,7 +79,6 @@ class TestTeamMember:
         assert data["model"] == "test-model"
         assert data["joinedAt"] == 1234567890
         assert data["cwd"] == "/path"
-        assert data["tmuxPaneId"] == "%0"
 
 
 # ============================================================================
