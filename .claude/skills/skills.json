@@ -1,0 +1,9 @@
+{
+  "skills": [
+    {
+      "name": "team",
+      "description": "自動的にAgent Teamを作成してタスクを処理します（orchestrator-ccプロジェクト専用）",
+      "path": ".claude/skills/team.md"
+    }
+  ]
+}

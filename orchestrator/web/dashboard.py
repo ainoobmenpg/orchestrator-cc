@@ -171,55 +171,10 @@ def _broadcast_thinking_log(data: dict) -> None:
 # REST APIエンドポイント
 # ============================================================================
 
-# テンプレートディレクトリのパス
+# パス設定
+_frontend_dist_dir = Path(__file__).parent / "frontend" / "dist"
 _templates_dir = Path(__file__).parent / "templates"
 _static_dir = Path(__file__).parent / "static"
-
-
-@app.get("/")
-async def root():
-    """ダッシュボードHTMLを返します（React SPA）"""
-    index_path = _templates_dir / "index.html"
-
-    # Reactビルド済みのindex.htmlが存在する場合はそれを返す
-    # そうでない場合は開発モード用のメッセージを返す
-    if index_path.exists():
-        return FileResponse(index_path)
-
-    # ビルド済みファイルがない場合はメッセージを返す
-    return {
-        "message": "Orchestrator CC Dashboard - React Build Required",
-        "version": "2.0.0",
-        "instructions": "Reactアプリをビルドしてください: cd orchestrator/web/frontend && npm install && npm run build",
-        "endpoints": {
-            "teams": "/api/teams",
-            "teams_messages": "/api/teams/{team_name}/messages",
-            "teams_tasks": "/api/teams/{team_name}/tasks",
-            "teams_thinking": "/api/teams/{team_name}/thinking",
-            "teams_status": "/api/teams/{team_name}/status",
-            "health": "/api/health",
-            "websocket": "/ws",
-        },
-    }
-
-
-@app.get("/api")
-async def api_info():
-    """API情報を返します"""
-    return {
-        "message": "Orchestrator CC Dashboard API",
-        "version": "0.1.0",
-        "endpoints": {
-            "teams": "/api/teams",
-            "teams_messages": "/api/teams/{team_name}/messages",
-            "teams_tasks": "/api/teams/{team_name}/tasks",
-            "teams_thinking": "/api/teams/{team_name}/thinking",
-            "teams_status": "/api/teams/{team_name}/status",
-            "health": "/api/health",
-            "websocket": "/ws",
-        },
-    }
-
 
 # ============================================================================
 # WebSocketエンドポイント
