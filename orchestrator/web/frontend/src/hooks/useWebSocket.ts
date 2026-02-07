@@ -78,23 +78,21 @@ function initializeWebSocket() {
     // notify.success("ダッシュボードに接続しました");
   });
 
-  // 初期チームデータを受信（個別にaddTeamを呼び出す）
+  // 初期チームデータを受信
   const unsubscribeTeams = wsClient.on("teams", (msg) => {
     if (msg.type === "teams" && msg.teams) {
       // 現在のストアのチームと比較して、変更がある場合のみ更新
       const currentTeams = useTeamStore.getState().teams;
-      const currentNames = new Set(currentTeams.keys());
+      const currentNames = new Set(currentTeams.map((t) => t.name));
       const newNames = new Set(msg.teams.map((t) => t.name));
 
       // チーム数または名前が異なる場合のみ更新
       if (
-        msg.teams.length !== currentTeams.size ||
+        msg.teams.length !== currentTeams.length ||
         ![...newNames].every((name) => currentNames.has(name))
       ) {
-        // setTeamsの代わりに、個別にaddTeamを呼び出す
-        msg.teams.forEach((team) => {
-          addTeam(team);
-        });
+        // setTeamsを使用して一括更新
+        useTeamStore.getState().setTeams(msg.teams);
       }
     }
   });

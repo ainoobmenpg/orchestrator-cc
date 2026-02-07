@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { RefreshCw } from "lucide-react";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useTeamStore } from "../../stores/teamStore";
@@ -8,55 +8,24 @@ import type { TeamInfo } from "../../services/types";
 
 export function Header() {
   const { reconnect } = useWebSocket();
-  const [selectedTeamName, setSelectedTeamName] = useState<string>("");
-  const [teamsData, setTeamsData] = useState<TeamInfo[]>([]);
+
+  // ストアから直接取得（セレクターを使用して最小限の再レンダリング）
+  const teams = useTeamStore((state) => state.teams);
+  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
+  const setSelectedTeam = useTeamStore((state) => state.setSelectedTeam);
+
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
-  const isInitializedRef = useRef(false);
 
-  // 初期化（初回のみ）
-  useEffect(() => {
-    if (isInitializedRef.current) return;
-    isInitializedRef.current = true;
-
-    const state = useTeamStore.getState();
-    setSelectedTeamName(state.selectedTeamName ?? "");
-    setTeamsData(Array.from(state.teams.values()));
-  }, []);
-
-  // teamNamesの変更を監視（selectedTeamNameが変わらない場合のみ更新）
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- teamsDataを依存配列から除外することで無限レンダリングを防ぐ
-  useEffect(() => {
-    if (isInitializedRef.current) {
-      const unsubscribe = useTeamStore.subscribe((state) => {
-        // selectedTeamNameが変わった場合はスキップ（handleTeamChangeで処理）
-        if (state.selectedTeamName !== selectedTeamName) return;
-
-        // teamNamesの変更を監視して、teamsDataを更新
-        const newTeamsData = Array.from(state.teams.values());
-
-        // チームデータが変わった場合のみ更新
-        if (newTeamsData.length !== teamsData.length ||
-            !newTeamsData.every((t, i) => i < teamsData.length && t.name === teamsData[i]?.name)) {
-          setTeamsData(newTeamsData);
-        }
-      });
-
-      return unsubscribe;
-    }
-  }, [selectedTeamName]); // selectedTeamNameのみを依存配列に含める（teamsData.lengthを含めると無限レンダリングが発生する）
-
+  // 選択中のチームを取得
   const selectedTeam = useMemo(
-    () => teamsData.find((t: TeamInfo) => t.name === selectedTeamName) || null,
-    [teamsData, selectedTeamName]
+    () => teams.find((t: TeamInfo) => t.name === selectedTeamName) || null,
+    [teams, selectedTeamName]
   );
 
   const handleTeamChange = useCallback((teamName: string) => {
-    // ローカルステートを即座に更新（無限ループ防止）
-    setSelectedTeamName(teamName);
-    // ストアも更新
-    useTeamStore.getState().setSelectedTeam(teamName);
-  }, []);
+    setSelectedTeam(teamName || null);
+  }, [setSelectedTeam]);
 
   const handleReconnect = async () => {
     setIsReconnecting(true);
@@ -121,7 +90,7 @@ export function Header() {
           className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">-- チームを選択 --</option>
-          {teamsData?.map((team: TeamInfo) => (
+          {teams.map((team: TeamInfo) => (
             <option key={team.name} value={team.name}>
               {team.name}
             </option>
