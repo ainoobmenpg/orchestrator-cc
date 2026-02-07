@@ -6,26 +6,28 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getTeams, getTeamStatus, updateAgentActivity } from "../services/api";
-import { useTeamStore } from "../stores/teamStore";
-import { useWebSocket } from "./useWebSocket";
 
 /**
  * チーム一覧を取得するフック
  */
 export function useTeams() {
-  const setTeams = useTeamStore((state) => state.setTeams);
-  const { isConnected } = useWebSocket();
-
-  return useQuery({
+  const query = useQuery({
     queryKey: ["teams"],
     queryFn: async () => {
       const teams = await getTeams();
-      setTeams(teams);
       return teams;
     },
     staleTime: 1000 * 60, // 1分間キャッシュ
-    refetchInterval: isConnected ? false : 5000, // 接続中は自動更新しない、未接続時は5秒ごと
+    refetchInterval: false,
   });
+
+  return {
+    data: query.data ?? [],  // クエリデータを直接返す
+    isLoading: query.isLoading,
+    isError: query.isError,
+    isSuccess: query.isSuccess,
+    refetch: query.refetch,
+  };
 }
 
 /**

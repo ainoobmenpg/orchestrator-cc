@@ -7,14 +7,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { getTeamMessages } from "../services/api";
 import { useTeamStore } from "../stores/teamStore";
-import { useWebSocket } from "./useWebSocket";
 
 /**
  * チームメッセージ一覧を取得するフック
  */
 export function useMessages(teamName: string | null) {
-  const { isConnected } = useWebSocket();
-  const addMessages = useTeamStore((state) => state.addMessages);
   const clearMessages = useTeamStore((state) => state.clearMessages);
 
   const query = useQuery({
@@ -30,17 +27,12 @@ export function useMessages(teamName: string | null) {
       return filtered;
     },
     enabled: !!teamName,
-    staleTime: isConnected ? Infinity : 1000 * 30, // 接続中は更新しない
+    staleTime: 1000 * 30, // 30秒間キャッシュ
   });
-
-  // クエリ結果が返ってきたらストアに追加
-  if (query.data && teamName) {
-    addMessages(query.data);
-  }
 
   return {
     ...query,
-    messages: useTeamStore((state) => state.messages),
+    messages: query.data ?? [],  // クエリデータを直接返す
     clearMessages,
   };
 }

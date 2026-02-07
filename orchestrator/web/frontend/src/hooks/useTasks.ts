@@ -8,15 +8,11 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTeamTasks } from "../services/api";
 import { useTeamStore } from "../stores/teamStore";
-import { useWebSocket } from "./useWebSocket";
 
 /**
  * チームタスクリストを取得するフック
  */
 export function useTasks(teamName: string | null) {
-  const { isConnected } = useWebSocket();
-  const setTasks = useTeamStore((state) => state.setTasks);
-
   const query = useQuery({
     queryKey: ["tasks", teamName],
     queryFn: async () => {
@@ -24,17 +20,12 @@ export function useTasks(teamName: string | null) {
       return getTeamTasks(teamName);
     },
     enabled: !!teamName,
-    staleTime: isConnected ? Infinity : 1000 * 30, // 接続中は更新しない
+    staleTime: 1000 * 30, // 30秒間キャッシュ
   });
-
-  // クエリ結果が返ってきたらストアに設定
-  if (query.data && teamName) {
-    setTasks(query.data);
-  }
 
   return {
     ...query,
-    tasks: useTeamStore((state) => state.tasks),
+    tasks: query.data ?? [],  // クエリデータを直接返す
   };
 }
 
