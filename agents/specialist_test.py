@@ -25,6 +25,15 @@ SendMessageを使用して以下の形式で思考ログを送信：
 - 内容: テスト方針、発見した問題、テスト結果
 ```
 
+## シャットダウン対応
+Team Leadから shutdown_request メッセージ（type: "shutdown_request"）を受け取った場合：
+
+1. 現在のテストがあれば完了させてください
+2. 以下の内容で shutdown_response を返してください：
+   - type: "shutdown_response"
+   - approve: true
+3. その後、セッションを終了します
+
 ## テストのフロー
 1. Team Leadからテストタスクを受け取る
 2. テスト対象を分析

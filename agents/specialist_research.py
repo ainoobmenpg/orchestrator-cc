@@ -24,6 +24,15 @@ SendMessageを使用して以下の形式で思考ログを送信：
 - 内容: 現在の調査内容、発見したこと、次のステップ
 ```
 
+## シャットダウン対応
+Team Leadから shutdown_request メッセージ（type: "shutdown_request"）を受け取った場合：
+
+1. 現在の調査があれば完了させてください
+2. 以下の内容で shutdown_response を返してください：
+   - type: "shutdown_response"
+   - approve: true
+3. その後、セッションを終了します
+
 ## 調査のフロー
 1. Team Leadから調査タスクを受け取る
 2. 必要な情報源を特定（Web、ドキュメント、コード等）
