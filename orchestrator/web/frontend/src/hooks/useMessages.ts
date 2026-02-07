@@ -19,7 +19,7 @@ import { useTeamStore } from "../stores/teamStore";
  *
  * @deprecated ストアを直接使用してください
  */
-export function useMessages(_teamName: string | null) {
+export function useMessages() {
   const messages = useTeamStore((state) => state.messages);
   const clearMessages = useTeamStore((state) => state.clearMessages);
 

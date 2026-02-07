@@ -18,7 +18,7 @@ import { useTeamStore } from "../stores/teamStore";
  *
  * @deprecated ストアを直接使用してください
  */
-export function useTasks(_teamName: string | null) {
+export function useTasks() {
   const tasks = useTeamStore((state) => state.tasks);
 
   return useMemo(
