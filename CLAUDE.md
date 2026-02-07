@@ -10,7 +10,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 詳細は [docs/workflows/development-process.md](docs/workflows/development-process.md) を参照してください。
 
-### ルール0: 作業開始前に必ずブランチを作成
+### ルール0: 常にAgent Teamsを使用する
+
+**このプロジェクトでは、すべての作業においてAgent Teams機能を使用してください。**
+
+ユーザーからタスクを受け取った場合、**必ず最初にTeamCreateを使用してチームを作成し、タスクを割り振ってください。**
+
+**例外なく、すべての作業で適用してください：**
+- コードの読み取り・分析
+- コードの記述・修正
+- ファイルの検索
+- テストの実行
+- ドキュメントの作成
+- 問題の調査・デバッグ
+
+**チーム作成の基本パターン:**
+
+1. **シンプルなタスク（1〜2ステップ）:**
+   - Team Leader（自分） + 1つのスペシャリスト
+
+2. **標準的なタスク（3〜5ステップ）:**
+   - Team Leader（自分）
+   - Coding Specialist（実装）
+   - Testing Specialist（検証）
+
+3. **複雑なタスク（6ステップ以上）:**
+   - Team Leader（自分）
+   - Research Specialist（調査）
+   - Coding Specialist（実装）
+   - Testing Specialist（検証）
+
+**重要:** Agent Teamsを使用することで、タスクの並列実行、専門的な処理の委譲、効率的な進捗管理が可能になります。
+
+### ルール1: 作業開始前に必ずブランチを作成
 
 **絶対に main ブランチで作業しないでください。必ず作業ブランチを作成してから作業を開始してください。**
 

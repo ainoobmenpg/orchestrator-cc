@@ -190,6 +190,27 @@ python -m orchestrator.cli health
 python -m orchestrator.cli show-logs <team-name>
 ```
 
+### カスタムスキルの使用（/team）
+
+このプロジェクトでは、すべての作業でAgent Teamsを自動的に使用するカスタムスキル `/team` を提供しています。
+
+```bash
+# シンプルなタスク
+/team バグを修正して
+
+# 標準的なタスク
+/team 新しい機能を実装して
+
+# 複雑なタスク
+/team ドキュメントを全面更新して
+```
+
+`/team` スキルを使用すると、タスクの複雑度に応じて自動的に適切なチーム構成が作成されます：
+
+- **シンプルなタスク**: Team Lead + 1スペシャリスト
+- **標準的なタスク**: Team Lead + Coding + Testing
+- **複雑なタスク**: Team Lead + Research + Coding + Testing
+
 ### 新しいチームの作成
 
 ```bash

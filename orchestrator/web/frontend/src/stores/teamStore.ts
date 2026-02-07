@@ -311,6 +311,18 @@ export const useTeamStore = create<TeamStore>()(
 // ============================================================================
 
 /**
+ * 選択中のチーム情報を取得する
+ */
+export const useSelectedTeam = () => {
+  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
+  const teams = useTeamStore((state) => state.teams);
+
+  return selectedTeamName
+    ? teams.find((t) => t.name === selectedTeamName) || null
+    : null;
+};
+
+/**
  * アクティブなエージェントの数を取得する
  */
 export const useActiveAgentCount = () => {
