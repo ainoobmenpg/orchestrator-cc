@@ -122,6 +122,32 @@ app.add_middleware(
 )
 
 # 静的ファイルを配信
+# Reactビルド済みファイル（frontend/dist）
+_frontend_dist_dir = Path(__file__).parent / "frontend" / "dist"
+if _frontend_dist_dir.exists():
+    # SPAとしてReactアプリを配信（全てのパスをindex.htmlにフォールバック）
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """React SPAを配信します
+
+        全てのルートをindex.htmlにフォールバックすることで、
+        React Routerのクライアントサイドルーティングをサポートします。
+        """
+        index_path = _frontend_dist_dir / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return {
+            "message": "Orchestrator CC Dashboard API",
+            "version": "2.0.0",
+            "note": "Reactアプリがビルドされていません。frontendディレクトリで npm run build を実行してください。",
+        }
+
+    # ビルド済みアセットを配信
+    app.mount("/assets", StaticFiles(directory=str(_frontend_dist_dir / "assets")), name="assets")
+    # publicディレクトリのファイルを配信
+    app.mount("/public", StaticFiles(directory=str(_frontend_dist_dir / "public")), name="public")
+
+# 旧静的ファイル（開発用・互換性維持）
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
@@ -174,13 +200,19 @@ _static_dir = Path(__file__).parent / "static"
 
 @app.get("/")
 async def root():
-    """ダッシュボードHTMLを返します"""
+    """ダッシュボードHTMLを返します（React SPA）"""
     index_path = _templates_dir / "index.html"
+
+    # Reactビルド済みのindex.htmlが存在する場合はそれを返す
+    # そうでない場合は開発モード用のメッセージを返す
     if index_path.exists():
         return FileResponse(index_path)
+
+    # ビルド済みファイルがない場合はメッセージを返す
     return {
-        "message": "Orchestrator CC Dashboard API",
-        "version": "0.1.0",
+        "message": "Orchestrator CC Dashboard - React Build Required",
+        "version": "2.0.0",
+        "instructions": "Reactアプリをビルドしてください: cd orchestrator/web/frontend && npm install && npm run build",
         "endpoints": {
             "teams": "/api/teams",
             "teams_messages": "/api/teams/{team_name}/messages",
