@@ -4,10 +4,9 @@
  * ダッシュボードのヘッダーを表示します
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { RefreshCw } from "lucide-react";
 import { useWebSocket } from "../../hooks/useWebSocket";
-import { useTeams } from "../../hooks/useTeams";
 import { useTeamStore } from "../../stores/teamStore";
 import { notify } from "../../stores/uiStore";
 import type { ConnectionState } from "../../hooks/useWebSocket";
@@ -15,17 +14,22 @@ import type { TeamInfo } from "../../services/types";
 
 export function Header() {
   const { reconnect } = useWebSocket();
-  const { data: teamsData } = useTeams();
+  const teams = useTeamStore((state) => state.teams);
   const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
-  const setSelectedTeamName = useTeamStore((state) => state.setSelectedTeam);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
 
-  const selectedTeam = teamsData?.find((t: TeamInfo) => t.name === selectedTeamName);
+  // ストアからチームリストを取得
+  const teamsData = useMemo(() => Array.from(teams.values()), [teams]);
 
-  const handleTeamChange = (teamName: string) => {
-    setSelectedTeamName(teamName);
-  };
+  const selectedTeam = useMemo(
+    () => teamsData.find((t: TeamInfo) => t.name === selectedTeamName) || null,
+    [teamsData, selectedTeamName]
+  );
+
+  const handleTeamChange = useCallback((teamName: string) => {
+    useTeamStore.getState().setSelectedTeam(teamName);
+  }, []);
 
   const handleReconnect = async () => {
     setIsReconnecting(true);

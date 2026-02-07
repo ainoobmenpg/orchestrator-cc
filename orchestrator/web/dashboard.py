@@ -275,9 +275,16 @@ async def websocket_endpoint(
             websocket,
         )
 
-        # チーム状態をログに追加
+        # 初期チームデータを送信
         if _teams_monitor:
             teams = _teams_monitor.get_teams()
+            await _ws_manager.send_personal(
+                {
+                    "type": "teams",
+                    "teams": teams,
+                },
+                websocket,
+            )
             await _ws_manager.send_personal(
                 {
                     "type": "system_log",
