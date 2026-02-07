@@ -10,6 +10,7 @@
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -113,9 +114,17 @@ app = FastAPI(
 )
 
 # CORSミドルウェアを設定
+# 環境変数からCORSオリジンを取得（デフォルト: localhost:8000 と localhost:5173）
+_cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://localhost:5173")
+_cors_origins = [origin.strip() for origin in _cors_origins_str.split(",") if origin.strip()]
+
+# 開発環境向けのワイルドカードが指定されている場合は全許可
+if "*" in _cors_origins:
+    _cors_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 開発環境では全許可、本番では制限すること
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
