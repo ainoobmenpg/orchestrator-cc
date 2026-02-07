@@ -12,10 +12,7 @@ import { devtools, persist } from "zustand/middleware";
 // ============================================================================
 
 /** タブ名 */
-export type TabName = "dashboard" | "tasks" | "conference";
-
-// タイマー管理（通知の自動削除用）
-const notificationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+export type TabName = "dashboard" | "tasks" | "messages" | "timeline" | "system";
 
 /** 通知タイプ */
 export type NotificationType = "info" | "success" | "warning" | "error";
@@ -55,6 +52,7 @@ interface UIState {
 
   // スクロール
   isAutoScrollEnabled: boolean;
+  isSystemLogAutoScrollEnabled: boolean;
 
   // モーダル
   activeModal: ModalType;
@@ -69,6 +67,7 @@ interface UIState {
 
   // フィルター
   thinkingAgentFilter: string | null;
+  timelineFilter: string | null;
 }
 
 // ============================================================================
@@ -88,6 +87,7 @@ interface UIActions {
   // スクロール操作
   toggleAutoScroll: () => void;
   setAutoScrollEnabled: (enabled: boolean) => void;
+  toggleSystemLogAutoScroll: () => void;
 
   // モーダル操作
   openModal: (modal: ModalType, data?: Record<string, unknown>) => void;
@@ -108,6 +108,7 @@ interface UIActions {
 
   // フィルター操作
   setThinkingAgentFilter: (agentName: string | null) => void;
+  setTimelineFilter: (filter: string | null) => void;
 
   // リセット
   reset: () => void;
@@ -123,12 +124,14 @@ const initialState: UIState = {
   isThinkingLogVisible: true,
   isTimestampVisible: false,
   isAutoScrollEnabled: true,
+  isSystemLogAutoScrollEnabled: true,
   activeModal: null,
   modalData: {},
   notifications: [],
   isLoading: false,
   loadingMessage: null,
   thinkingAgentFilter: null,
+  timelineFilter: null,
 };
 
 // ============================================================================
@@ -182,6 +185,12 @@ export const useUIStore = create<UIStore>()(
           set({ isAutoScrollEnabled: enabled });
         },
 
+        toggleSystemLogAutoScroll: () => {
+          set((state) => ({
+            isSystemLogAutoScrollEnabled: !state.isSystemLogAutoScrollEnabled,
+          }));
+        },
+
         // モーダル操作
         openModal: (modal, data = {}) => {
           set({ activeModal: modal, modalData: data });
@@ -208,27 +217,13 @@ export const useUIStore = create<UIStore>()(
 
           // 自動消去
           if (notification.duration && notification.duration > 0) {
-            const existingTimer = notificationTimers.get(id);
-            if (existingTimer) {
-              clearTimeout(existingTimer);
-            }
-
-            const timerId = setTimeout(() => {
+            setTimeout(() => {
               get().removeNotification(id);
-              notificationTimers.delete(id);
             }, notification.duration);
-
-            notificationTimers.set(id, timerId);
           }
         },
 
         removeNotification: (id) => {
-          const timerId = notificationTimers.get(id);
-          if (timerId) {
-            clearTimeout(timerId);
-            notificationTimers.delete(id);
-          }
-
           set((state) => ({
             notifications: state.notifications.filter((n) => n.id !== id),
           }));
@@ -248,6 +243,10 @@ export const useUIStore = create<UIStore>()(
           set({ thinkingAgentFilter: agentName });
         },
 
+        setTimelineFilter: (filter) => {
+          set({ timelineFilter: filter });
+        },
+
         // リセット
         reset: () => {
           set(initialState);
@@ -262,6 +261,7 @@ export const useUIStore = create<UIStore>()(
           isThinkingLogVisible: state.isThinkingLogVisible,
           isTimestampVisible: state.isTimestampVisible,
           isAutoScrollEnabled: state.isAutoScrollEnabled,
+          isSystemLogAutoScrollEnabled: state.isSystemLogAutoScrollEnabled,
         }),
       },
     ),

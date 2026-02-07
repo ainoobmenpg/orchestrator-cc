@@ -43,7 +43,7 @@ export function MessageList() {
             <AnimatePresence mode="popLayout">
               {messages.map((message, index) => (
                 <MessageItem
-                  key={message.id}
+                  key={`${message.id}-${index}`}
                   message={message}
                   index={index}
                 />

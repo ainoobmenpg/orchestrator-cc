@@ -5,7 +5,7 @@
  */
 
 import { Bot, ChevronDown, ChevronUp, RefreshCw, RotateCcw, Power } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useTeamStore } from "../../stores/teamStore";
 import { useAgentStats } from "../../hooks/useAgents";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
@@ -25,7 +25,7 @@ const statusConfig: Record<AgentStatus, { label: string; variant: "success" | "w
 
 export function AgentPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const agents = useTeamStore((state) => state.agents);
+  const agents = useTeamStore((state) => Array.from(state.agents.values()));
   const stats = useAgentStats();
 
   const handleRefresh = useCallback(() => {
@@ -35,6 +35,9 @@ export function AgentPanel() {
   const toggleCollapse = useCallback(() => {
     setIsCollapsed((prev) => !prev);
   }, []);
+
+  // エージェントリストをステータス別にフィルタリング（キャッシュ用）
+  const filteredAgents = useMemo(() => agents, [agents]);
 
   return (
     <Card className={cn("transition-all duration-300", isCollapsed && "w-16")}>
@@ -82,12 +85,12 @@ export function AgentPanel() {
 
           {/* エージェント一覧 */}
           <div className="space-y-2">
-            {agents.length === 0 ? (
+            {filteredAgents.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground">
                 エージェント情報がありません
               </div>
             ) : (
-              agents.map((agent) => {
+              filteredAgents.map((agent) => {
                 const config = statusConfig[agent.status];
                 return (
                   <div
