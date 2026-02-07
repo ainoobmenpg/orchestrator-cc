@@ -444,3 +444,31 @@ def load_team_tasks(team_name: str) -> list[TaskInfo]:
             continue
 
     return tasks
+
+
+# ============================================================================
+# グローバルステート管理
+# ============================================================================
+
+
+@dataclass
+class GlobalState:
+    """ダッシュボードアプリケーションのグローバルステート
+
+    各モジュール間で共有する状態を管理します。
+
+    Attributes:
+        ws_manager: WebSocketマネージャー
+        ws_handler: WebSocketメッセージハンドラー
+        teams_monitor: Teams監視モジュール
+        thinking_log_handler: 思考ログハンドラー
+        teams_manager: AgentTeamsManager
+        health_monitor: ヘルスモニター
+    """
+
+    ws_manager: Any | None = None
+    ws_handler: Any | None = None
+    teams_monitor: Any | None = None
+    thinking_log_handler: Any | None = None
+    teams_manager: Any | None = None
+    health_monitor: Any | None = None

@@ -142,13 +142,14 @@ class TestVDB001_RestAPI:
     各エンドポイントのリクエストとレスポンス形式を検証します。
     """
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_api_teams_returns_team_list(self, mock_monitor, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_teams_returns_team_list(self, mock_state, client):
         """GET /api/teams - チーム一覧取得
 
         レスポンスにteams配列が含まれ、各チームに必要なフィールドがあることを確認します。
         """
         # モックを設定
+        mock_monitor = MagicMock()
         mock_monitor.get_teams.return_value = [
             {
                 "name": "test-team-1",
@@ -157,6 +158,7 @@ class TestVDB001_RestAPI:
                 "members": ["agent-1", "agent-2"],
             }
         ]
+        mock_state.teams_monitor = mock_monitor
 
         response = client.get("/api/teams")
 
@@ -173,13 +175,14 @@ class TestVDB001_RestAPI:
         assert "name" in team
         assert team["name"] == "test-team-1"
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_api_teams_messages_returns_message_list(self, mock_monitor, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_teams_messages_returns_message_list(self, mock_state, client):
         """GET /api/teams/{team_name}/messages - メッセージ履歴取得
 
         レスポンスにmessages配列が含まれることを確認します。
         """
         team_name = "test-team-1"
+        mock_monitor = MagicMock()
         mock_monitor.get_team_messages.return_value = [
             {
                 "sender": "agent-1",
@@ -188,6 +191,7 @@ class TestVDB001_RestAPI:
                 "timestamp": "2026-02-07T10:00:00Z",
             }
         ]
+        mock_state.teams_monitor = mock_monitor
 
         response = client.get(f"/api/teams/{team_name}/messages")
 
@@ -207,13 +211,14 @@ class TestVDB001_RestAPI:
             assert "content" in msg
             assert "timestamp" in msg
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_api_teams_tasks_returns_task_list(self, mock_monitor, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_teams_tasks_returns_task_list(self, mock_state, client):
         """GET /api/teams/{team_name}/tasks - タスクリスト取得
 
         レスポンスにtasks配列が含まれることを確認します。
         """
         team_name = "test-team-1"
+        mock_monitor = MagicMock()
         mock_monitor.get_team_tasks.return_value = [
             {
                 "id": "task-1",
@@ -222,6 +227,7 @@ class TestVDB001_RestAPI:
                 "owner": "agent-1",
             }
         ]
+        mock_state.teams_monitor = mock_monitor
 
         response = client.get(f"/api/teams/{team_name}/tasks")
 
@@ -241,13 +247,14 @@ class TestVDB001_RestAPI:
             assert "subject" in task
             assert "status" in task
 
-    @patch("orchestrator.web.dashboard._teams_manager")
-    def test_api_teams_status_returns_status_info(self, mock_manager, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_teams_status_returns_status_info(self, mock_state, client):
         """GET /api/teams/{team_name}/status - チーム状態取得
 
         チームの状態情報が返されることを確認します。
         """
         team_name = "test-team-1"
+        mock_manager = MagicMock()
         mock_manager.get_team_status.return_value = {
             "name": team_name,
             "status": "active",
@@ -256,6 +263,7 @@ class TestVDB001_RestAPI:
                 {"name": "agent-2", "status": "working"},
             ],
         }
+        mock_state.teams_manager = mock_manager
 
         response = client.get(f"/api/teams/{team_name}/status")
 
@@ -267,13 +275,14 @@ class TestVDB001_RestAPI:
         assert "status" in data
         assert data["name"] == team_name
 
-    @patch("orchestrator.web.dashboard._thinking_log_handler")
-    def test_api_teams_thinking_returns_thinking_logs(self, mock_handler, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_teams_thinking_returns_thinking_logs(self, mock_state, client):
         """GET /api/teams/{team_name}/thinking - 思考ログ取得
 
         思考ログが返されることを確認します。
         """
         team_name = "test-team-1"
+        mock_handler = MagicMock()
         mock_handler.get_logs.return_value = [
             {
                 "timestamp": "2026-02-07T10:00:00Z",
@@ -281,6 +290,7 @@ class TestVDB001_RestAPI:
                 "content": "Thinking...",
             }
         ]
+        mock_state.thinking_log_handler = mock_handler
 
         response = client.get(f"/api/teams/{team_name}/thinking")
 
@@ -293,18 +303,20 @@ class TestVDB001_RestAPI:
         assert data["teamName"] == team_name
         assert isinstance(data["thinking"], list)
 
-    @patch("orchestrator.web.dashboard._health_monitor")
-    def test_api_health_returns_health_status(self, mock_monitor, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_health_returns_health_status(self, mock_state, client):
         """GET /api/health - ヘルスステータス取得
 
         ヘルスステータスが返されることを確認します。
         """
+        mock_monitor = MagicMock()
         mock_monitor.get_health_status.return_value = {
             "test-team-1": {
                 "agent-1": {"isHealthy": True},
                 "agent-2": {"isHealthy": True},
             }
         }
+        mock_state.health_monitor = mock_monitor
 
         response = client.get("/api/health")
 
@@ -315,11 +327,11 @@ class TestVDB001_RestAPI:
         assert "test-team-1" in data
 
     def test_api_info_returns_endpoint_list(self, client):
-        """GET /api - API情報取得
+        """GET /api/ - API情報取得
 
         利用可能なエンドポイントの一覧が返されることを確認します。
         """
-        response = client.get("/api")
+        response = client.get("/api/")
 
         assert response.status_code == 200
         data = response.json()
@@ -352,13 +364,15 @@ class TestVDB001_RestAPI:
 
         assert response.status_code == 200
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_api_monitoring_start_stop(self, mock_monitor, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_monitoring_start_stop(self, mock_state, client):
         """POST /api/teams/monitoring/start|stop - 監視制御
 
         監視の開始・停止が正しく処理されることを確認します。
         """
+        mock_monitor = MagicMock()
         mock_monitor.is_running.return_value = False
+        mock_state.teams_monitor = mock_monitor
 
         # 開始
         response = client.post("/api/teams/monitoring/start")

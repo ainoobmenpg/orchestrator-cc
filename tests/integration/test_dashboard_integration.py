@@ -7,7 +7,7 @@ Dashboard APIとWebSocketの統合テストです。
 - V-DB-002: WebSocket検証
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,12 +25,14 @@ def client():
 class TestRestAPI:
     """V-DB-001: REST API検証"""
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_api_teams_endpoint(self, mock_teams_monitor, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_teams_endpoint(self, mock_state, client):
         """チーム一覧APIエンドポイント"""
+        mock_teams_monitor = MagicMock()
         mock_teams_monitor.get_teams.return_value = [
             {"name": "test-team", "description": "Test Team"}
         ]
+        mock_state.teams_monitor = mock_teams_monitor
 
         response = client.get("/api/teams")
 
@@ -40,9 +42,10 @@ class TestRestAPI:
         assert len(data["teams"]) == 1
         assert data["teams"][0]["name"] == "test-team"
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_api_team_messages(self, mock_teams_monitor, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_team_messages(self, mock_state, client):
         """チームメッセージAPIエンドポイント"""
+        mock_teams_monitor = MagicMock()
         mock_teams_monitor.get_team_messages.return_value = [
             {
                 "sender": "agent-1",
@@ -51,6 +54,7 @@ class TestRestAPI:
                 "timestamp": "2026-02-06T12:00:00Z",
             }
         ]
+        mock_state.teams_monitor = mock_teams_monitor
 
         response = client.get("/api/teams/test-team/messages")
 
@@ -61,12 +65,14 @@ class TestRestAPI:
         assert len(data["messages"]) == 1
         assert data["messages"][0]["sender"] == "agent-1"
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_api_team_tasks(self, mock_teams_monitor, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_team_tasks(self, mock_state, client):
         """チームタスクAPIエンドポイント"""
+        mock_teams_monitor = MagicMock()
         mock_teams_monitor.get_team_tasks.return_value = [
             {"id": "1", "subject": "Test task", "status": "pending"}
         ]
+        mock_state.teams_monitor = mock_teams_monitor
 
         response = client.get("/api/teams/test-team/tasks")
 
@@ -76,14 +82,16 @@ class TestRestAPI:
         assert "teamName" in data
         assert len(data["tasks"]) == 1
 
-    @patch("orchestrator.web.dashboard._teams_manager")
-    def test_api_team_status(self, mock_teams_manager, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_team_status(self, mock_state, client):
         """チームステータスAPIエンドポイント"""
+        mock_teams_manager = MagicMock()
         mock_teams_manager.get_team_status.return_value = {
             "name": "test-team",
             "description": "Test Team",
             "status": "active",
         }
+        mock_state.teams_manager = mock_teams_manager
 
         response = client.get("/api/teams/test-team/status")
 
@@ -92,12 +100,14 @@ class TestRestAPI:
         assert data["name"] == "test-team"
         assert data["status"] == "active"
 
-    @patch("orchestrator.web.dashboard._health_monitor")
-    def test_api_health(self, mock_health_monitor, client):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_api_health(self, mock_state, client):
         """ヘルスチェックAPIエンドポイント"""
+        mock_health_monitor = MagicMock()
         mock_health_monitor.get_health_status.return_value = {
             "test-team": {"agent1": {"isHealthy": True}}
         }
+        mock_state.health_monitor = mock_health_monitor
 
         response = client.get("/api/health")
 

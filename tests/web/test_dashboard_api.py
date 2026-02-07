@@ -41,7 +41,7 @@ class TestRootEndpoints:
 
     def test_api_info(self, client):
         """API情報エンドポイントテスト"""
-        response = client.get("/api")
+        response = client.get("/api/")
 
         assert response.status_code == 200
         data = response.json()
@@ -51,13 +51,15 @@ class TestRootEndpoints:
 class TestHealthEndpoint:
     """ヘルスエンドポイントのテスト"""
 
-    @patch("orchestrator.web.dashboard._health_monitor")
-    def test_get_health_all(self, mock_health_monitor, client):
+    @patch("orchestrator.web.api.routes._get_health_monitor")
+    def test_get_health_all(self, mock_get_health_monitor, client):
         """全チームのヘルスステータス取得テスト"""
-        mock_health_monitor.get_health_status.return_value = {
+        mock_monitor = MagicMock()
+        mock_monitor.get_health_status.return_value = {
             "team1": {"agent1": {"isHealthy": True}},
             "team2": {"agent2": {"isHealthy": False}},
         }
+        mock_get_health_monitor.return_value = mock_monitor
 
         response = client.get("/api/health")
 
@@ -65,12 +67,14 @@ class TestHealthEndpoint:
         data = response.json()
         assert "team1" in data
 
-    @patch("orchestrator.web.dashboard._health_monitor")
-    def test_get_health_specific_team(self, mock_health_monitor, client):
+    @patch("orchestrator.web.api.routes._get_health_monitor")
+    def test_get_health_specific_team(self, mock_get_health_monitor, client):
         """特定チームのヘルスステータス取得テスト"""
-        mock_health_monitor.get_health_status.return_value = {
+        mock_monitor = MagicMock()
+        mock_monitor.get_health_status.return_value = {
             "team1": {"agent1": {"isHealthy": True}},
         }
+        mock_get_health_monitor.return_value = mock_monitor
 
         response = client.get("/api/health?team=team1")
 
@@ -78,12 +82,14 @@ class TestHealthEndpoint:
         data = response.json()
         assert "team1" in data
 
-    @patch("orchestrator.web.dashboard._health_monitor")
-    def test_get_health_team_not_found(self, mock_health_monitor, client):
+    @patch("orchestrator.web.api.routes._get_health_monitor")
+    def test_get_health_team_not_found(self, mock_get_health_monitor, client):
         """存在しないチームのヘルスステータステスト"""
-        mock_health_monitor.get_health_status.return_value = {
+        mock_monitor = MagicMock()
+        mock_monitor.get_health_status.return_value = {
             "team1": {"agent1": {"isHealthy": True}},
         }
+        mock_get_health_monitor.return_value = mock_monitor
 
         response = client.get("/api/health?team=nonexistent")
 
@@ -96,13 +102,15 @@ class TestHealthEndpoint:
 class TestTeamsEndpoints:
     """チーム関連エンドポイントのテスト"""
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_get_teams(self, mock_teams_monitor, client):
+    @patch("orchestrator.web.api.routes._get_teams_monitor")
+    def test_get_teams(self, mock_get_teams_monitor, client):
         """チーム一覧取得テスト"""
-        mock_teams_monitor.get_teams.return_value = [
+        mock_monitor = MagicMock()
+        mock_monitor.get_teams.return_value = [
             {"name": "team1", "description": "Team 1"},
             {"name": "team2", "description": "Team 2"},
         ]
+        mock_get_teams_monitor.return_value = mock_monitor
 
         response = client.get("/api/teams")
 
@@ -112,22 +120,25 @@ class TestTeamsEndpoints:
         assert len(data["teams"]) == 2
         assert data["teams"][0]["name"] == "team1"
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_get_teams_not_initialized(self, mock_teams_monitor, client):
+    @patch("orchestrator.web.api.routes._get_teams_monitor")
+    def test_get_teams_not_initialized(self, mock_get_teams_monitor, client):
         """TeamsMonitor未初期化テスト"""
-        with patch("orchestrator.web.dashboard._teams_monitor", None):
-            response = client.get("/api/teams")
+        mock_get_teams_monitor.return_value = None
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "error" in data
+        response = client.get("/api/teams")
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_get_team_messages(self, mock_teams_monitor, client):
+        assert response.status_code == 200
+        data = response.json()
+        assert "error" in data
+
+    @patch("orchestrator.web.api.routes._get_teams_monitor")
+    def test_get_team_messages(self, mock_get_teams_monitor, client):
         """チームメッセージ取得テスト"""
-        mock_teams_monitor.get_team_messages.return_value = [
+        mock_monitor = MagicMock()
+        mock_monitor.get_team_messages.return_value = [
             {"id": "msg1", "sender": "agent1", "content": "Hello"},
         ]
+        mock_get_teams_monitor.return_value = mock_monitor
 
         response = client.get("/api/teams/test-team/messages")
 
@@ -137,12 +148,14 @@ class TestTeamsEndpoints:
         assert "messages" in data
         assert len(data["messages"]) == 1
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_get_team_tasks(self, mock_teams_monitor, client):
+    @patch("orchestrator.web.api.routes._get_teams_monitor")
+    def test_get_team_tasks(self, mock_get_teams_monitor, client):
         """チームタスク取得テスト"""
-        mock_teams_monitor.get_team_tasks.return_value = [
+        mock_monitor = MagicMock()
+        mock_monitor.get_team_tasks.return_value = [
             {"id": "task1", "subject": "Task 1", "status": "pending"},
         ]
+        mock_get_teams_monitor.return_value = mock_monitor
 
         response = client.get("/api/teams/test-team/tasks")
 
@@ -152,13 +165,15 @@ class TestTeamsEndpoints:
         assert "tasks" in data
         assert len(data["tasks"]) == 1
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    def test_get_team_tasks_with_status_filter(self, mock_teams_monitor, client):
+    @patch("orchestrator.web.api.routes._get_teams_monitor")
+    def test_get_team_tasks_with_status_filter(self, mock_get_teams_monitor, client):
         """タスクをステータスでフィルタするテスト"""
-        mock_teams_monitor.get_team_tasks.return_value = [
+        mock_monitor = MagicMock()
+        mock_monitor.get_team_tasks.return_value = [
             {"id": "task1", "subject": "Task 1", "status": "pending"},
             {"id": "task2", "subject": "Task 2", "status": "completed"},
         ]
+        mock_get_teams_monitor.return_value = mock_monitor
 
         response = client.get("/api/teams/test-team/tasks?status=pending")
 
@@ -166,21 +181,17 @@ class TestTeamsEndpoints:
         data = response.json()
         assert "tasks" in data
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    @patch("orchestrator.web.dashboard._teams_manager")
-    def test_get_team_status(self, mock_teams_manager, mock_teams_monitor, client):
+    @patch("orchestrator.web.api.routes._get_teams_manager")
+    def test_get_team_status(self, mock_get_teams_manager, client):
         """チーム状態取得テスト"""
-        mock_teams_monitor.get_teams.return_value = [
-            {"name": "test-team", "description": "Test", "members": []},
-        ]
-        mock_teams_monitor.get_team_messages.return_value = []
-        mock_teams_monitor.get_team_tasks.return_value = []
-        mock_teams_manager.get_team_status.return_value = {
+        mock_manager = MagicMock()
+        mock_manager.get_team_status.return_value = {
             "name": "test-team",
             "description": "Test",
             "taskCount": 0,
             "members": [],
         }
+        mock_get_teams_manager.return_value = mock_manager
 
         response = client.get("/api/teams/test-team/status")
 
@@ -189,13 +200,14 @@ class TestTeamsEndpoints:
         # "name" キーまたは "error" キーが存在することを確認
         assert "name" in data or "error" in data
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    @patch("orchestrator.web.dashboard._thinking_log_handler")
-    def test_get_team_thinking(self, mock_thinking_handler, mock_teams_monitor, client):
+    @patch("orchestrator.web.api.routes._get_thinking_log_handler")
+    def test_get_team_thinking(self, mock_get_thinking_handler, client):
         """思考ログ取得テスト"""
-        mock_thinking_handler.get_logs.return_value = [
+        mock_handler = MagicMock()
+        mock_handler.get_logs.return_value = [
             {"agentName": "agent1", "content": "Thinking...", "timestamp": "2026-02-06T12:00:00Z"},
         ]
+        mock_get_thinking_handler.return_value = mock_handler
 
         response = client.get("/api/teams/test-team/thinking")
 
@@ -203,29 +215,29 @@ class TestTeamsEndpoints:
         data = response.json()
         assert "thinking" in data or "error" in data
 
-    @patch("orchestrator.web.dashboard._teams_monitor")
-    @patch("orchestrator.web.dashboard._thinking_log_handler")
-    def test_get_team_thinking_not_initialized(
-        self, mock_thinking_handler, mock_teams_monitor, client
-    ):
+    @patch("orchestrator.web.api.routes._get_thinking_log_handler")
+    def test_get_team_thinking_not_initialized(self, mock_get_thinking_handler, client):
         """思考ログハンドラー未初期化テスト"""
-        with patch("orchestrator.web.dashboard._thinking_log_handler", None):
-            response = client.get("/api/teams/test-team/thinking")
+        mock_get_thinking_handler.return_value = None
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "error" in data
+        response = client.get("/api/teams/test-team/thinking")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "error" in data
 
 
 class TestBroadcastFunctions:
     """ブロードキャスト関数のテスト"""
 
-    @patch("orchestrator.web.dashboard._ws_manager")
-    def test_broadcast_teams_update_with_event_loop(self, mock_ws_manager):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_broadcast_teams_update_with_event_loop(self, mock_global_state):
         """イベントループ実行中のブロードキャストテスト"""
         from orchestrator.web.dashboard import _broadcast_teams_update
 
+        mock_ws_manager = MagicMock()
         mock_ws_manager.broadcast = AsyncMock()
+        mock_global_state.ws_manager = mock_ws_manager
 
         # asyncio.create_task をモック
         with patch("asyncio.get_running_loop", return_value=MagicMock()):
@@ -233,32 +245,38 @@ class TestBroadcastFunctions:
                 _broadcast_teams_update({"type": "test"})
                 mock_create_task.assert_called_once()
 
-    @patch("orchestrator.web.dashboard._ws_manager")
-    def test_broadcast_teams_update_no_event_loop(self, mock_ws_manager):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_broadcast_teams_update_no_event_loop(self, mock_global_state):
         """イベントループ未実行中のブロードキャストテスト"""
         from orchestrator.web.dashboard import _broadcast_teams_update
+
+        mock_ws_manager = MagicMock()
+        mock_global_state.ws_manager = mock_ws_manager
 
         # RuntimeError を発生させるモック
         with patch("asyncio.get_running_loop", side_effect=RuntimeError):
             # 例外が発生しないことを確認
             _broadcast_teams_update({"type": "test"})
 
-    @patch("orchestrator.web.dashboard._ws_manager")
-    def test_broadcast_teams_update_no_manager(self, mock_ws_manager):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_broadcast_teams_update_no_manager(self, mock_global_state):
         """マネージャーがない場合のブロードキャストテスト"""
         from orchestrator.web.dashboard import _broadcast_teams_update
 
-        # _ws_manager が None の場合
-        with patch("orchestrator.web.dashboard._ws_manager", None):
-            # 例外が発生しないことを確認
-            _broadcast_teams_update({"type": "test"})
+        # ws_manager が None の場合
+        mock_global_state.ws_manager = None
 
-    @patch("orchestrator.web.dashboard._ws_manager")
-    def test_broadcast_thinking_log_with_event_loop(self, mock_ws_manager):
+        # 例外が発生しないことを確認
+        _broadcast_teams_update({"type": "test"})
+
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_broadcast_thinking_log_with_event_loop(self, mock_global_state):
         """思考ログブロードキャストテスト"""
         from orchestrator.web.dashboard import _broadcast_thinking_log
 
+        mock_ws_manager = MagicMock()
         mock_ws_manager.broadcast = AsyncMock()
+        mock_global_state.ws_manager = mock_ws_manager
 
         # asyncio.create_task をモック
         with patch("asyncio.get_running_loop", return_value=MagicMock()):
@@ -266,10 +284,13 @@ class TestBroadcastFunctions:
                 _broadcast_thinking_log({"type": "thinking_log"})
                 mock_create_task.assert_called_once()
 
-    @patch("orchestrator.web.dashboard._ws_manager")
-    def test_broadcast_thinking_log_no_event_loop(self, mock_ws_manager):
+    @patch("orchestrator.web.api.routes._global_state")
+    def test_broadcast_thinking_log_no_event_loop(self, mock_global_state):
         """イベントループ未実行中の思考ログブロードキャストテスト"""
         from orchestrator.web.dashboard import _broadcast_thinking_log
+
+        mock_ws_manager = MagicMock()
+        mock_global_state.ws_manager = mock_ws_manager
 
         # RuntimeError を発生させるモック
         with patch("asyncio.get_running_loop", side_effect=RuntimeError):
