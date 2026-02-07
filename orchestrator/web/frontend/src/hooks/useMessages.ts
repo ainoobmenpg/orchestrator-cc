@@ -2,39 +2,39 @@
  * メッセージフック
  *
  * チームメッセージの取得と管理を提供します
+ *
+ * 注意: このフックは非推奨です。直接 useTeamStore を使用してください。
+ * これはReact Queryの依存を削除するためにリファクタリングされました。
  */
 
-import { useQuery } from "@tanstack/react-query";
-import { getTeamMessages } from "../services/api";
+import { useMemo } from "react";
 import { useTeamStore } from "../stores/teamStore";
 
 /**
- * チームメッセージ一覧を取得するフック
+ * チームメッセージ一覧を取得するフック（非推奨）
+ *
+ * 代わりに useTeamStore を直接使用してください:
+ * const messages = useTeamStore((state) => state.messages);
+ * const clearMessages = useTeamStore((state) => state.clearMessages);
+ *
+ * @deprecated ストアを直接使用してください
  */
-export function useMessages(teamName: string | null) {
+export function useMessages(_teamName: string | null) {
+  const messages = useTeamStore((state) => state.messages);
   const clearMessages = useTeamStore((state) => state.clearMessages);
 
-  const query = useQuery({
-    queryKey: ["messages", teamName],
-    queryFn: async () => {
-      if (!teamName) return [];
-      const messages = await getTeamMessages(teamName);
-      // アイドル通知をフィルタリング
-      const filtered = messages.filter(
-        (m) =>
-          m.messageType !== "idle_notification",
-      );
-      return filtered;
-    },
-    enabled: !!teamName,
-    staleTime: 1000 * 30, // 30秒間キャッシュ
-  });
-
-  return {
-    ...query,
-    messages: query.data ?? [],  // クエリデータを直接返す
-    clearMessages,
-  };
+  return useMemo(
+    () => ({
+      data: messages,
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      messages: messages,
+      clearMessages,
+      refetch: () => {}, // WebSocket経由で自動更新されるため不要
+    }),
+    [messages, clearMessages]
+  );
 }
 
 /**

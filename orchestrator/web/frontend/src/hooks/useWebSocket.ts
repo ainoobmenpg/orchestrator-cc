@@ -64,7 +64,6 @@ function initializeWebSocket() {
   const addTeam = useTeamStore.getState().addTeam;
   const removeTeam = useTeamStore.getState().removeTeam;
   const updateTeam = useTeamStore.getState().updateTeam;
-  const setTeams = useTeamStore.getState().setTeams;
   const upsertAgent = useTeamStore.getState().upsertAgent;
   const addMessage = useTeamStore.getState().addMessage;
   const addThinkingLog = useTeamStore.getState().addThinkingLog;
@@ -79,7 +78,7 @@ function initializeWebSocket() {
     // notify.success("ダッシュボードに接続しました");
   });
 
-  // 初期チームデータを受信（変更がある場合のみ更新）
+  // 初期チームデータを受信（個別にaddTeamを呼び出す）
   const unsubscribeTeams = wsClient.on("teams", (msg) => {
     if (msg.type === "teams" && msg.teams) {
       // 現在のストアのチームと比較して、変更がある場合のみ更新
@@ -92,7 +91,10 @@ function initializeWebSocket() {
         msg.teams.length !== currentTeams.size ||
         ![...newNames].every((name) => currentNames.has(name))
       ) {
-        setTeams(msg.teams);
+        // setTeamsの代わりに、個別にaddTeamを呼び出す
+        msg.teams.forEach((team) => {
+          addTeam(team);
+        });
       }
     }
   });
