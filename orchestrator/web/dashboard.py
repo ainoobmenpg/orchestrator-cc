@@ -121,8 +121,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静的ファイルを配信
+# パス設定
+_frontend_dist_dir = Path(__file__).parent / "frontend" / "dist"
+_templates_dir = Path(__file__).parent / "templates"
 _static_dir = Path(__file__).parent / "static"
+
+# 旧静的ファイル（開発用・互換性維持）
 if _static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
@@ -174,13 +178,19 @@ _static_dir = Path(__file__).parent / "static"
 
 @app.get("/")
 async def root():
-    """ダッシュボードHTMLを返します"""
+    """ダッシュボードHTMLを返します（React SPA）"""
     index_path = _templates_dir / "index.html"
+
+    # Reactビルド済みのindex.htmlが存在する場合はそれを返す
+    # そうでない場合は開発モード用のメッセージを返す
     if index_path.exists():
         return FileResponse(index_path)
+
+    # ビルド済みファイルがない場合はメッセージを返す
     return {
-        "message": "Orchestrator CC Dashboard API",
-        "version": "0.1.0",
+        "message": "Orchestrator CC Dashboard - React Build Required",
+        "version": "2.0.0",
+        "instructions": "Reactアプリをビルドしてください: cd orchestrator/web/frontend && npm install && npm run build",
         "endpoints": {
             "teams": "/api/teams",
             "teams_messages": "/api/teams/{team_name}/messages",
@@ -501,6 +511,89 @@ async def stop_teams_monitoring():
 
     _teams_monitor.stop_monitoring()
     return {"message": "Teams monitoring stopped"}
+
+
+# ============================================================================
+# SPA Serving (最後に定義して、他のルートが優先されるようにする)
+# ============================================================================
+
+
+@app.get("/")
+async def root():
+    """ダッシュボードHTMLを返します（React SPA）"""
+    # まず dist/index.html を試す
+    if _frontend_dist_dir.exists():
+        index_path = _frontend_dist_dir / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+
+    # 次に templates/index.html を試す
+    index_path = _templates_dir / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+
+    # ビルド済みファイルがない場合はメッセージを返す
+    return {
+        "message": "Orchestrator CC Dashboard - React Build Required",
+        "version": "2.0.0",
+        "instructions": "Reactアプリをビルドしてください: cd orchestrator/web/frontend && npm install && npm run build",
+        "endpoints": {
+            "teams": "/api/teams",
+            "teams_messages": "/api/teams/{team_name}/messages",
+            "teams_tasks": "/api/teams/{team_name}/tasks",
+            "teams_thinking": "/api/teams/{team_name}/thinking",
+            "teams_status": "/api/teams/{team_name}/status",
+            "health": "/api/health",
+            "websocket": "/ws",
+        },
+    }
+
+
+@app.get("/api")
+async def api_info():
+    """API情報を返します"""
+    return {
+        "message": "Orchestrator CC Dashboard API",
+        "version": "0.1.0",
+        "endpoints": {
+            "teams": "/api/teams",
+            "teams_messages": "/api/teams/{team_name}/messages",
+            "teams_tasks": "/api/teams/{team_name}/tasks",
+            "teams_thinking": "/api/teams/{team_name}/thinking",
+            "teams_status": "/api/teams/{team_name}/status",
+            "health": "/api/health",
+            "websocket": "/ws",
+        },
+    }
+
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """React SPAを配信します
+
+    全てのルートをindex.htmlにフォールバックすることで、
+    React Routerのクライアントサイドルーティングをサポートします。
+
+    Note: このルートは最後に定義する必要があります（キャッチオール）
+    """
+    if not _frontend_dist_dir.exists():
+        return {"error": "Frontend dist directory not found"}
+
+    # アセットファイルの場合は直接返す
+    asset_path = _frontend_dist_dir / full_path
+    if asset_path.exists() and asset_path.is_file():
+        return FileResponse(asset_path)
+
+    # それ以外の場合はindex.htmlを返す（SPAルーティング）
+    index_path = _frontend_dist_dir / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+
+    return {
+        "message": "Orchestrator CC Dashboard",
+        "version": "2.0.0",
+        "note": "Reactアプリがビルドされていません。frontendディレクトリで npm run build を実行してください。",
+    }
 
 
 if __name__ == "__main__":
