@@ -13,7 +13,6 @@ from orchestrator.web.team_models import (
     TeamInfo,
     TeamMember,
     TeamMessage,
-    ThinkingLog,
     _classify_message_category,
     _detect_emotion,
     load_team_config,
