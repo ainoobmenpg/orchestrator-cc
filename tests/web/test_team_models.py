@@ -183,67 +183,8 @@ class TestTeamMessage:
 class TestThinkingLog:
     """ThinkingLogクラスのテスト"""
 
-    def test_from_pane_output_action(self):
-        """行動ログのパース"""
-        output = "Tool used: Read to examine file"
-        logs = ThinkingLog.from_pane_output("test-agent", output)
-
-        assert len(logs) == 1
-        assert logs[0].agent_name == "test-agent"
-        assert logs[0].content == "Tool used: Read to examine file"
-        assert logs[0].category == MessageCategory.ACTION
-        assert logs[0].emotion == EmotionType.NEUTRAL
-
-    def test_from_pane_output_thinking(self):
-        """思考ログのパース"""
-        output = "Let me analyze the current situation"
-        logs = ThinkingLog.from_pane_output("test-agent", output)
-
-        assert len(logs) == 1
-        assert logs[0].category == MessageCategory.THINKING
-
-    def test_from_pane_output_emotion_confusion(self):
-        """感情（困惑）ログのパース"""
-        output = "I'm confused about the setup"
-        logs = ThinkingLog.from_pane_output("test-agent", output)
-
-        assert len(logs) == 1
-        assert logs[0].category == MessageCategory.EMOTION
-        assert logs[0].emotion == EmotionType.CONFUSION
-
-    def test_from_pane_output_emotion_satisfaction(self):
-        """感情（満足）ログのパース"""
-        output = "Successfully completed the task"
-        logs = ThinkingLog.from_pane_output("test-agent", output)
-
-        assert len(logs) == 1
-        assert logs[0].category == MessageCategory.EMOTION
-        assert logs[0].emotion == EmotionType.SATISFACTION
-
-    def test_from_pane_output_multiple_lines(self):
-        """複数行のパース"""
-        output = """Line 1: Tool used: Read
-Line 2: Let me analyze
-Line 3: I'm confused"""
-
-        logs = ThinkingLog.from_pane_output("test-agent", output)
-
-        assert len(logs) == 3
-        assert logs[0].category == MessageCategory.ACTION
-        assert logs[1].category == MessageCategory.THINKING
-        assert logs[2].category == MessageCategory.EMOTION
-
-    def test_from_pane_output_empty_lines(self):
-        """空行はスキップされる"""
-        output = """Line 1
-
-Line 3"""
-
-        logs = ThinkingLog.from_pane_output("test-agent", output)
-
-        assert len(logs) == 2
-        assert logs[0].content == "Line 1"
-        assert logs[1].content == "Line 3"
+    # from_pane_output() メソッドはtmux関連として削除されたため、
+    # これらのテストは削除されました
 
 
 # ============================================================================
