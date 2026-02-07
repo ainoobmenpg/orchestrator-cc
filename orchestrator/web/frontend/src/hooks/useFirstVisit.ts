@@ -18,13 +18,13 @@ const FIRST_VISIT_EVENT = "orchestrator-cc-first-visit-changed";
  * @returns 初回アクセスかどうか
  */
 export function useFirstVisit(): boolean {
-  const [isFirstVisit, setIsFirstVisit] = useState(false);
+  const [isFirstVisit, setIsFirstVisit] = useState(() => {
+    // 初期値を直接計算（useEffect内のsetStateを回避）
+    const hasVisited = localStorage.getItem(FIRST_VISIT_KEY);
+    return !hasVisited;
+  });
 
   useEffect(() => {
-    // 初期値を設定
-    const hasVisited = localStorage.getItem(FIRST_VISIT_KEY);
-    setIsFirstVisit(!hasVisited);
-
     // storageイベントで他タブからの変更を検出
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === FIRST_VISIT_KEY) {
@@ -86,11 +86,10 @@ export function resetTutorialCompleted(): void {
  * @returns チュートリアル完了状態と操作関数
  */
 export function useTutorialState() {
-  const [isCompleted, setIsCompleted] = useState(false);
-
-  useEffect(() => {
-    setIsCompleted(getTutorialCompleted());
-  }, []);
+  const [isCompleted, setIsCompleted] = useState(() => {
+    // 初期値を直接計算（useEffect内のsetStateを回避）
+    return getTutorialCompleted();
+  });
 
   const markCompleted = () => {
     markTutorialCompleted();

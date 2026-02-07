@@ -4,7 +4,7 @@
  * 初回アクセス時に基本機能の説明を表示します
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -73,20 +73,12 @@ export function Tutorial({ onClose }: TutorialProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const { markCompleted } = useTutorialState();
-  const [shouldShow, setShouldShow] = useState(false);
-  const initialized = useRef(false);
-
-  // 初回のみ実行（依存配列は空）
-  useEffect(() => {
-    if (initialized.current) return; // 2回目以降はスキップ
-    initialized.current = true;
-
+  // 初期値を計算関数で設定（useEffect内のsetStateを回避）
+  const [shouldShow, setShouldShow] = useState(() => {
     const hasVisited = localStorage.getItem("orchestrator-cc-first-visit");
-    const currentIsCompleted = getTutorialCompleted(); // 直接チェック
-    if (!hasVisited && !currentIsCompleted) {
-      setShouldShow(true);
-    }
-  }, []); // 空の依存配列
+    const currentIsCompleted = getTutorialCompleted();
+    return !hasVisited && !currentIsCompleted;
+  });
 
   // 既に完了している場合は表示しない
   if (!shouldShow) {
