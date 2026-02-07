@@ -1,13 +1,6 @@
-/**
- * Headerコンポーネント
- *
- * ダッシュボードのヘッダーを表示します
- */
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { RefreshCw } from "lucide-react";
 import { useWebSocket } from "../../hooks/useWebSocket";
-import { useTeams } from "../../hooks/useTeams";
 import { useTeamStore } from "../../stores/teamStore";
 import { notify } from "../../stores/uiStore";
 import type { ConnectionState } from "../../hooks/useWebSocket";
@@ -15,17 +8,24 @@ import type { TeamInfo } from "../../services/types";
 
 export function Header() {
   const { reconnect } = useWebSocket();
-  const { data: teamsData } = useTeams();
+
+  // ストアから直接取得（セレクターを使用して最小限の再レンダリング）
+  const teams = useTeamStore((state) => state.teams);
   const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
-  const setSelectedTeamName = useTeamStore((state) => state.setSelectedTeam);
+  const setSelectedTeam = useTeamStore((state) => state.setSelectedTeam);
+
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
 
-  const selectedTeam = teamsData?.find((t: TeamInfo) => t.name === selectedTeamName);
+  // 選択中のチームを取得
+  const selectedTeam = useMemo(
+    () => teams.find((t: TeamInfo) => t.name === selectedTeamName) || null,
+    [teams, selectedTeamName]
+  );
 
-  const handleTeamChange = (teamName: string) => {
-    setSelectedTeamName(teamName);
-  };
+  const handleTeamChange = useCallback((teamName: string) => {
+    setSelectedTeam(teamName || null);
+  }, [setSelectedTeam]);
 
   const handleReconnect = async () => {
     setIsReconnecting(true);
@@ -85,12 +85,12 @@ export function Header() {
         </label>
         <select
           id="team-select"
-          value={selectedTeam?.name ?? ""}
+          value={selectedTeamName ?? ""}
           onChange={(e) => handleTeamChange(e.target.value)}
           className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">-- チームを選択 --</option>
-          {teamsData?.map((team: TeamInfo) => (
+          {teams.map((team: TeamInfo) => (
             <option key={team.name} value={team.name}>
               {team.name}
             </option>

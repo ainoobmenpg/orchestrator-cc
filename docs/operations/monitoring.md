@@ -2,25 +2,28 @@
 
 このドキュメントでは、orchestrator-cc の監視とアラートについて説明します。
 
+**注意**: 2026-02-07をもって、tmux方式からAgent Teams方式へ完全移行しました。古いtmux方式に関する監視ドキュメントは `docs/archive/` にアーカイブされています。
+
 ---
 
 ## 現在の状況
 
 ### 実装済みの機能
 
-orchestrator-cc には `ClusterMonitor` クラスによる監視機能が実装されています。
+orchestrator-cc には `AgentHealthMonitor` クラスによる監視機能が実装されています。
 
 **機能**:
-- エージェントの状態監視（実行中、アイドル、エラーなど）
-- メトリクス収集
-- アラート通知
+- エージェントのアクティビティ監視
+- タイムアウト検知
+- ヘルスイベントの通知
+- Webダッシュボードでのリアルタイム表示
 
 **監視項目**:
 | 項目 | 説明 |
 |------|------|
-| エージェント状態 | 実行中/停止、最終アクティビティ時刻、再起動回数 |
-| メトリクス | 総エージェント数、実行中数、アイドル数、異常数 |
-| アラート | 異常検知時の通知 |
+| エージェント状態 | アクティブ、アイドル、タイムアウト |
+| 最終アクティビティ時刻 | 最後の活動時刻の追跡 |
+| タイムアウト検知 | 設定された閾値を超えたエージェントの検知 |
 
 ### 現在の制約事項
 
@@ -34,31 +37,86 @@ orchestrator-cc には `ClusterMonitor` クラスによる監視機能が実装�
 
 ## 監視の設定
 
-### ClusterMonitor の初期化
+### AgentHealthMonitor の初期化
 
 ```python
-from orchestrator.core.cluster_monitor import ClusterMonitor
+from orchestrator.core.agent_health_monitor import get_agent_health_monitor
 
-# 監視間隔: 5秒
-# エージェント応答タイムアウト: 60秒
-# 最大アイドル時間: 300秒
-monitor = ClusterMonitor(
-    cluster_manager,
-    check_interval=5.0,
-    agent_timeout=60.0,
-    max_idle_time=300.0,
-    alert_callback=alert_handler  # オプション
+# ヘルスモニターの取得
+monitor = get_agent_health_monitor()
+
+# エージェントの登録
+monitor.register_agent(
+    team_name="my-team",
+    agent_name="team-lead",
+    timeout_threshold=300.0  # 5分
 )
-```
 
-### 監視の開始と停止
-
-```python
 # 監視の開始
-monitor.start()
+monitor.start_monitoring()
 
 # 監視の停止
-monitor.stop()
+monitor.stop_monitoring()
+```
+
+### コールバックの登録
+
+```python
+def health_callback(event: HealthCheckEvent):
+    """ヘルスチェックイベントのコールバック"""
+    if event.event_type == HealthEventType.TIMEOUT:
+        print(f"Timeout: {event.team_name}/{event.agent_name}")
+    elif event.event_type == HealthEventType.RECOVERED:
+        print(f"Recovered: {event.team_name}/{event.agent_name}")
+
+# コールバックの登録
+monitor.register_callback(health_callback)
+```
+
+---
+
+## ヘルスステータスの確認
+
+### CLI からの確認
+
+```bash
+# ヘルスステータスを表示
+python -m orchestrator.cli health
+
+# 出力例
+# Health Status:
+#   my-team/team-lead: active (last_activity: 2s ago)
+#   my-team/researcher: active (last_activity: 15s ago)
+#   my-team/coder: timeout (last_activity: 320s ago)
+```
+
+### API からの確認
+
+```bash
+# ヘルスステータスを取得
+curl http://localhost:8000/api/health
+
+# 出力例
+# {
+#   "status": "healthy",
+#   "teams": {
+#     "my-team": {
+#       "team-lead": {"status": "active", "last_activity": "2026-02-07T12:00:00"},
+#       "researcher": {"status": "active", "last_activity": "2026-02-07T11:59:45"},
+#       "coder": {"status": "timeout", "last_activity": "2026-02-07T11:55:00"}
+#     }
+#   }
+# }
+```
+
+### ダッシュボードでの確認
+
+```bash
+# ダッシュボードを起動
+python -m orchestrator.web.dashboard
+
+# ブラウザでアクセス
+open http://localhost:8000
 ```
 
 ---
@@ -67,10 +125,10 @@ monitor.stop()
 
 | レベル | 説明 | 使用例 |
 |--------|------|--------|
-| INFO | 情報 | 状態変化通知 |
-| WARNING | 警告 | アイドル状態、再起動回数増加 |
-| ERROR | エラー | エージェント停止 |
-| CRITICAL | 重大 | クラスタ全体の障害 |
+| INFO | 情報 | エージェント参加、離脱 |
+| WARNING | 警告 | タイムアウト予告 |
+| ERROR | エラー | エージェントタイムアウト |
+| CRITICAL | 重大 | チーム全体の障害 |
 
 ---
 
@@ -82,22 +140,25 @@ monitor.stop()
 
 ```python
 # orchestrator/web/prometheus.py
-from prometheus_client import Counter, Gauge, Histogram, generate_latest
+from prometheus_client import Counter, Gauge, generate_latest
 
-# メトリクスの定inition
-agent_up = Gauge('orchestrator_agent_up', 'Agent status', ['agent_name'])
-agent_idle_time = Gauge('orchestrator_agent_idle_time_seconds', 'Agent idle time', ['agent_name'])
-agent_restarts = Counter('orchestrator_agent_restarts_total', 'Agent restarts', ['agent_name'])
-cluster_alerts = Counter('orchestrator_cluster_alerts_total', 'Cluster alerts', ['level'])
+# メトリクスの定義
+agent_up = Gauge('orchestrator_agent_up', 'Agent status', ['team_name', 'agent_name'])
+agent_idle_time = Gauge('orchestrator_agent_idle_time_seconds', 'Agent idle time', ['team_name', 'agent_name'])
+agent_timeouts = Counter('orchestrator_agent_timeouts_total', 'Agent timeouts', ['team_name', 'agent_name'])
 
 @app.get("/metrics")
 async def metrics():
     """Prometheus メトリクスエンドポイント"""
     # メトリクスの更新
-    for agent in status["agents"]:
-        agent_up.labels(agent_name=agent["name"]).set(1 if agent["running"] else 0)
-        agent_restarts.labels(agent_name=agent["name"]).inc(agent["restart_count"])
-
+    for team_name, agents in health_status.items():
+        for agent_name, status in agents.items():
+            agent_up.labels(team_name=team_name, agent_name=agent_name).set(
+                1 if status["isHealthy"] else 0
+            )
+            agent_idle_time.labels(team_name=team_name, agent_name=agent_name).set(
+                status["idleTime"]
+            )
     return Response(content=generate_latest(), media_type="text/plain")
 ```
 
@@ -124,11 +185,10 @@ scrape_configs:
 # orchestrator/web/notifications.py
 import os
 import httpx
-from orchestrator.core.cluster_monitor import Alert
 
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
-async def send_slack_alert(alert: Alert):
+async def send_slack_alert(event: HealthCheckEvent):
     """Slack にアラートを送信"""
     if not SLACK_WEBHOOK_URL:
         return
@@ -142,10 +202,10 @@ async def send_slack_alert(alert: Alert):
 
     payload = {
         "attachments": [{
-            "color": color_map.get(alert.level, "#cccccc"),
-            "title": f"[{alert.level.value.upper()}] {alert.agent_name}",
-            "text": alert.message,
-            "ts": int(alert.timestamp),
+            "color": color_map.get(event.event_type.value, "#cccccc"),
+            "title": f"[{event.event_type.value.upper()}] {event.team_name}/{event.agent_name}",
+            "text": event.message,
+            "ts": int(event.timestamp.timestamp()),
         }]
     }
 
@@ -153,10 +213,7 @@ async def send_slack_alert(alert: Alert):
         await client.post(SLACK_WEBHOOK_URL, json=payload)
 
 # コールバックとして設定
-monitor = ClusterMonitor(
-    cluster_manager,
-    alert_callback=lambda alert: send_slack_alert(alert)
-)
+monitor.register_callback(lambda e: send_slack_alert(e))
 ```
 
 **環境変数設定**:
@@ -185,18 +242,19 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 ALERT_EMAIL_TO = os.getenv("ALERT_EMAIL_TO", "admin@example.com")
 
-def send_email_alert(alert: Alert):
+def send_email_alert(event: HealthCheckEvent):
     """Email にアラートを送信"""
     msg = MIMEMultipart()
     msg["From"] = SMTP_USER
     msg["To"] = ALERT_EMAIL_TO
-    msg["Subject"] = f"[{alert.level.value.upper()}] orchestrator-cc Alert"
+    msg["Subject"] = f"[{event.event_type.value.upper()}] orchestrator-cc Alert"
 
     body = f"""
-    Agent: {alert.agent_name}
-    Level: {alert.level.value}
-    Message: {alert.message}
-    Timestamp: {alert.timestamp}
+    Team: {event.team_name}
+    Agent: {event.agent_name}
+    Level: {event.event_type.value}
+    Message: {event.message}
+    Timestamp: {event.timestamp}
     """
 
     msg.attach(MIMEText(body, "plain"))
@@ -234,7 +292,7 @@ class StructuredLogger:
 
 # 使用例
 logger = StructuredLogger("orchestrator")
-logger.log("info", "Agent started", agent_name="grand_boss", pane_index=0)
+logger.log("info", "Agent started", team_name="my-team", agent_name="team-lead")
 ```
 
 ---
@@ -255,46 +313,20 @@ logger.log("info", "Agent started", agent_name="grand_boss", pane_index=0)
         }]
       },
       {
-        "title": "Agent Restarts",
+        "title": "Agent Idle Time",
         "targets": [{
-          "expr": "rate(orchestrator_agent_restarts_total[5m])"
+          "expr": "orchestrator_agent_idle_time_seconds"
         }]
       },
       {
-        "title": "Cluster Alerts",
+        "title": "Agent Timeouts",
         "targets": [{
-          "expr": "rate(orchestrator_cluster_alerts_total[5m])"
+          "expr": "rate(orchestrator_agent_timeouts_total[5m])"
         }]
       }
     ]
   }
 }
-```
-
----
-
-## Web ダッシュボードでの監視
-
-### ダッシュボードの起動
-
-```bash
-python -m orchestrator.cli dashboard
-```
-
-### 監視機能の使用
-
-```bash
-# 監視の開始
-curl -X POST http://localhost:8000/api/monitoring/start
-
-# 監視の停止
-curl -X POST http://localhost:8000/api/monitoring/stop
-
-# メトリクスの取得
-curl http://localhost:8000/api/metrics
-
-# アラートの取得
-curl http://localhost:8000/api/alerts
 ```
 
 ---
@@ -309,13 +341,13 @@ curl http://localhost:8000/api/alerts
 | ステージング | 5-10 秒 |
 | 本番 | 5 秒 |
 
-### 2. アラートの閾値
+### 2. タイムアウトの閾値
 
-| 項目 | WARNING | ERROR | CRITICAL |
-|------|---------|-------|----------|
-| アイドル時間 | 300 秒 | 600 秒 | 900 秒 |
-| 再起動回数 | 3 回 | 5 回 | 10 回 |
-| 停止エージェント数 | 1 | 2 | 3 |
+| エージェントタイプ | 推奨タイムアウト |
+|------------------|-----------------|
+| Team Lead | 300 秒 (5分) |
+| Specialist | 300 秒 (5分) |
+| Monitor Only | 600 秒 (10分) |
 
 ### 3. ログの保存期間
 
@@ -332,3 +364,4 @@ curl http://localhost:8000/api/alerts
 - [deployment.md](deployment.md) - デプロイ手順
 - [troubleshooting.md](troubleshooting.md) - トラブルシューティング
 - [backup-recovery.md](backup-recovery.md) - バックアップと復旧
+- [../architecture.md](../architecture.md) - アーキテクチャ詳細

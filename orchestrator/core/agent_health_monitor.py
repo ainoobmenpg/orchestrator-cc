@@ -5,7 +5,6 @@
 
 import logging
 import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -80,7 +79,7 @@ class AgentHealthMonitor:
     Attributes:
         _health_status: チーム・エージェントごとのヘルス状態
         _callbacks: イベントコールバックのリスト
-        _monitoring_active: 監視中フラグ
+        _stop_event: 監視停止イベント
         _check_interval: チェック間隔（秒）
         _thread: 監視スレッド
     """
@@ -93,7 +92,7 @@ class AgentHealthMonitor:
         """
         self._health_status: dict[str, dict[str, AgentHealthStatus]] = {}
         self._callbacks: list[Callable[[HealthCheckEvent], None]] = []
-        self._monitoring_active = False
+        self._stop_event = threading.Event()
         self._check_interval = check_interval
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -149,20 +148,22 @@ class AgentHealthMonitor:
 
     def start_monitoring(self) -> None:
         """監視を開始します。"""
-        if self._monitoring_active:
+        if self._stop_event.is_set():
             logger.warning("Health monitoring is already active")
             return
 
-        self._monitoring_active = True
+        self._stop_event.clear()
         self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
         self._thread.start()
         logger.info("Agent health monitoring started")
 
     def stop_monitoring(self) -> None:
         """監視を停止します。"""
-        self._monitoring_active = False
+        # 停止イベントを設定して、即座にループを終了させる
+        self._stop_event.set()
 
         if self._thread:
+            # スレッドが終了するのを待つ（最大5秒）
             self._thread.join(timeout=5.0)
             self._thread = None
 
@@ -174,7 +175,7 @@ class AgentHealthMonitor:
         Returns:
             監視中ならTrue
         """
-        return self._monitoring_active
+        return not self._stop_event.is_set() and self._thread is not None
 
     def get_health_status(self) -> dict[str, Any]:
         """現在のヘルス状態を取得します。
@@ -201,13 +202,14 @@ class AgentHealthMonitor:
 
     def _monitor_loop(self) -> None:
         """監視ループ"""
-        while self._monitoring_active:
+        while not self._stop_event.is_set():
             try:
                 self._check_all_agents()
             except Exception as e:
                 logger.error(f"Health check error: {e}")
 
-            time.sleep(self._check_interval)
+            # 停止イベントを待つ（チェック間隔または即座に終了）
+            self._stop_event.wait(self._check_interval)
 
     def _check_all_agents(self) -> None:
         """全エージェントのヘルスチェックを実行します。"""

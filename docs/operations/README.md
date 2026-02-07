@@ -6,7 +6,9 @@
 
 ## 概要
 
-orchestrator-cc は、複数の Claude Code インスタンスを実際に走らせて、それらに生のやり取りをさせるシステムです。運用ドキュメントでは、システムの本番運用に必要な手順、設定、監視、トラブルシューティングについて説明します。
+orchestrator-cc は、Claude CodeのAgent Teams機能を使用したマルチエージェント協調システムです。運用ドキュメントでは、システムの本番運用に必要な手順、設定、監視、トラブルシューティングについて説明します。
+
+**注意**: 2026-02-07をもって、tmux方式からAgent Teams方式へ完全移行しました。古いtmux方式のドキュメントは `docs/archive/` にアーカイブされています。
 
 ---
 
@@ -24,10 +26,10 @@ orchestrator-cc は、複数の Claude Code インスタンスを実際に走ら
 
 | ドキュメント | 説明 | 優先度 |
 |-------------|------|--------|
-| [deployment.md](deployment.md) | デプロイ手順 | P0 |
-| [security.md](security.md) | セキュリティ設定 | P0 |
 | [configuration.md](configuration.md) | 設定管理 | P0 |
 | [troubleshooting.md](troubleshooting.md) | トラブルシューティング | P0 |
+| [deployment.md](deployment.md) | デプロイ手順 | P1 |
+| [security.md](security.md) | セキュリティ設定 | P1 |
 | [monitoring.md](monitoring.md) | 監視とアラート | P1 |
 | [backup-recovery.md](backup-recovery.md) | バックアップと復旧 | P1 |
 | [runbook.md](runbook.md) | 運用マニュアル | P1 |
@@ -38,56 +40,56 @@ orchestrator-cc は、複数の Claude Code インスタンスを実際に走ら
 
 | 用語 | 説明 |
 |------|------|
-| **クラスタ** | orchestrator-cc で管理される Claude Code インスタンス群 |
-| **エージェント** | 各ペインで動作する Claude Code プロセス |
-| **tmux セッション** | エージェントを動作させるターミナルマルチプレクサーのセッション |
-| **ペイン** | tmux セッション内の分割された端末画面 |
-| **ダッシュボード** | Web ベースのクラスタ管理インターフェース |
-| **監視（Monitoring）** | クラスタの状態を監視する機能 |
-| **アラート** | 異常検知時に発行される通知 |
-| **再起動（Restart）** | エージェントを再起動する操作 |
-| **シャットダウン（Shutdown）** | クラスタ全体を停止し、tmux セッションを削除する操作 |
+| **Agent Teams** | Claude Codeの機能で、複数のAIエージェントをチームとして協調動作させる仕組み |
+| **チーム（Team）** | orchestrator-cc で管理されるエージェント群 |
+| **エージェント（Agent）** | チーム内で動作する個別の Claude Code プロセス |
+| **ダッシュボード** | Web ベースのチーム管理インターフェース（FastAPI + React） |
+| **ヘルスチェック** | エージェントの状態を監視する機能 |
+| ** SendMessage** | Claude Codeのツールで、エージェント間でメッセージを送信する機能 |
+| **TaskUpdate** | Claude Codeのツールで、タスク状態を更新する機能 |
 
 ---
 
 ## クイックリファレンス
 
-### クラスタ操作コマンド
+### チーム操作コマンド
 
 ```bash
-# クラスタ起動
-python -m orchestrator.cli start
+# チーム一覧を表示
+python -m orchestrator.cli list-teams
 
-# クラスタ停止
-python -m orchestrator.cli stop
+# チームの状態を確認
+python -m orchestrator.cli team-status <team-name>
 
-# クラスタ再起動
-python -m orchestrator.cli restart
+# チームのメッセージを表示
+python -m orchestrator.cli team-messages <team-name>
 
-# クラスタシャットダウン
-python -m orchestrator.cli shutdown
+# チームのタスクを表示
+python -m orchestrator.cli team-tasks <team-name>
 
-# ステータス確認
-python -m orchestrator.cli status
+# チームの思考ログを表示
+python -m orchestrator.cli show-logs <team-name>
 
-# ダッシュボード起動
-python -m orchestrator.cli dashboard
+# 新しいチームを作成
+python -m orchestrator.cli create-team <team-name> \
+  --description "チームの説明" \
+  --members members.json
+
+# チームを削除
+python -m orchestrator.cli delete-team <team-name>
+
+# ヘルスステータスを表示
+python -m orchestrator.cli health
 ```
 
-### tmux 操作
+### ダッシュボード操作
 
 ```bash
-# セッションにアタッチ
-tmux attach -t orchestrator-cc
+# ダッシュボードを起動
+python -m orchestrator.web.dashboard
 
-# デタッチ
-Ctrl+B, D
-
-# セッション一覧
-tmux ls
-
-# セッション強制終了
-tmux kill-session -t orchestrator-cc
+# ブラウザでアクセス
+open http://localhost:8000
 ```
 
 ---
@@ -100,9 +102,9 @@ tmux kill-session -t orchestrator-cc
 |------|------|
 | OS | macOS 12+, Ubuntu 20.04+, WSL2 |
 | Python | 3.10+ |
-| tmux | 3.0+ |
 | メモリ | 4GB+ |
 | ディスク | 1GB+ |
+| Claude Code | Agent Teams機能をサポートするバージョン |
 
 ### 推奨要件
 
@@ -114,14 +116,36 @@ tmux kill-session -t orchestrator-cc
 
 ---
 
+## ディレクトリ構成
+
+```
+~/.claude/
+├── teams/                      # チームデータ
+│   └── {team-name}/
+│       ├── config.json         # チーム設定
+│       ├── inbox/              # 受信メッセージ
+│       └── messages/           # 送信メッセージ
+└── tasks/                      # タスクデータ
+    └── {team-name}/
+        └── *.json              # タスクデータ
+
+orchestrator-cc/
+├── orchestrator/               # メインパッケージ
+│   ├── core/                   # コア機能
+│   ├── web/                    # Webダッシュボード
+│   └── cli/                    # CLIツール
+└── docs/                       # ドキュメント
+```
+
+---
+
 ## 関連ドキュメント
 
 ### プロジェクト内ドキュメント
 
 - [../README.md](../README.md) - プロジェクト概要
 - [../architecture.md](../architecture.md) - アーキテクチャ詳細
-- [../web-dashboard.md](../web-dashboard.md) - Webダッシュボード仕様
-- [../api/web-api.md](../api/web-api.md) - Web API 仕様
+- [CLAUDE.md](../../CLAUDE.md) - Claude Code用ガイド
 
 ### ワークフロードキュメント
 
@@ -136,21 +160,21 @@ tmux kill-session -t orchestrator-cc
 
 ## 運用に関するよくある質問
 
-### Q: クラスタが起動しない場合はどうすればよいですか？
+### Q: チームが作成できない場合はどうすればよいですか？
 
-A: [troubleshooting.md](troubleshooting.md) の「エージェントが起動しない」セクションを参照してください。
+A: [troubleshooting.md](troubleshooting.md) の「チーム作成エラー」セクションを参照してください。
 
-### Q: 本番環境でどのようにデプロイすべきですか？
+### Q: エージェントが応答しない場合はどうすればよいですか？
 
-A: [deployment.md](deployment.md) で推奨されるデプロイ方法を説明しています。
-
-### Q: セキュリティ対策は何が必要ですか？
-
-A: [security.md](security.md) で認証、HTTPS、シークレット管理について説明しています。
+A: [troubleshooting.md](troubleshooting.md) の「エージェント応答なし」セクションを参照してください。
 
 ### Q: 監視やアラートはどのように設定しますか？
 
 A: [monitoring.md](monitoring.md) で監視の設定とアラート通知について説明しています。
+
+### Q: バックアップはどのように作成しますか？
+
+A: [backup-recovery.md](backup-recovery.md) でバックアップと復旧の手順について説明しています。
 
 ---
 
@@ -168,4 +192,5 @@ A: [monitoring.md](monitoring.md) で監視の設定とアラート通知につ�
 
 | 日付 | バージョン | 変更内容 |
 |------|-----------|----------|
+| 2026-02-07 | 2.0.0 | Agent Teams移行に伴う全面改訂 |
 | 2026-02-04 | 1.0.0 | 初版作成 |

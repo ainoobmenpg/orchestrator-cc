@@ -11,7 +11,6 @@
 import { useEffect, useCallback } from "react";
 import { getWebSocketClient } from "../services/websocket";
 import { useTeamStore } from "../stores/teamStore";
-import { notify } from "../stores/uiStore";
 import { errorHandler } from "../services/errorHandler";
 
 // ============================================================================
@@ -75,7 +74,27 @@ function initializeWebSocket() {
   // メッセージハンドラーを登録
   const unsubscribeConnected = wsClient.on("connected", () => {
     setConnectionState("connected");
-    notify.success("ダッシュボードに接続しました");
+    // 通知を削除（無限レンダリング対策）
+    // notify.success("ダッシュボードに接続しました");
+  });
+
+  // 初期チームデータを受信
+  const unsubscribeTeams = wsClient.on("teams", (msg) => {
+    if (msg.type === "teams" && msg.teams) {
+      // 現在のストアのチームと比較して、変更がある場合のみ更新
+      const currentTeams = useTeamStore.getState().teams;
+      const currentNames = new Set(currentTeams.map((t) => t.name));
+      const newNames = new Set(msg.teams.map((t) => t.name));
+
+      // チーム数または名前が異なる場合のみ更新
+      if (
+        msg.teams.length !== currentTeams.length ||
+        ![...newNames].every((name) => currentNames.has(name))
+      ) {
+        // setTeamsを使用して一括更新
+        useTeamStore.getState().setTeams(msg.teams);
+      }
+    }
   });
 
   const unsubscribeTeamCreated = wsClient.on("team_created", (msg) => {
@@ -155,6 +174,7 @@ function initializeWebSocket() {
   // クリーンアップ関数を保存
   unsubscribers = [
     unsubscribeConnected,
+    unsubscribeTeams,
     unsubscribeTeamCreated,
     unsubscribeTeamDeleted,
     unsubscribeTeamUpdated,

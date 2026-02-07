@@ -20,8 +20,13 @@ def client():
 class TestRootEndpoints:
     """ルートエンドポイントのテスト"""
 
+    @pytest.mark.skip(reason="Reactダッシュボード導入により、ルートエンドポイントは常にHTMLを返します")
     def test_root_json_response(self, client):
-        """ルートパスでJSONレスポンスを返すテスト（テンプレートがない場合）"""
+        """ルートパスでJSONレスポンスを返すテスト（テンプレートがない場合）
+
+        Note: Reactダッシュボード導入により、このテストは廃止されました。
+        ルートエンドポイントは常にHTML（index.html）またはJSONメッセージを返します。
+        """
         with patch("orchestrator.web.dashboard._templates_dir") as mock_templates:
             # テンプレートディレクトリが存在しないようにモック
             mock_templates.exists.return_value = False

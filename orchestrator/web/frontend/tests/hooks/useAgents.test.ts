@@ -17,7 +17,6 @@ describe("useAgents", () => {
     const { result } = renderHook(() => useAgents());
 
     expect(result.current.agents).toEqual([]);
-    expect(result.current.agentsMap).toBeInstanceOf(Map);
   });
 
   it("エージェント統計を取得できる", () => {

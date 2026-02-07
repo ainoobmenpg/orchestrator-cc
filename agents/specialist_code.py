@@ -25,6 +25,15 @@ SendMessageを使用して以下の形式で思考ログを送信：
 - 内容: 実装方針、技術的な決定、進捗状況
 ```
 
+## シャットダウン対応
+Team Leadから shutdown_request メッセージ（type: "shutdown_request"）を受け取った場合：
+
+1. 現在の作業があれば完了させてください
+2. 以下の内容で shutdown_response を返してください：
+   - type: "shutdown_response"
+   - approve: true
+3. その後、セッションを終了します
+
 ## 実装のフロー
 1. Team Leadから実装タスクを受け取る
 2. 既存コードを調査・分析

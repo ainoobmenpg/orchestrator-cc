@@ -15,8 +15,7 @@ export function useAgents() {
   const agents = useTeamStore((state) => state.agents);
 
   return {
-    agents: Array.from(agents.values()),
-    agentsMap: agents,
+    agents,
   };
 }
 
@@ -26,7 +25,7 @@ export function useAgents() {
 export function useAgent(agentName: string | null) {
   const agents = useTeamStore((state) => state.agents);
 
-  return agentName ? agents.get(agentName) : null;
+  return agentName ? agents.find((a) => a.name === agentName) : null;
 }
 
 /**
@@ -36,16 +35,14 @@ export function useAgentStats() {
   const agents = useTeamStore((state) => state.agents);
 
   return useMemo(() => {
-    const agentList = Array.from(agents.values());
-
     return {
-      total: agentList.length,
-      running: agentList.filter((a) => a.status === "running").length,
-      idle: agentList.filter((a) => a.status === "idle").length,
-      stopped: agentList.filter((a) => a.status === "stopped").length,
-      error: agentList.filter((a) => a.status === "error").length,
+      total: agents.length,
+      running: agents.filter((a) => a.status === "running").length,
+      idle: agents.filter((a) => a.status === "idle").length,
+      stopped: agents.filter((a) => a.status === "stopped").length,
+      error: agents.filter((a) => a.status === "error").length,
     };
-  }, [agents]);
+  }, [agents.length, agents.map((a) => a.status).join(",")]); // ステータスのみを依存配列に
 }
 
 /**
