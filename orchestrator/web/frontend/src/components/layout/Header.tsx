@@ -1,13 +1,6 @@
-/**
- * Headerコンポーネント
- *
- * ダッシュボードのヘッダーを表示します
- */
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { useWebSocket } from "../../hooks/useWebSocket";
-import { useTeams } from "../../hooks/useTeams";
 import { useTeamStore } from "../../stores/teamStore";
 import { notify } from "../../stores/uiStore";
 import type { ConnectionState } from "../../hooks/useWebSocket";
@@ -15,17 +8,55 @@ import type { TeamInfo } from "../../services/types";
 
 export function Header() {
   const { reconnect } = useWebSocket();
-  const { data: teamsData } = useTeams();
-  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
-  const setSelectedTeamName = useTeamStore((state) => state.setSelectedTeam);
+  const [selectedTeamName, setSelectedTeamName] = useState<string>("");
+  const [teamsData, setTeamsData] = useState<TeamInfo[]>([]);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const isInitializedRef = useRef(false);
 
-  const selectedTeam = teamsData?.find((t: TeamInfo) => t.name === selectedTeamName);
+  // 初期化（初回のみ）
+  useEffect(() => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
 
-  const handleTeamChange = (teamName: string) => {
+    const state = useTeamStore.getState();
+    setSelectedTeamName(state.selectedTeamName ?? "");
+    setTeamsData(Array.from(state.teams.values()));
+  }, []);
+
+  // teamNamesの変更を監視（selectedTeamNameが変わらない場合のみ更新）
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- teamsDataを依存配列から除外することで無限レンダリングを防ぐ
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      const unsubscribe = useTeamStore.subscribe((state) => {
+        // selectedTeamNameが変わった場合はスキップ（handleTeamChangeで処理）
+        if (state.selectedTeamName !== selectedTeamName) return;
+
+        // teamNamesの変更を監視して、teamsDataを更新
+        const newTeamsData = Array.from(state.teams.values());
+
+        // チームデータが変わった場合のみ更新
+        if (newTeamsData.length !== teamsData.length ||
+            !newTeamsData.every((t, i) => i < teamsData.length && t.name === teamsData[i]?.name)) {
+          setTeamsData(newTeamsData);
+        }
+      });
+
+      return unsubscribe;
+    }
+  }, [selectedTeamName]); // selectedTeamNameのみを依存配列に含める（teamsData.lengthを含めると無限レンダリングが発生する）
+
+  const selectedTeam = useMemo(
+    () => teamsData.find((t: TeamInfo) => t.name === selectedTeamName) || null,
+    [teamsData, selectedTeamName]
+  );
+
+  const handleTeamChange = useCallback((teamName: string) => {
+    // ローカルステートを即座に更新（無限ループ防止）
     setSelectedTeamName(teamName);
-  };
+    // ストアも更新
+    useTeamStore.getState().setSelectedTeam(teamName);
+  }, []);
 
   const handleReconnect = async () => {
     setIsReconnecting(true);
@@ -85,7 +116,7 @@ export function Header() {
         </label>
         <select
           id="team-select"
-          value={selectedTeam?.name ?? ""}
+          value={selectedTeamName ?? ""}
           onChange={(e) => handleTeamChange(e.target.value)}
           className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >

@@ -2,31 +2,36 @@
  * タスクフック
  *
  * タスク情報の取得と管理を提供します
+ *
+ * 注意: このフックは非推奨です。直接 useTeamStore を使用してください。
+ * これはReact Queryの依存を削除するためにリファクタリングされました。
  */
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { getTeamTasks } from "../services/api";
 import { useTeamStore } from "../stores/teamStore";
 
 /**
- * チームタスクリストを取得するフック
+ * チームタスクリストを取得するフック（非推奨）
+ *
+ * 代わりに useTeamStore を直接使用してください:
+ * const tasks = useTeamStore((state) => state.tasks);
+ *
+ * @deprecated ストアを直接使用してください
  */
-export function useTasks(teamName: string | null) {
-  const query = useQuery({
-    queryKey: ["tasks", teamName],
-    queryFn: async () => {
-      if (!teamName) return [];
-      return getTeamTasks(teamName);
-    },
-    enabled: !!teamName,
-    staleTime: 1000 * 30, // 30秒間キャッシュ
-  });
+export function useTasks() {
+  const tasks = useTeamStore((state) => state.tasks);
 
-  return {
-    ...query,
-    tasks: query.data ?? [],  // クエリデータを直接返す
-  };
+  return useMemo(
+    () => ({
+      data: tasks,
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      tasks: tasks,
+      refetch: () => {}, // WebSocket経由で自動更新されるため不要
+    }),
+    [tasks]
+  );
 }
 
 /**
