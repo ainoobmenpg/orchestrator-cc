@@ -13,7 +13,6 @@ import { LiveRegionContainer } from "./components/common/LiveRegion";
 import { MainLayout } from "./components/layout/MainLayout";
 import { DashboardPage } from "./pages/DashboardPage";
 import { Tutorial } from "./components/onboarding/Tutorial";
-import { useFirstVisit } from "./hooks/useFirstVisit";
 import { setupGlobalErrorHandlers } from "./services/errorHandler";
 
 // グローバルエラーハンドラーをセットアップ
@@ -37,8 +36,6 @@ function App() {
     // ここではグローバルエラーハンドラーのセットアップのみ行います
   }, []);
 
-  const isFirstVisit = useFirstVisit();
-
   return (
     <ErrorBoundary onError={undefined}>
       {/* スキップリンク - キーボードユーザー向け */}
@@ -57,7 +54,7 @@ function App() {
         </MainLayout>
         <ReactQueryDevtools initialIsOpen={false} />
         {/* 初回アクセス時のチュートリアル */}
-        <Tutorial isOpen={isFirstVisit} />
+        <Tutorial />
       </QueryClientProvider>
     </ErrorBoundary>
   );

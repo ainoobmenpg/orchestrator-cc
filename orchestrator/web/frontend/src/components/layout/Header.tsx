@@ -4,21 +4,24 @@
  * ダッシュボードのヘッダーを表示します
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useTeams } from "../../hooks/useTeams";
 import { useTeamStore } from "../../stores/teamStore";
 import { notify } from "../../stores/uiStore";
+import type { ConnectionState } from "../../hooks/useWebSocket";
+import type { TeamInfo } from "../../services/types";
 
 export function Header() {
-  const { connectionState, reconnect } = useWebSocket();
+  const { reconnect } = useWebSocket();
   const { data: teamsData } = useTeams();
   const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
   const setSelectedTeamName = useTeamStore((state) => state.setSelectedTeam);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
 
-  const selectedTeam = teamsData?.find((t) => t.name === selectedTeamName);
+  const selectedTeam = teamsData?.find((t: TeamInfo) => t.name === selectedTeamName);
 
   const handleTeamChange = (teamName: string) => {
     setSelectedTeamName(teamName);
@@ -35,6 +38,24 @@ export function Header() {
       setTimeout(() => setIsReconnecting(false), 1000);
     }
   };
+
+  // 接続状態を監視してローカルステートを更新
+  useEffect(() => {
+    const updateConnectionState = () => {
+      // グローバル変数から直接接続状態を取得
+      // @ts-ignore - グローバル変数にアクセス
+      const state = window.__wsConnectionState ?? "disconnected";
+      setConnectionState(state);
+    };
+
+    // 初期値を設定
+    updateConnectionState();
+
+    // ポーリングで接続状態を監視（再レンダリングを引き起こさない）
+    const interval = setInterval(updateConnectionState, 500);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const connectionStatusClass = {
     connected: "bg-green-500",
@@ -72,7 +93,7 @@ export function Header() {
           className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">-- チームを選択 --</option>
-          {teamsData?.map((team) => (
+          {teamsData?.map((team: TeamInfo) => (
             <option key={team.name} value={team.name}>
               {team.name}
             </option>
