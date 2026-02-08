@@ -12,7 +12,6 @@ import { SkipLink } from "./components/common/SkipLink";
 import { LiveRegionContainer } from "./components/common/LiveRegion";
 import { MainLayout } from "./components/layout/MainLayout";
 import { DashboardPage } from "./pages/DashboardPage";
-import { Tutorial } from "./components/onboarding/Tutorial";
 import { setupGlobalErrorHandlers } from "./services/errorHandler";
 
 // グローバルエラーハンドラーをセットアップ
@@ -53,8 +52,6 @@ function App() {
           </main>
         </MainLayout>
         <ReactQueryDevtools initialIsOpen={false} />
-        {/* 初回アクセス時のチュートリアル */}
-        <Tutorial />
       </QueryClientProvider>
     </ErrorBoundary>
   );
