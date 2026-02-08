@@ -184,7 +184,7 @@ class TestWebSocketIntegration:
         websocket = AsyncMock()
 
         # 接続を追加
-        manager._active_connections = [AsyncMock(), AsyncMock()]
+        manager.active_connections = [AsyncMock(), AsyncMock()]
 
         await handler._handle_get_status({}, websocket)
 

@@ -33,7 +33,7 @@ class TestWebSocketManager:
 
         await manager.connect(websocket)
 
-        assert websocket in manager._active_connections
+        assert websocket in manager.active_connections
         websocket.accept.assert_called_once()
 
     @pytest.mark.asyncio
@@ -48,7 +48,7 @@ class TestWebSocketManager:
 
         manager.disconnect(websocket)
         assert manager.get_connection_count() == 0
-        assert websocket not in manager._active_connections
+        assert websocket not in manager.active_connections
 
     def test_disconnect_nonexistent_connection(self):
         """存在しない接続の切断テスト"""
@@ -79,7 +79,7 @@ class TestWebSocketManager:
         await manager.send_personal({"type": "test"}, websocket)
 
         # エラー時に切断される
-        assert websocket not in manager._active_connections
+        assert websocket not in manager.active_connections
 
     @pytest.mark.asyncio
     async def test_broadcast(self):
@@ -121,7 +121,7 @@ class TestWebSocketManager:
         manager = WebSocketManager()
 
         # 非同期メソッドだが、テスト用に同期的に追加
-        manager._active_connections = [AsyncMock() for _ in range(3)]
+        manager.active_connections = [AsyncMock() for _ in range(3)]
 
         assert manager.get_connection_count() == 3
 
@@ -131,14 +131,14 @@ class TestWebSocketManager:
         connections = [AsyncMock(), AsyncMock()]
 
         for ws in connections:
-            manager._active_connections.append(ws)
+            manager.active_connections.append(ws)
 
         result = manager.get_connections()
 
         assert len(result) == 2
         assert result == connections
         # コピーが返されることを確認
-        assert result is not manager._active_connections
+        assert result is not manager.active_connections
 
     @pytest.mark.asyncio
     async def test_close_all(self):
@@ -148,7 +148,7 @@ class TestWebSocketManager:
         ws2 = AsyncMock()
         ws3 = AsyncMock()
 
-        manager._active_connections = [ws1, ws2, ws3]
+        manager.active_connections = [ws1, ws2, ws3]
 
         await manager.close_all()
 
@@ -169,7 +169,7 @@ class TestWebSocketManager:
         ws2.close = AsyncMock(side_effect=Exception("Already closed"))
         ws3 = AsyncMock()
 
-        manager._active_connections = [ws1, ws2, ws3]
+        manager.active_connections = [ws1, ws2, ws3]
 
         # 例外が発生しないことを確認
         await manager.close_all()
@@ -232,7 +232,7 @@ class TestWebSocketMessageHandler:
         websocket = AsyncMock()
 
         # 接続を追加
-        manager._active_connections = [AsyncMock(), AsyncMock()]
+        manager.active_connections = [AsyncMock(), AsyncMock()]
 
         await handler._handle_get_status({}, websocket)
 

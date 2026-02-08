@@ -6,7 +6,6 @@ orchestrator/web/api/websocket.py のテストです。
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi.testclient import TestClient
 from fastapi.websockets import WebSocket
 
 from orchestrator.web.api import websocket
