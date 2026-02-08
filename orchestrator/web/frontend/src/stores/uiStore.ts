@@ -14,6 +14,9 @@ import { devtools, persist } from "zustand/middleware";
 /** タブ名 */
 export type TabName = "dashboard" | "tasks" | "conference";
 
+// タイマー管理（通知の自動削除用）
+const notificationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 /** 通知タイプ */
 export type NotificationType = "info" | "success" | "warning" | "error";
 
@@ -205,13 +208,27 @@ export const useUIStore = create<UIStore>()(
 
           // 自動消去
           if (notification.duration && notification.duration > 0) {
-            setTimeout(() => {
+            const existingTimer = notificationTimers.get(id);
+            if (existingTimer) {
+              clearTimeout(existingTimer);
+            }
+
+            const timerId = setTimeout(() => {
               get().removeNotification(id);
+              notificationTimers.delete(id);
             }, notification.duration);
+
+            notificationTimers.set(id, timerId);
           }
         },
 
         removeNotification: (id) => {
+          const timerId = notificationTimers.get(id);
+          if (timerId) {
+            clearTimeout(timerId);
+            notificationTimers.delete(id);
+          }
+
           set((state) => ({
             notifications: state.notifications.filter((n) => n.id !== id),
           }));
