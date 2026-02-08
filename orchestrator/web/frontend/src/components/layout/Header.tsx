@@ -46,7 +46,14 @@ export function Header() {
     const updateConnectionState = () => {
       // グローバル変数から直接接続状態を取得
       const state = window.__wsConnectionState ?? "disconnected";
-      setConnectionState(state);
+
+      // 状態が実際に変更された場合のみ更新
+      setConnectionState((prevState) => {
+        if (prevState !== state) {
+          return state;
+        }
+        return prevState;
+      });
     };
 
     // 初期値を設定

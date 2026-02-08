@@ -40,6 +40,12 @@ interface TeamState {
 
   // タスク
   tasks: TaskInfo[];
+  taskStats: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    total: number;
+  };
 
   // 思考ログ
   thinkingLogs: ThinkingLog[];
@@ -109,6 +115,12 @@ const initialState: TeamState = {
     result: 0,
   },
   tasks: [],
+  taskStats: {
+    pending: 0,
+    inProgress: 0,
+    completed: 0,
+    total: 0,
+  },
   thinkingLogs: [],
   systemLogs: [],
   hasErrors: false,
@@ -243,21 +255,47 @@ export const useTeamStore = create<TeamStore>()(
 
         // タスク操作
         setTasks: (tasks) => {
-          set({ tasks });
+          set({
+            tasks,
+            taskStats: {
+              pending: tasks.filter((t) => t.status === "pending").length,
+              inProgress: tasks.filter((t) => t.status === "in_progress").length,
+              completed: tasks.filter((t) => t.status === "completed").length,
+              total: tasks.length,
+            },
+          });
         },
 
         updateTask: (taskId, updates) => {
-          set((state) => ({
-            tasks: state.tasks.map((t) =>
+          set((state) => {
+            const newTasks = state.tasks.map((t) =>
               t.taskId === taskId ? { ...t, ...updates } : t,
-            ),
-          }));
+            );
+            return {
+              tasks: newTasks,
+              taskStats: {
+                pending: newTasks.filter((t) => t.status === "pending").length,
+                inProgress: newTasks.filter((t) => t.status === "in_progress").length,
+                completed: newTasks.filter((t) => t.status === "completed").length,
+                total: newTasks.length,
+              },
+            };
+          });
         },
 
         addTask: (task) => {
-          set((state) => ({
-            tasks: [...state.tasks, task],
-          }));
+          set((state) => {
+            const newTasks = [...state.tasks, task];
+            return {
+              tasks: newTasks,
+              taskStats: {
+                pending: newTasks.filter((t) => t.status === "pending").length,
+                inProgress: newTasks.filter((t) => t.status === "in_progress").length,
+                completed: newTasks.filter((t) => t.status === "completed").length,
+                total: newTasks.length,
+              },
+            };
+          });
         },
 
         // 思考ログ操作
@@ -332,14 +370,9 @@ export const useActiveAgentCount = () => {
 
 /**
  * タスクの統計情報を取得する
+ *
+ * 計算済みの値をストアから取得するため、無限ループが発生しない
  */
 export const useTaskStats = () => {
-  const tasks = useTeamStore((state) => state.tasks);
-
-  return {
-    pending: tasks.filter((t) => t.status === "pending").length,
-    inProgress: tasks.filter((t) => t.status === "in_progress").length,
-    completed: tasks.filter((t) => t.status === "completed").length,
-    total: tasks.length,
-  };
+  return useTeamStore((state) => state.taskStats);
 };
