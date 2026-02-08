@@ -70,3 +70,6 @@ htmlcov/
 
 # レビュードキュメント（ローカルレビュー用）
 reviews/
+test-personality-team.json
+console-personality-test.txt
+network-personality-test.txt

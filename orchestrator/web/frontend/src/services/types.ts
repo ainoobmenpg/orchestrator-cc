@@ -44,6 +44,15 @@ export const enum AgentStatus {
 // データモデル
 // ============================================================================
 
+/** 性格パラメータ */
+export interface Personality {
+  socialibility: number;  // 社交性（0-100）
+  cautiousness: number;   // 慎重さ（0-100）
+  humor: number;         // ユーモア（0-100）
+  curiosity: number;     // 好奇心（0-100）
+  friendliness: number;   // 親しさやすさ（0-100）
+}
+
 /** チームメンバー情報 */
 export interface TeamMember {
   agentId: string;
@@ -52,7 +61,7 @@ export interface TeamMember {
   model: string;
   joinedAt: number;
   cwd: string;
-  tmuxPaneId: string;
+  personality?: Personality;
 }
 
 /** チーム情報 */

@@ -294,3 +294,40 @@ async def api_info() -> dict[str, Any]:
             "websocket": "/ws",
         },
     }
+
+
+# ============================================================================
+# 性格生成 APIエンドポイント
+# ============================================================================
+
+from pydantic import BaseModel
+from orchestrator.web.personality_generator import PersonalityGenerator
+
+
+class PersonalityRequest(BaseModel):
+    """性格生成リクエスト"""
+
+    archetype: str  # アーチタイプ（team-lead, researcher, coder, tester）
+
+
+@router.post("/personality/generate")
+async def generate_personality(request: PersonalityRequest) -> dict[str, Any]:
+    """性格パラメータをアーチタイプから生成します。
+
+    Args:
+        request: 性格生成リクエスト
+
+    Returns:
+        生成された性格パラメータ
+    """
+    try:
+        personality = PersonalityGenerator.from_archetype(request.archetype)
+
+        return {
+            "personality": personality.to_dict(),
+        }
+    except ValueError as e:
+        return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"性格生成エラー: {e}")
+        return {"error": "Failed to generate personality"}
