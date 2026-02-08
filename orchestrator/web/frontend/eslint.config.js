@@ -19,9 +19,5 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
-    rules: {
-      ...reactHooks.configs.flat.recommended.rules,
-      'react-hooks/exhaustive-deps': 'warn',
-    },
   },
 ])

@@ -52,6 +52,7 @@ export interface TeamMember {
   model: string;
   joinedAt: number;
   cwd: string;
+  tmuxPaneId: string;
 }
 
 /** チーム情報 */
@@ -195,12 +196,6 @@ export interface AgentsMessage extends BaseWebSocketMessage {
   clusterName?: string;
 }
 
-/** チーム一覧メッセージ */
-export interface TeamsMessage extends BaseWebSocketMessage {
-  type: "teams";
-  teams: TeamInfo[];
-}
-
 /** エラーメッセージ */
 export interface ErrorMessage extends BaseWebSocketMessage {
   type: "error";
@@ -280,7 +275,6 @@ export type WebSocketMessage =
   | AgentMessage
   | ThinkingMessage
   | AgentsMessage
-  | TeamsMessage
   | ErrorMessage
   | SystemLogMessage
   | ClusterEventMessage

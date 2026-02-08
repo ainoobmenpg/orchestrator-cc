@@ -5,7 +5,8 @@
  */
 
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { useTeamStore, useTaskStats } from "../../stores/teamStore";
+import { useTeamStore } from "../../stores/teamStore";
+import { useTasksStats } from "../../hooks/useTasks";
 import { TaskColumn } from "./TaskColumn";
 
 export function TaskBoard() {
@@ -30,7 +31,7 @@ export function TaskBoard() {
     }
   };
 
-  const stats = useTaskStats();
+  const stats = useTasksStats();
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>

@@ -122,17 +122,6 @@ export class WebSocketClient {
         type: "subscribe",
         channels: ["messages", "thinking", "status"],
       } as WebSocketMessage);
-
-      // 接続完了イベントを発火して、ハンドラーが登録されるのを待つ
-      setTimeout(() => {
-        this.connectionStateHandlers.forEach((handler) => {
-          try {
-            handler();
-          } catch (error) {
-            console.error("接続状態ハンドラーエラー:", error);
-          }
-        });
-      }, 100);
     };
 
     this.ws.onmessage = (event) => {
