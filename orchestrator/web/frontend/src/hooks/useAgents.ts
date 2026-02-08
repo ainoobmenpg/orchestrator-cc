@@ -35,14 +35,14 @@ export function useAgentStats() {
   const agents = useTeamStore((state) => state.agents);
 
   return useMemo(() => {
-    return {
-      total: agents.length,
-      running: agents.filter((a) => a.status === "running").length,
-      idle: agents.filter((a) => a.status === "idle").length,
-      stopped: agents.filter((a) => a.status === "stopped").length,
-      error: agents.filter((a) => a.status === "error").length,
-    };
-  }, [agents.length, agents.map((a) => a.status).join(",")]); // ステータスのみを依存配列に
+    const total = agents.length;
+    const running = agents.filter((a) => a.status === "running").length;
+    const idle = agents.filter((a) => a.status === "idle").length;
+    const stopped = agents.filter((a) => a.status === "stopped").length;
+    const error = agents.filter((a) => a.status === "error").length;
+
+    return { total, running, idle, stopped, error };
+  }, [agents]);
 }
 
 /**
