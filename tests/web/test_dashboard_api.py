@@ -20,7 +20,9 @@ def client():
 class TestRootEndpoints:
     """ルートエンドポイントのテスト"""
 
-    @pytest.mark.skip(reason="Reactダッシュボード導入により、ルートエンドポイントは常にHTMLを返します")
+    @pytest.mark.skip(
+        reason="Reactダッシュボード導入により、ルートエンドポイントは常にHTMLを返します"
+    )
     def test_root_json_response(self, client):
         """ルートパスでJSONレスポンスを返すテスト（テンプレートがない場合）
 
@@ -241,6 +243,7 @@ class TestBroadcastFunctions:
 
         # asyncio.create_task をモック - モジュールレベルでパッチ
         import asyncio
+
         original_create_task = asyncio.create_task
         called = []
 
@@ -248,12 +251,13 @@ class TestBroadcastFunctions:
             called.append(coro)
             return original_create_task(coro)
 
-        asyncio.create_task = mock_create_task
+        asyncio.create_task = mock_create_task  # type: ignore[assignment]
         try:
             # モックした create_task を使用するようにモジュールを再インポート
             import importlib
 
             import orchestrator.web.dashboard
+
             importlib.reload(orchestrator.web.dashboard)
             from orchestrator.web.dashboard import _broadcast_teams_update
 
@@ -418,14 +422,14 @@ class TestLifespan:
     @pytest.mark.asyncio
     async def test_lifespan_initialization(self):
         """ライフサイクル初期化のテスト"""
-        from unittest.mock import AsyncMock
-        from orchestrator.web.dashboard import lifespan, _global_state
+        from orchestrator.web.dashboard import _global_state, lifespan
 
         # モックを準備
-        with patch("orchestrator.web.dashboard.get_agent_health_monitor") as mock_get_health, \
-             patch("orchestrator.web.dashboard.get_agent_teams_manager") as mock_get_teams, \
-             patch("orchestrator.web.dashboard.get_thinking_log_handler") as mock_get_thinking:
-
+        with (
+            patch("orchestrator.web.dashboard.get_agent_health_monitor") as mock_get_health,
+            patch("orchestrator.web.dashboard.get_agent_teams_manager") as mock_get_teams,
+            patch("orchestrator.web.dashboard.get_thinking_log_handler") as mock_get_thinking,
+        ):
             mock_health = MagicMock()
             mock_health.is_running.return_value = False
             mock_health.register_callback = MagicMock()
@@ -442,9 +446,12 @@ class TestLifespan:
             mock_get_thinking.return_value = mock_thinking
 
             # WebSocketManagerをモック
-            with patch("orchestrator.web.dashboard.WebSocketManager") as mock_ws_mgr_class, \
-                 patch("orchestrator.web.dashboard.WebSocketMessageHandler") as mock_ws_handler_class:
-
+            with (
+                patch("orchestrator.web.dashboard.WebSocketManager") as mock_ws_mgr_class,
+                patch(
+                    "orchestrator.web.dashboard.WebSocketMessageHandler"
+                ) as mock_ws_handler_class,
+            ):
                 mock_ws_manager = MagicMock()
                 mock_ws_manager.broadcast = AsyncMock()
                 mock_ws_manager.close_all = AsyncMock()
@@ -480,9 +487,10 @@ class TestLifespan:
         from unittest.mock import AsyncMock
 
         # モニターのモックを設定
-        with patch("orchestrator.web.dashboard.get_agent_health_monitor") as mock_get_health, \
-             patch("orchestrator.web.dashboard.get_thinking_log_handler") as mock_get_thinking:
-
+        with (
+            patch("orchestrator.web.dashboard.get_agent_health_monitor") as mock_get_health,
+            patch("orchestrator.web.dashboard.get_thinking_log_handler") as mock_get_thinking,
+        ):
             mock_health = MagicMock()
             mock_health.is_running.return_value = True
             mock_health.register_callback = MagicMock()
@@ -495,11 +503,12 @@ class TestLifespan:
             mock_thinking.stop_monitoring = MagicMock()
             mock_get_thinking.return_value = mock_thinking
 
-            with patch("orchestrator.web.dashboard.get_agent_teams_manager"), \
-                 patch("orchestrator.web.dashboard.WebSocketManager") as mock_ws_mgr_class, \
-                 patch("orchestrator.web.dashboard.WebSocketMessageHandler"), \
-                 patch("orchestrator.web.dashboard.TeamsMonitor") as mock_tm_class:
-
+            with (
+                patch("orchestrator.web.dashboard.get_agent_teams_manager"),
+                patch("orchestrator.web.dashboard.WebSocketManager") as mock_ws_mgr_class,
+                patch("orchestrator.web.dashboard.WebSocketMessageHandler"),
+                patch("orchestrator.web.dashboard.TeamsMonitor") as mock_tm_class,
+            ):
                 mock_ws_manager = MagicMock()
                 mock_ws_manager.close_all = AsyncMock()
                 mock_ws_mgr_class.return_value = mock_ws_manager
