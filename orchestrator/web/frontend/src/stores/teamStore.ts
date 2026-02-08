@@ -175,7 +175,37 @@ export const useTeamStore = create<TeamStore>()(
         },
 
         setSelectedTeam: (teamName) => {
-          set({ selectedTeamName: teamName });
+          set((state) => {
+            // チームが切り替わった場合
+            if (state.selectedTeamName !== teamName) {
+              // APIから既存メッセージを取得（非同期）
+              if (teamName) {
+                fetch(`/api/teams/${teamName}/messages`)
+                  .then((response) => response.json())
+                  .then((data) => {
+                    if (data.messages) {
+                      useTeamStore.getState().addMessages(data.messages);
+                    }
+                  })
+                  .catch((error) => {
+                    console.error("Failed to fetch messages:", error);
+                  });
+              }
+
+              return {
+                selectedTeamName: teamName,
+                messages: [],
+                messageCount: {
+                  total: 0,
+                  thinking: 0,
+                  task: 0,
+                  result: 0,
+                },
+                thinkingLogs: [],
+              };
+            }
+            return { selectedTeamName: teamName };
+          });
         },
 
         // エージェント操作
@@ -204,12 +234,20 @@ export const useTeamStore = create<TeamStore>()(
         // メッセージ操作
         addMessage: (message) => {
           set((state) => {
+            // 重複チェック - 既存のメッセージと同じIDの場合は何もしない
+            const existingMessage = state.messages.find(
+              (msg) => msg.id === message.id,
+            );
+            if (existingMessage) {
+              return state;
+            }
+
             const newMessages = [...state.messages, message];
             const messageCount = { ...state.messageCount };
             messageCount.total++;
 
-            // メッセージタイプに応じてカウント（messageTypeまたはtypeフィールドをチェック）
-            const messageType = message.messageType || message.type;
+            // メッセージタイプに応じてカウント
+            const messageType = message.messageType;
             if (messageType === "thinking") {
               messageCount.thinking++;
             } else if (messageType === "task") {
@@ -224,12 +262,21 @@ export const useTeamStore = create<TeamStore>()(
 
         addMessages: (messages) => {
           set((state) => {
-            const newMessages = [...state.messages, ...messages];
-            const messageCount = { ...state.messageCount };
-            messageCount.total += messages.length;
+            // 重複チェック - 既存のメッセージIDを除外して追加
+            const existingIds = new Set(state.messages.map((msg) => msg.id));
+            const newMessagesOnly = messages.filter((msg) => !existingIds.has(msg.id));
 
-            messages.forEach((m) => {
-              const messageType = m.messageType || m.type;
+            // 新しいメッセージがない場合は何もしない
+            if (newMessagesOnly.length === 0) {
+              return state;
+            }
+
+            const newMessages = [...state.messages, ...newMessagesOnly];
+            const messageCount = { ...state.messageCount };
+            messageCount.total += newMessagesOnly.length;
+
+            newMessagesOnly.forEach((m) => {
+              const messageType = m.messageType;
               if (messageType === "thinking") {
                 messageCount.thinking++;
               } else if (messageType === "task") {
