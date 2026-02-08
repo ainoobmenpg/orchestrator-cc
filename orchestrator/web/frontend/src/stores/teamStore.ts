@@ -180,15 +180,31 @@ export const useTeamStore = create<TeamStore>()(
             if (state.selectedTeamName !== teamName) {
               // APIから既存メッセージを取得（非同期）
               if (teamName) {
-                fetch(`/api/teams/${teamName}/messages`)
+                fetch(`/api/teams/${encodeURIComponent(teamName)}/messages`)
                   .then((response) => response.json())
                   .then((data) => {
                     if (data.messages) {
-                      useTeamStore.getState().addMessages(data.messages);
+                      // 取得したメッセージで上書き（追加ではなく）
+                      // APIレスポンスが返ってくる前にWebSocket経由でメッセージが届いても、
+                      // ここで上書きされることで正しい順序を保証する
+                      useTeamStore.setState({
+                        messages: data.messages,
+                        messageCount: {
+                          total: data.messages.length,
+                          thinking: data.messages.filter((m: TeamMessage) => m.messageType === "thinking").length,
+                          task: data.messages.filter((m: TeamMessage) => m.messageType === "task").length,
+                          result: data.messages.filter((m: TeamMessage) => m.messageType === "result").length,
+                        },
+                      });
                     }
                   })
                   .catch((error) => {
-                    console.error("Failed to fetch messages:", error);
+                    console.error(`Failed to fetch messages for team ${teamName}:`, error);
+                    useTeamStore.getState().addSystemLog({
+                      timestamp: new Date().toISOString(),
+                      level: "error",
+                      content: `メッセージの取得に失敗しました: ${teamName}`,
+                    });
                   });
               }
 
