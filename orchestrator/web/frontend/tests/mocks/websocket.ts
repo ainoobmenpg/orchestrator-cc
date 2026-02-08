@@ -48,7 +48,8 @@ export class MockWebSocket {
   addEventListener(
     type: string,
     callback: EventListener | null,
-    options?: AddEventListenerOptions | boolean
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _options?: AddEventListenerOptions | boolean
   ) {
     if (!callback) return;
     if (!this.eventListeners.has(type)) {
@@ -60,7 +61,8 @@ export class MockWebSocket {
   removeEventListener(
     type: string,
     callback: EventListener | null,
-    options?: EventListenerOptions | boolean
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _options?: EventListenerOptions | boolean
   ) {
     if (!callback) return;
     this.eventListeners.get(type)?.delete(callback);
@@ -83,4 +85,4 @@ export class MockWebSocket {
 }
 
 // グローバルWebSocketをモックに置き換え
-global.WebSocket = MockWebSocket as any;
+global.WebSocket = MockWebSocket as unknown as typeof WebSocket;

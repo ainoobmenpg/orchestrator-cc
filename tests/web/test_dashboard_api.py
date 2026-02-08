@@ -314,3 +314,211 @@ class TestBroadcastFunctions:
         with patch("asyncio.get_running_loop", side_effect=RuntimeError):
             # 例外が発生しないことを確認
             _broadcast_thinking_log({"type": "thinking_log"})
+
+
+class TestSpaRouter:
+    """SPAルーターのテスト"""
+
+    @patch("orchestrator.web.dashboard._frontend_dist_dir")
+    @patch("orchestrator.web.dashboard._templates_dir")
+    def test_spa_root_returns_dist_index(self, mock_templates, mock_dist, client):
+        """dist/index.htmlが存在する場合はそれを返す"""
+        mock_dist.exists.return_value = True
+        mock_index = MagicMock()
+        mock_index.exists.return_value = True
+        mock_dist.__truediv__.return_value = mock_index
+
+        response = client.get("/")
+
+        assert response.status_code == 200
+        # FileResponseはテストクライアントで異なる扱いになる場合がある
+        # ステータスコードのみ検証
+
+    @patch("orchestrator.web.dashboard._frontend_dist_dir")
+    @patch("orchestrator.web.dashboard._templates_dir")
+    def test_spa_root_returns_json_when_no_build(self, mock_templates, mock_dist, client):
+        """ビルド済みファイルがない場合はJSONメッセージを返す"""
+        mock_dist.exists.return_value = False
+        mock_dist.__truediv__.return_value.exists.return_value = False
+        mock_templates.exists.return_value = False
+        mock_templates.__truediv__.return_value.exists.return_value = False
+
+        response = client.get("/")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "message" in data
+        assert "version" in data
+
+    @patch("orchestrator.web.dashboard._frontend_dist_dir")
+    def test_spa_serve_asset_file(self, mock_dist, client):
+        """アセットファイルは直接返す"""
+        mock_dist.exists.return_value = True
+        mock_asset = MagicMock()
+        mock_asset.exists.return_value = True
+        mock_asset.is_file.return_value = True
+        mock_dist.__truediv__.return_value = mock_asset
+
+        response = client.get("/assets/main.js")
+
+        assert response.status_code == 200
+
+    @patch("orchestrator.web.dashboard._frontend_dist_dir")
+    def test_spa_fallback_to_index(self, mock_dist, client):
+        """SPAルートはindex.htmlにフォールバックする"""
+        mock_dist.exists.return_value = True
+        mock_asset = MagicMock()
+        mock_asset.exists.return_value = False
+        mock_asset.is_file.return_value = False
+        mock_index = MagicMock()
+        mock_index.exists.return_value = True
+        mock_dist.__truediv__.side_effect = [mock_asset, mock_index]
+
+        response = client.get("/dashboard/settings")
+
+        assert response.status_code == 200
+
+
+class TestHealthEventCallback:
+    """ヘルスイベントコールバックのテスト"""
+
+    @patch("orchestrator.web.dashboard._global_state")
+    def test_on_health_event_with_manager(self, mock_global_state):
+        """WebSocketManagerがある場合はブロードキャストする"""
+        from orchestrator.web.dashboard import _on_health_event
+
+        mock_manager = MagicMock()
+        mock_manager.broadcast = AsyncMock()
+        mock_global_state.ws_manager = mock_manager
+
+        mock_event = MagicMock()
+        mock_event.to_dict.return_value = {"agent": "test-agent", "status": "unhealthy"}
+
+        # イベントループがない場合は例外が発生しないことを確認
+        with patch("asyncio.get_running_loop", side_effect=RuntimeError):
+            _on_health_event(mock_event)
+
+    @patch("orchestrator.web.dashboard._global_state")
+    def test_on_health_event_no_manager(self, mock_global_state):
+        """WebSocketManagerがない場合は何もしない"""
+        from orchestrator.web.dashboard import _on_health_event
+
+        mock_global_state.ws_manager = None
+
+        mock_event = MagicMock()
+        mock_event.to_dict.return_value = {"agent": "test-agent"}
+
+        # 例外が発生しないことを確認
+        _on_health_event(mock_event)
+
+
+class TestLifespan:
+    """ライフサイクル管理のテスト"""
+
+    @pytest.mark.asyncio
+    async def test_lifespan_initialization(self):
+        """ライフサイクル初期化のテスト"""
+        from unittest.mock import AsyncMock
+        from orchestrator.web.dashboard import lifespan, _global_state
+
+        # モックを準備
+        with patch("orchestrator.web.dashboard.get_agent_health_monitor") as mock_get_health, \
+             patch("orchestrator.web.dashboard.get_agent_teams_manager") as mock_get_teams, \
+             patch("orchestrator.web.dashboard.get_thinking_log_handler") as mock_get_thinking:
+
+            mock_health = MagicMock()
+            mock_health.is_running.return_value = False
+            mock_health.register_callback = MagicMock()
+            mock_health.start_monitoring = MagicMock()
+            mock_get_health.return_value = mock_health
+
+            mock_teams = MagicMock()
+            mock_get_teams.return_value = mock_teams
+
+            mock_thinking = MagicMock()
+            mock_thinking.is_running.return_value = False
+            mock_thinking.register_callback = MagicMock()
+            mock_thinking.start_monitoring = MagicMock()
+            mock_get_thinking.return_value = mock_thinking
+
+            # WebSocketManagerをモック
+            with patch("orchestrator.web.dashboard.WebSocketManager") as mock_ws_mgr_class, \
+                 patch("orchestrator.web.dashboard.WebSocketMessageHandler") as mock_ws_handler_class:
+
+                mock_ws_manager = MagicMock()
+                mock_ws_manager.broadcast = AsyncMock()
+                mock_ws_manager.close_all = AsyncMock()
+                mock_ws_mgr_class.return_value = mock_ws_manager
+
+                mock_ws_handler = MagicMock()
+                mock_ws_handler_class.return_value = mock_ws_handler
+
+                # TeamsMonitorをモック
+                with patch("orchestrator.web.dashboard.TeamsMonitor") as mock_tm_class:
+                    mock_teams_monitor = MagicMock()
+                    mock_teams_monitor.is_running.return_value = False
+                    mock_teams_monitor.register_update_callback = MagicMock()
+                    mock_teams_monitor.start_monitoring = MagicMock()
+                    mock_tm_class.return_value = mock_teams_monitor
+
+                    # モックアプリを作成
+                    app = MagicMock()
+
+                    # コンテキストマネージャを実行
+                    async with lifespan(app):
+                        # グローバルステートが初期化されたことを確認
+                        assert _global_state.ws_manager is not None
+                        assert _global_state.ws_handler is not None
+                        assert _global_state.teams_monitor is not None
+                        assert _global_state.thinking_log_handler is not None
+                        assert _global_state.health_monitor is not None
+                        assert _global_state.teams_manager is not None
+
+    @pytest.mark.asyncio
+    async def test_lifespan_cleanup(self):
+        """ライフサイクルクリーンアップのテスト"""
+        from unittest.mock import AsyncMock
+
+        # モニターのモックを設定
+        with patch("orchestrator.web.dashboard.get_agent_health_monitor") as mock_get_health, \
+             patch("orchestrator.web.dashboard.get_thinking_log_handler") as mock_get_thinking:
+
+            mock_health = MagicMock()
+            mock_health.is_running.return_value = True
+            mock_health.register_callback = MagicMock()
+            mock_health.stop_monitoring = MagicMock()
+            mock_get_health.return_value = mock_health
+
+            mock_thinking = MagicMock()
+            mock_thinking.is_running.return_value = True
+            mock_thinking.register_callback = MagicMock()
+            mock_thinking.stop_monitoring = MagicMock()
+            mock_get_thinking.return_value = mock_thinking
+
+            with patch("orchestrator.web.dashboard.get_agent_teams_manager"), \
+                 patch("orchestrator.web.dashboard.WebSocketManager") as mock_ws_mgr_class, \
+                 patch("orchestrator.web.dashboard.WebSocketMessageHandler"), \
+                 patch("orchestrator.web.dashboard.TeamsMonitor") as mock_tm_class:
+
+                mock_ws_manager = MagicMock()
+                mock_ws_manager.close_all = AsyncMock()
+                mock_ws_mgr_class.return_value = mock_ws_manager
+
+                mock_teams_monitor = MagicMock()
+                mock_teams_monitor.is_running.return_value = True
+                mock_teams_monitor.register_update_callback = MagicMock()
+                mock_teams_monitor.stop_monitoring = MagicMock()
+                mock_tm_class.return_value = mock_teams_monitor
+
+                from orchestrator.web.dashboard import lifespan
+
+                app = MagicMock()
+
+                async with lifespan(app):
+                    pass
+
+                # クリーンアップが呼ばれたことを確認
+                mock_teams_monitor.stop_monitoring.assert_called_once()
+                mock_thinking.stop_monitoring.assert_called_once()
+                mock_health.stop_monitoring.assert_called_once()
+                mock_ws_manager.close_all.assert_called_once()

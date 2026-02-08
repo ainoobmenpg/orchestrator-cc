@@ -12,7 +12,7 @@ import { devtools, persist } from "zustand/middleware";
 // ============================================================================
 
 /** タブ名 */
-export type TabName = "dashboard" | "tasks" | "messages" | "timeline" | "system";
+export type TabName = "dashboard" | "tasks" | "conference";
 
 /** 通知タイプ */
 export type NotificationType = "info" | "success" | "warning" | "error";
@@ -52,7 +52,6 @@ interface UIState {
 
   // スクロール
   isAutoScrollEnabled: boolean;
-  isSystemLogAutoScrollEnabled: boolean;
 
   // モーダル
   activeModal: ModalType;
@@ -67,7 +66,6 @@ interface UIState {
 
   // フィルター
   thinkingAgentFilter: string | null;
-  timelineFilter: string | null;
 }
 
 // ============================================================================
@@ -87,7 +85,6 @@ interface UIActions {
   // スクロール操作
   toggleAutoScroll: () => void;
   setAutoScrollEnabled: (enabled: boolean) => void;
-  toggleSystemLogAutoScroll: () => void;
 
   // モーダル操作
   openModal: (modal: ModalType, data?: Record<string, unknown>) => void;
@@ -108,7 +105,6 @@ interface UIActions {
 
   // フィルター操作
   setThinkingAgentFilter: (agentName: string | null) => void;
-  setTimelineFilter: (filter: string | null) => void;
 
   // リセット
   reset: () => void;
@@ -124,14 +120,12 @@ const initialState: UIState = {
   isThinkingLogVisible: true,
   isTimestampVisible: false,
   isAutoScrollEnabled: true,
-  isSystemLogAutoScrollEnabled: true,
   activeModal: null,
   modalData: {},
   notifications: [],
   isLoading: false,
   loadingMessage: null,
   thinkingAgentFilter: null,
-  timelineFilter: null,
 };
 
 // ============================================================================
@@ -183,12 +177,6 @@ export const useUIStore = create<UIStore>()(
 
         setAutoScrollEnabled: (enabled) => {
           set({ isAutoScrollEnabled: enabled });
-        },
-
-        toggleSystemLogAutoScroll: () => {
-          set((state) => ({
-            isSystemLogAutoScrollEnabled: !state.isSystemLogAutoScrollEnabled,
-          }));
         },
 
         // モーダル操作
@@ -243,10 +231,6 @@ export const useUIStore = create<UIStore>()(
           set({ thinkingAgentFilter: agentName });
         },
 
-        setTimelineFilter: (filter) => {
-          set({ timelineFilter: filter });
-        },
-
         // リセット
         reset: () => {
           set(initialState);
@@ -261,7 +245,6 @@ export const useUIStore = create<UIStore>()(
           isThinkingLogVisible: state.isThinkingLogVisible,
           isTimestampVisible: state.isTimestampVisible,
           isAutoScrollEnabled: state.isAutoScrollEnabled,
-          isSystemLogAutoScrollEnabled: state.isSystemLogAutoScrollEnabled,
         }),
       },
     ),
