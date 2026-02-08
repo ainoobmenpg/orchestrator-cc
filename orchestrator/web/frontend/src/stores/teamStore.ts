@@ -2,6 +2,8 @@
  * チーム状態管理ストア
  *
  * チーム情報、メンバー、メッセージ、タスク、思考ログの状態を管理します
+ *
+ * 重要: Mapではなく配列を使用して、persistミドルウェアとの互換性を確保します
  */
 
 import { create } from "zustand";
@@ -20,12 +22,12 @@ import type {
 // ============================================================================
 
 interface TeamState {
-  // チーム
-  teams: Map<string, TeamInfo>;
+  // チーム（配列として格納）
+  teams: TeamInfo[];
   selectedTeamName: string | null;
 
-  // エージェント
-  agents: Map<string, AgentInfo>;
+  // エージェント（配列として格納）
+  agents: AgentInfo[];
 
   // メッセージ
   messages: TeamMessage[];
@@ -38,6 +40,12 @@ interface TeamState {
 
   // タスク
   tasks: TaskInfo[];
+  taskStats: {
+    pending: number;
+    inProgress: number;
+    completed: number;
+    total: number;
+  };
 
   // 思考ログ
   thinkingLogs: ThinkingLog[];
@@ -96,9 +104,9 @@ interface TeamActions {
 // ============================================================================
 
 const initialState: TeamState = {
-  teams: new Map(),
+  teams: [],
   selectedTeamName: null,
-  agents: new Map(),
+  agents: [],
   messages: [],
   messageCount: {
     total: 0,
@@ -107,6 +115,12 @@ const initialState: TeamState = {
     result: 0,
   },
   tasks: [],
+  taskStats: {
+    pending: 0,
+    inProgress: 0,
+    completed: 0,
+    total: 0,
+  },
   thinkingLogs: [],
   systemLogs: [],
   hasErrors: false,
@@ -126,77 +140,135 @@ export const useTeamStore = create<TeamStore>()(
 
         // チーム操作
         setTeams: (teams) => {
-          const teamsMap = new Map(teams.map((t) => [t.name, t]));
-          set({ teams: teamsMap });
+          set({ teams });
         },
 
         addTeam: (team) => {
           set((state) => {
-            const newTeams = new Map(state.teams);
-            newTeams.set(team.name, team);
-            return { teams: newTeams };
+            // 既存のチームをチェック
+            const existingIndex = state.teams.findIndex((t) => t.name === team.name);
+            if (existingIndex >= 0) {
+              // 既存の場合は更新
+              const newTeams = [...state.teams];
+              newTeams[existingIndex] = team;
+              return { teams: newTeams };
+            }
+            // 新規の場合は追加
+            return { teams: [...state.teams, team] };
           });
         },
 
         removeTeam: (teamName) => {
-          set((state) => {
-            const newTeams = new Map(state.teams);
-            newTeams.delete(teamName);
-            return {
-              teams: newTeams,
-              selectedTeamName:
-                state.selectedTeamName === teamName ? null : state.selectedTeamName,
-            };
-          });
+          set((state) => ({
+            teams: state.teams.filter((t) => t.name !== teamName),
+            selectedTeamName:
+              state.selectedTeamName === teamName ? null : state.selectedTeamName,
+          }));
         },
 
         updateTeam: (teamName, team) => {
-          set((state) => {
-            const newTeams = new Map(state.teams);
-            newTeams.set(teamName, team);
-            return { teams: newTeams };
-          });
+          set((state) => ({
+            teams: state.teams.map((t) =>
+              t.name === teamName ? team : t,
+            ),
+          }));
         },
 
         setSelectedTeam: (teamName) => {
-          set({ selectedTeamName: teamName });
+          set((state) => {
+            // チームが切り替わった場合
+            if (state.selectedTeamName !== teamName) {
+              // APIから既存メッセージを取得（非同期）
+              if (teamName) {
+                fetch(`/api/teams/${encodeURIComponent(teamName)}/messages`)
+                  .then((response) => response.json())
+                  .then((data) => {
+                    if (data.messages) {
+                      // 取得したメッセージで上書き（追加ではなく）
+                      // APIレスポンスが返ってくる前にWebSocket経由でメッセージが届いても、
+                      // ここで上書きされることで正しい順序を保証する
+                      useTeamStore.setState({
+                        messages: data.messages,
+                        messageCount: {
+                          total: data.messages.length,
+                          thinking: data.messages.filter((m: TeamMessage) => m.messageType === "thinking").length,
+                          task: data.messages.filter((m: TeamMessage) => m.messageType === "task").length,
+                          result: data.messages.filter((m: TeamMessage) => m.messageType === "result").length,
+                        },
+                      });
+                    }
+                  })
+                  .catch((error) => {
+                    console.error(`Failed to fetch messages for team ${teamName}:`, error);
+                    useTeamStore.getState().addSystemLog({
+                      timestamp: new Date().toISOString(),
+                      level: "error",
+                      content: `メッセージの取得に失敗しました: ${teamName}`,
+                    });
+                  });
+              }
+
+              return {
+                selectedTeamName: teamName,
+                messages: [],
+                messageCount: {
+                  total: 0,
+                  thinking: 0,
+                  task: 0,
+                  result: 0,
+                },
+                thinkingLogs: [],
+              };
+            }
+            return { selectedTeamName: teamName };
+          });
         },
 
         // エージェント操作
         setAgents: (agents) => {
-          const agentsMap = new Map(agents.map((a) => [a.name, a]));
-          set({ agents: agentsMap });
+          set({ agents });
         },
 
         upsertAgent: (agent) => {
           set((state) => {
-            const newAgents = new Map(state.agents);
-            newAgents.set(agent.name, agent);
-            return { agents: newAgents };
+            const existingIndex = state.agents.findIndex((a) => a.name === agent.name);
+            if (existingIndex >= 0) {
+              const newAgents = [...state.agents];
+              newAgents[existingIndex] = agent;
+              return { agents: newAgents };
+            }
+            return { agents: [...state.agents, agent] };
           });
         },
 
         removeAgent: (agentName) => {
-          set((state) => {
-            const newAgents = new Map(state.agents);
-            newAgents.delete(agentName);
-            return { agents: newAgents };
-          });
+          set((state) => ({
+            agents: state.agents.filter((a) => a.name !== agentName),
+          }));
         },
 
         // メッセージ操作
         addMessage: (message) => {
           set((state) => {
+            // 重複チェック - 既存のメッセージと同じIDの場合は何もしない
+            const existingMessage = state.messages.find(
+              (msg) => msg.id === message.id,
+            );
+            if (existingMessage) {
+              return state;
+            }
+
             const newMessages = [...state.messages, message];
             const messageCount = { ...state.messageCount };
             messageCount.total++;
 
             // メッセージタイプに応じてカウント
-            if (message.messageType === "thinking") {
+            const messageType = message.messageType;
+            if (messageType === "thinking") {
               messageCount.thinking++;
-            } else if (message.messageType === "task") {
+            } else if (messageType === "task") {
               messageCount.task++;
-            } else if (message.messageType === "result") {
+            } else if (messageType === "result") {
               messageCount.result++;
             }
 
@@ -206,16 +278,26 @@ export const useTeamStore = create<TeamStore>()(
 
         addMessages: (messages) => {
           set((state) => {
-            const newMessages = [...state.messages, ...messages];
-            const messageCount = { ...state.messageCount };
-            messageCount.total += messages.length;
+            // 重複チェック - 既存のメッセージIDを除外して追加
+            const existingIds = new Set(state.messages.map((msg) => msg.id));
+            const newMessagesOnly = messages.filter((msg) => !existingIds.has(msg.id));
 
-            messages.forEach((m) => {
-              if (m.messageType === "thinking") {
+            // 新しいメッセージがない場合は何もしない
+            if (newMessagesOnly.length === 0) {
+              return state;
+            }
+
+            const newMessages = [...state.messages, ...newMessagesOnly];
+            const messageCount = { ...state.messageCount };
+            messageCount.total += newMessagesOnly.length;
+
+            newMessagesOnly.forEach((m) => {
+              const messageType = m.messageType;
+              if (messageType === "thinking") {
                 messageCount.thinking++;
-              } else if (m.messageType === "task") {
+              } else if (messageType === "task") {
                 messageCount.task++;
-              } else if (m.messageType === "result") {
+              } else if (messageType === "result") {
                 messageCount.result++;
               }
             });
@@ -238,21 +320,47 @@ export const useTeamStore = create<TeamStore>()(
 
         // タスク操作
         setTasks: (tasks) => {
-          set({ tasks });
+          set({
+            tasks,
+            taskStats: {
+              pending: tasks.filter((t) => t.status === "pending").length,
+              inProgress: tasks.filter((t) => t.status === "in_progress").length,
+              completed: tasks.filter((t) => t.status === "completed").length,
+              total: tasks.length,
+            },
+          });
         },
 
         updateTask: (taskId, updates) => {
-          set((state) => ({
-            tasks: state.tasks.map((t) =>
+          set((state) => {
+            const newTasks = state.tasks.map((t) =>
               t.taskId === taskId ? { ...t, ...updates } : t,
-            ),
-          }));
+            );
+            return {
+              tasks: newTasks,
+              taskStats: {
+                pending: newTasks.filter((t) => t.status === "pending").length,
+                inProgress: newTasks.filter((t) => t.status === "in_progress").length,
+                completed: newTasks.filter((t) => t.status === "completed").length,
+                total: newTasks.length,
+              },
+            };
+          });
         },
 
         addTask: (task) => {
-          set((state) => ({
-            tasks: [...state.tasks, task],
-          }));
+          set((state) => {
+            const newTasks = [...state.tasks, task];
+            return {
+              tasks: newTasks,
+              taskStats: {
+                pending: newTasks.filter((t) => t.status === "pending").length,
+                inProgress: newTasks.filter((t) => t.status === "in_progress").length,
+                completed: newTasks.filter((t) => t.status === "completed").length,
+                total: newTasks.length,
+              },
+            };
+          });
         },
 
         // 思考ログ操作
@@ -291,10 +399,11 @@ export const useTeamStore = create<TeamStore>()(
       }),
       {
         name: "team-store",
-        // MapオブジェクトはJSONでシリアライズできないため、特別な処理が必要
+        // 選択中のチームとメッセージ・タスクを永続化（最大1000件）
         partialize: (state) => ({
           selectedTeamName: state.selectedTeamName,
-          // その他の状態は永続化しない（リアルタイムデータのため）
+          messages: state.messages.slice(-1000), // 最新1000件のみ保存
+          tasks: state.tasks,
         }),
       },
     ),
@@ -313,7 +422,9 @@ export const useSelectedTeam = () => {
   const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
   const teams = useTeamStore((state) => state.teams);
 
-  return selectedTeamName ? teams.get(selectedTeamName) : null;
+  return selectedTeamName
+    ? teams.find((t) => t.name === selectedTeamName) || null
+    : null;
 };
 
 /**
@@ -321,21 +432,14 @@ export const useSelectedTeam = () => {
  */
 export const useActiveAgentCount = () => {
   const agents = useTeamStore((state) => state.agents);
-  return Array.from(agents.values()).filter(
-    (a) => a.status === "running",
-  ).length;
+  return agents.filter((a) => a.status === "running").length;
 };
 
 /**
  * タスクの統計情報を取得する
+ *
+ * 計算済みの値をストアから取得するため、無限ループが発生しない
  */
 export const useTaskStats = () => {
-  const tasks = useTeamStore((state) => state.tasks);
-
-  return {
-    pending: tasks.filter((t) => t.status === "pending").length,
-    inProgress: tasks.filter((t) => t.status === "in_progress").length,
-    completed: tasks.filter((t) => t.status === "completed").length,
-    total: tasks.length,
-  };
+  return useTeamStore((state) => state.taskStats);
 };
