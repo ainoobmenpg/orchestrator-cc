@@ -270,7 +270,6 @@ python -m orchestrator.cli create-team my-team \
       "agentType": "general-purpose",
       "model": "claude-sonnet-4-5-20250929",
       "joinedAt": 1737892800000,
-      "tmuxPaneId": "",
       "cwd": "/path/to/project",
       "subscriptions": [],
       "planModeRequired": false

@@ -13,7 +13,7 @@
 | タスク | 頻度 | コマンド/手順 |
 |--------|------|---------------|
 | チームステータス確認 | 毎日 | `python -m orchestrator.cli list-teams` |
-| ヘルスステータス確認 | 毎日 | `python -m orchestrator.cli health` |
+| 並列チームの健全性確認 | 毎日 | `python -m orchestrator.cli health --all-teams` |
 | エラーログ確認 | 毎日 | `grep ERROR logs/orchestrator.log` |
 | ディスク容量確認 | 毎日 | `df -h` |
 | ダッシュボード動作確認 | 毎日 | `curl http://localhost:8000/api/health` |
@@ -30,9 +30,9 @@ echo "=== orchestrator-cc 日次チェック ==="
 echo "[1] チームステータス"
 python -m orchestrator.cli list-teams
 
-# 2. ヘルスステータス
-echo "[2] ヘルスステータス"
-python -m orchestrator.cli health
+# 2. 並列チームの健全性確認
+echo "[2] 並列チームの健全性"
+python -m orchestrator.cli health --all-teams --verbose
 
 # 3. ディスク容量
 echo "[3] ディスク容量"
@@ -51,6 +51,11 @@ curl -s http://localhost:8000/api/health | jq '.'
 echo "[6] ダッシュボードプロセス"
 ps aux | grep -E "(orchestrator.*dashboard)" | grep -v grep || echo "ダッシュボードは起動していません"
 
+# 7. 並列実行中のチーム数確認
+echo "[7] アクティブチーム数"
+ACTIVE_TEAMS=$(python -m orchestrator.cli list-teams --json | jq '[.teams[] | select(.status == "active")] | length')
+echo "アクティブチーム: $ACTIVE_TEAMS"
+
 echo "=== チェック完了 ==="
 ```
 
@@ -66,6 +71,8 @@ echo "=== チェック完了 ==="
 | バックアップ確認 | 毎週 | `~/.claude/teams/` のバックアップ確認 |
 | パフォーマンス確認 | 毎週 | 応答時間、リソース使用状況の確認 |
 | 依存パッケージの更新確認 | 毎週 | Pythonパッケージの更新確認 |
+| 並列チームの負荷分散確認 | 毎週 | 各チームのリソース使用状況の確認 |
+| チームプールの見直し | 毎週 | 不要なチームの削除・統合 |
 
 ### 週次チェックリスト
 
@@ -94,7 +101,15 @@ pip list --outdated
 
 # 4. ヘルスサマリー
 echo "[4] 今週のヘルスサマリー"
-python -m orchestrator.cli health
+python -m orchestrator.cli health --all-teams
+
+# 5. 並列チームのリソース使用状況
+echo "[5] 並列チームのリソース状況"
+python -m orchestrator.cli list-teams --json | jq -r '.teams[] | "\(.name): \(.member_count) members, status: \(.status)"'
+
+# 6. アクティブでないチームの検出
+echo "[6] アクティブでないチーム（削除検討）"
+python -m orchestrator.cli list-teams --json | jq -r '.teams[] | select(.status != "active") | .name'
 
 echo "=== 週次チェック完了 ==="
 ```
@@ -214,6 +229,50 @@ curl http://localhost:8000/api/health
 
 ---
 
+## 並列チーム運用時の注意点
+
+### リソース管理
+
+複数のチームを並列で運用する場合、以下の点に注意してください。
+
+#### メモリ使用状況の監視
+
+```bash
+# 各チームプロセスのメモリ使用状況を確認
+ps aux | grep -E "claude.*agent" | grep -v grep | awk '{print $2, $4, $11}' | \
+  while read pid mem cmd; do
+    echo "PID: $pid, Memory: $mem%, Command: $cmd"
+  done
+```
+
+#### CPU使用状況の監視
+
+```bash
+# 各チームプロセスのCPU使用状況を確認
+ps aux | grep -E "claude.*agent" | grep -v grep | awk '{print $2, $3, $11}' | \
+  while read pid cpu cmd; do
+    echo "PID: $pid, CPU: $cpu%, Command: $cmd"
+  done
+```
+
+### チーム間の競合回避
+
+| 問題 | 対策 |
+|------|------|
+| ポート競合 | 各チームで異なるポート設定を使用 |
+| ファイル競合 | チームごとに異なる作業ディレクトリを指定 |
+| ログ競合 | チームごとに別々のログファイルを使用 |
+| リソース枯渇 | ヘルスチェックでリソース状況を監視 |
+
+### 並列実行のベストプラクティス
+
+1. **ダッシュボードの一元管理**: すべてのチームの状態を1つのダッシュボードで監視
+2. **アラートの設定**: チームごとに適切なアラート閾値を設定
+3. **定期クリーンアップ**: 不要なチームを定期的に削除
+4. **負荷テスト**: 並列実行前にリソース要件を検証
+
+---
+
 ## エージェント障害時の対応
 
 ### エージェントタイムアウト
@@ -306,6 +365,27 @@ python -m orchestrator.cli create-team my-team \
 | メモリ使用率 | < 70% | > 85% |
 | ディスク使用率 | < 80% | > 90% |
 
+### 並列チームの監視
+
+複数のチームを運用する場合、以下の追加指標を監視します。
+
+| 指標 | 目標値 | 警告閾値 |
+|------|--------|----------|
+| アクティブチーム数 | 設定値以内 | 設定値の90% |
+| チーム間通信レイテンシ | < 1秒 | > 3秒 |
+| 総メモリ使用率 | < 70% | > 85% |
+| 総CPU使用率 | < 70% | > 90% |
+
+### 監視コマンド
+
+```bash
+# すべてのチームのパフォーマンスサマリー
+python -m orchestrator.cli health --all-teams --verbose
+
+# ダッシュボード経由のリアルタイム監視
+curl -s http://localhost:8000/api/teams/metrics | jq '.'
+```
+
 ---
 
 ## 関連ドキュメント
@@ -314,3 +394,13 @@ python -m orchestrator.cli create-team my-team \
 - [troubleshooting.md](troubleshooting.md) - トラブルシューティング
 - [monitoring.md](monitoring.md) - 監視とアラート
 - [backup-recovery.md](backup-recovery.md) - バックアップと復旧
+
+---
+
+## ドキュメントの更新履歴
+
+| 日付 | バージョン | 変更内容 |
+|------|-----------|----------|
+| 2026-02-08 | 2.1.0 | 並列起動対応：並列チーム運用時の注意点追加、監視指標追加 |
+| 2026-02-07 | 2.0.0 | Agent Teams移行に伴う全面改訂 |
+| 2026-02-04 | 1.0.0 | 初版作成 |

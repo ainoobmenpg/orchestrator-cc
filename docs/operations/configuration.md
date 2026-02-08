@@ -101,6 +101,8 @@ python -m orchestrator.cli create-team my-team \
 
 ### members.json の例
 
+#### 小規模チーム（基本構成）
+
 ```json
 {
   "members": [
@@ -123,6 +125,94 @@ python -m orchestrator.cli create-team my-team \
 }
 ```
 
+#### 中規模チーム（並列処理向け）
+
+```json
+{
+  "members": [
+    {
+      "name": "team-lead",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "researcher",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "frontend-coder",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "backend-coder",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "tester",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    }
+  ]
+}
+```
+
+#### 大規模チーム（専門分野別）
+
+```json
+{
+  "members": [
+    {
+      "name": "team-lead",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "frontend-lead",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "backend-lead",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "researcher",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "frontend-coder",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "backend-coder",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "tester",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "reviewer",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    },
+    {
+      "name": "documentation",
+      "agentType": "general-purpose",
+      "timeoutThreshold": 300.0
+    }
+  ]
+}
+```
+
 ---
 
 ## チームの削除
@@ -137,6 +227,61 @@ python -m orchestrator.cli delete-team my-team
 - チームのメッセージ履歴
 - チームのタスクデータ
 - チームの思考ログ
+
+---
+
+---
+
+## 並列起動時の設定
+
+### 複数チームの管理
+
+複数のチームを並列で運用する場合、以下の設定を推奨します。
+
+#### 命名規則
+
+一貫性のある命名規則を採用することで、管理性が向上します。
+
+```
+{project}-{environment}-{team-type}
+
+例:
+- app-dev-frontend
+- app-dev-backend
+- app-staging-qa
+- app-prod-monitoring
+```
+
+#### バッチ作成スクリプト
+
+```bash
+#!/bin/bash
+# scripts/create-team-pool.sh
+
+PROJECT="myapp"
+TEAMS=("frontend" "backend" "qa" "docs")
+
+for team in "${TEAMS[@]}"; do
+  python -m orchestrator.cli create-team "${PROJECT}-dev-${team}" \
+    --description "${PROJECT} dev ${team} team" \
+    --members "members-${team}.json"
+done
+```
+
+### リソース配分のガイドライン
+
+| チーム規模 | 1チームあたりのメモリ | 推奨同時実行数 |
+|-----------|---------------------|---------------|
+| 小規模（2-3名） | 1-2GB | 3-5チーム |
+| 中規模（4-6名） | 2-4GB | 2-3チーム |
+| 大規模（7-10名） | 4-8GB | 1-2チーム |
+
+### 並列起動時のベストプラクティス
+
+1. **タイムアウト値の調整**: チームの規模やタスクの複雑さに応じて設定
+2. **ヘルスチェック間隔**: 並列実行時は30秒以上に設定して負荷を分散
+3. **ログの分離**: チームごとにログファイルを分けて管理
+4. **監視の強化**: ダッシュボードで全チームの状態を一元管理
 
 ---
 
@@ -202,3 +347,13 @@ monitor.start_monitoring()
 - [security.md](security.md) - セキュリティ設定
 - [troubleshooting.md](troubleshooting.md) - トラブルシューティング
 - [../architecture.md](../architecture.md) - アーキテクチャ詳細
+
+---
+
+## ドキュメントの更新履歴
+
+| 日付 | バージョン | 変更内容 |
+|------|-----------|----------|
+| 2026-02-08 | 2.1.0 | 並列起動対応：大規模チーム設定例追加、並列起動時のベストプラクティス追加 |
+| 2026-02-07 | 2.0.0 | Agent Teams移行に伴う全面改訂 |
+| 2026-02-04 | 1.0.0 | 初版作成 |

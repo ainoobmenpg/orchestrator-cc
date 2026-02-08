@@ -213,7 +213,7 @@ class ErrorHandler {
       console.error("通知の表示に失敗しました:", err);
       // フォールバックとしてalert（開発モードのみ）
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-alert
+         
         alert(`[${type}] ${message}`);
       }
     }

@@ -620,7 +620,6 @@ class TestTaskMessageModels:
             model="claude-sonnet-4-5",
             joined_at=1738857600,
             cwd="/workspace",
-            tmux_pane_id="pane-1",
         )
 
         # 辞書変換

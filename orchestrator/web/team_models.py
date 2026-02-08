@@ -5,7 +5,6 @@
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -48,7 +47,6 @@ class TeamMember:
     model: str
     joined_at: int
     cwd: str = ""
-    tmux_pane_id: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TeamMember":
@@ -60,7 +58,6 @@ class TeamMember:
             model=data.get("model", ""),
             joined_at=data.get("joinedAt", 0),
             cwd=data.get("cwd", ""),
-            tmux_pane_id=data.get("tmuxPaneId", ""),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -72,7 +69,6 @@ class TeamMember:
             "model": self.model,
             "joinedAt": self.joined_at,
             "cwd": self.cwd,
-            "tmuxPaneId": self.tmux_pane_id,
         }
 
 
@@ -184,44 +180,6 @@ class ThinkingLog:
     timestamp: str
     category: MessageCategory = MessageCategory.THINKING
     emotion: EmotionType = EmotionType.NEUTRAL
-
-    @classmethod
-    def from_pane_output(cls, agent_name: str, output: str) -> list["ThinkingLog"]:
-        """tmuxペイン出力から思考ログのリストを作成します。
-
-        Args:
-            agent_name: エージェント名
-            output: ペイン出力
-
-        Returns:
-            ThinkingLogのリスト
-        """
-        logs = []
-        lines = output.strip().split("\n")
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # カテゴリを判定
-            category = _classify_message_category(line)
-            emotion = EmotionType.NEUTRAL
-
-            if category == MessageCategory.EMOTION:
-                emotion = _detect_emotion(line)
-
-            logs.append(
-                cls(
-                    agent_name=agent_name,
-                    content=line,
-                    timestamp=datetime.now().isoformat(),
-                    category=category,
-                    emotion=emotion,
-                )
-            )
-
-        return logs
 
     def to_dict(self) -> dict[str, Any]:
         """辞書に変換します。"""

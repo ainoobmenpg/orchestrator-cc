@@ -40,13 +40,8 @@ class TeamsMonitor:
         _thinking_polling_active: 思考ログポーリング中フラグ（現在は未使用）
     """
 
-    def __init__(self, tmux_session_name: str | None = None):
-        """TeamsMonitorを初期化します。
-
-        Args:
-            tmux_session_name: この引数は互換性のために残されていますが、
-                              現在は使用されていません（ファイルベースの思考ログを使用）。
-        """
+    def __init__(self) -> None:
+        """TeamsMonitorを初期化します。"""
         self._teams: dict[str, TeamInfo] = {}
         self._messages: dict[str, list[TeamMessage]] = defaultdict(list)
         self._tasks: dict[str, list[TaskInfo]] = defaultdict(list)
@@ -56,13 +51,6 @@ class TeamsMonitor:
         self._update_callbacks: list[Callable[[dict[str, Any]], None]] = []
         self._thinking_polling_active = False
         self._thinking_polling_interval = 2.0  # 秒
-
-        # tmux_session_name引数は互換性のために残されていますが、使用しません
-        if tmux_session_name:
-            logger.debug(
-                f"tmux_session_name '{tmux_session_name}' was provided but is not used "
-                "(thinking logs are now file-based)"
-            )
 
         # 既存のチームを読み込み
         self._load_existing_teams()
@@ -107,9 +95,6 @@ class TeamsMonitor:
         # オブザーバーを開始
         self._file_observer.start()
         self._task_observer.start()
-
-        # 思考ログポーリングはファイルベースに移行したため開始しない
-        # （tmux依存削除）
 
         logger.info("Teams monitoring started")
 
@@ -287,20 +272,16 @@ class TeamsMonitor:
         """思考ログポーリングを開始します。
 
         注意: この機能はファイルベースの思考ログを使用するため、
-        tmuxへの依存は削除されています。ThinkingLogHandlerを通じて
-        ファイルから思考ログが読み込まれます。
+        ThinkingLogHandlerを通じてファイルから思考ログが読み込まれます。
         """
-        # tmuxへの依存削除により、このメソッドは何もしません
         # 思考ログはThinkingLogHandlerを通じてファイルベースで処理されます
-        logger.debug("Thinking polling is now file-based (tmux dependency removed)")
+        logger.debug("Thinking polling is now file-based")
 
     def _capture_thinking(self) -> None:
         """思考ログをキャプチャします。
 
-        注意: tmux依存は削除されました。思考ログはファイルベースの
-        ThinkingLogHandlerを通じて処理されます。
+        注意: 思考ログはファイルベースのThinkingLogHandlerを通じて処理されます。
         """
-        # tmuxへの依存削除により、このメソッドは何もしません
         pass
 
     def _broadcast(self, data: dict[str, Any]) -> None:

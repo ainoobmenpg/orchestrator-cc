@@ -45,8 +45,11 @@ orchestrator-cc は、Claude CodeのAgent Teams機能を使用したマルチエ
 | **エージェント（Agent）** | チーム内で動作する個別の Claude Code プロセス |
 | **ダッシュボード** | Web ベースのチーム管理インターフェース（FastAPI + React） |
 | **ヘルスチェック** | エージェントの状態を監視する機能 |
-| ** SendMessage** | Claude Codeのツールで、エージェント間でメッセージを送信する機能 |
+| **SendMessage** | Claude Codeのツールで、エージェント間でメッセージを送信する機能 |
 | **TaskUpdate** | Claude Codeのツールで、タスク状態を更新する機能 |
+| **並列起動** | 複数のチームを同時に起動・運用する機能 |
+| **大規模チーム** | 5名以上のメンバーで構成されるチーム |
+| **チームプール** | 複数のチームを管理・運用する仕組み |
 
 ---
 
@@ -80,6 +83,27 @@ python -m orchestrator.cli delete-team <team-name>
 
 # ヘルスステータスを表示
 python -m orchestrator.cli health
+
+# すべてのチームを削除
+python -m orchestrator.cli cleanup-all-teams
+```
+
+### 並列起動コマンド
+
+```bash
+# 複数のチームを一括作成
+for team in team-a team-b team-c; do
+  python -m orchestrator.cli create-team $team \
+    --description "Team $team for parallel processing" \
+    --members members.json
+done
+
+# すべてのチームのステータスを確認
+python -m orchestrator.cli list-teams --verbose
+
+# 特定のプレフィックスを持つチームのみを削除
+python -m orchestrator.cli list-teams | grep "test-" | \
+  awk '{print $1}' | xargs -I {} python -m orchestrator.cli delete-team {}
 ```
 
 ### ダッシュボード操作
@@ -113,6 +137,19 @@ open http://localhost:8000
 | メモリ | 8GB+ |
 | ディスク | SSD |
 | CPU | 4コア以上 |
+
+### 並列起動時の要件
+
+複数のチームを並列で運用する場合、以下の要件を推奨します。
+
+| チーム数 | 最小メモリ | 推奨メモリ | 推奨CPU |
+|----------|-----------|-----------|---------|
+| 1-2チーム | 4GB | 8GB | 2コア |
+| 3-5チーム | 8GB | 16GB | 4コア |
+| 6-10チーム | 16GB | 32GB | 8コア |
+| 10+チーム | 32GB+ | 64GB+ | 8コア+ |
+
+**注意**: 各エージェントは約500MB-1GBのメモリを使用します。大規模チーム（5名以上）や並列運用では、リソース要件が比例して増加します。
 
 ---
 
@@ -158,7 +195,95 @@ orchestrator-cc/
 
 ---
 
-## 運用に関するよくある質問
+---
+
+## 並列起動のベストプラクティス
+
+### チーム構成の例
+
+ orchestrator-ccでは、用途に応じて様々なチーム構成が可能です。
+
+#### 小規模チーム（2-3名）
+
+基本的なタスク処理に適しています。
+
+```json
+{
+  "members": [
+    {"name": "team-lead", "agentType": "general-purpose"},
+    {"name": "researcher", "agentType": "general-purpose"}
+  ]
+}
+```
+
+#### 中規模チーム（4-6名）
+
+複雑なタスクや並列処理に適しています。
+
+```json
+{
+  "members": [
+    {"name": "team-lead", "agentType": "general-purpose"},
+    {"name": "researcher", "agentType": "general-purpose"},
+    {"name": "coder", "agentType": "general-purpose"},
+    {"name": "tester", "agentType": "general-purpose"},
+    {"name": "reviewer", "agentType": "general-purpose"}
+  ]
+}
+```
+
+#### 大規模チーム（7-10名）
+
+大規模プロジェクトや専門分野別の並列処理に適しています。
+
+```json
+{
+  "members": [
+    {"name": "team-lead", "agentType": "general-purpose"},
+    {"name": "frontend-lead", "agentType": "general-purpose"},
+    {"name": "backend-lead", "agentType": "general-purpose"},
+    {"name": "researcher", "agentType": "general-purpose"},
+    {"name": "frontend-coder", "agentType": "general-purpose"},
+    {"name": "backend-coder", "agentType": "general-purpose"},
+    {"name": "tester", "agentType": "general-purpose"},
+    {"name": "reviewer", "agentType": "general-purpose"},
+    {"name": "documentation", "agentType": "general-purpose"}
+  ]
+}
+```
+
+### 並列起動の推奨事項
+
+| 項目 | 推奨事項 | 理由 |
+|------|----------|------|
+| **チーム名の命名規則** | `project-env-team` 形式（例: `app-dev-team-a`） | 一覧性と管理性の向上 |
+| **ヘルスチェック間隔** | 30-60秒 | 過度な負荷を避けつつ迅速な検知 |
+| **タイムアウト設定** | タスク complexity に応じて 300-600秒 | タスクの特性に応じた適切な設定 |
+| **ログローテーション** | 100MB または 7日ごと | ディスク容量の管理 |
+| **監視** | ダッシュボード + アラート | リアルタイム監視と問題検知 |
+| **バックアップ** | 毎日自動バックアップ | データ保護 |
+
+### チームプールの管理
+
+複数のチームを効率的に管理するための推奨アプローチ：
+
+```bash
+# プロジェクト別のチームプレフィックス
+python -m orchestrator.cli create-team app-dev-frontend \
+  --description "Frontend development team"
+python -m orchestrator.cli create-team app-dev-backend \
+  --description "Backend development team"
+python -m orchestrator.cli create-team app-qa-integration \
+  --description "Integration testing team"
+
+# 環境別のチーム管理
+for env in dev staging prod; do
+  python -m orchestrator.cli create-team "app-$env" \
+    --description "App $env environment team"
+done
+```
+
+---
 
 ### Q: チームが作成できない場合はどうすればよいですか？
 
@@ -192,5 +317,6 @@ A: [backup-recovery.md](backup-recovery.md) でバックアップと復旧の手
 
 | 日付 | バージョン | 変更内容 |
 |------|-----------|----------|
+| 2026-02-08 | 2.1.0 | 並列起動対応：チーム構成の例追加、推奨事項追加、用語集更新 |
 | 2026-02-07 | 2.0.0 | Agent Teams移行に伴う全面改訂 |
 | 2026-02-04 | 1.0.0 | 初版作成 |

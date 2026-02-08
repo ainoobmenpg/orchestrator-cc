@@ -52,7 +52,6 @@ export interface TeamMember {
   model: string;
   joinedAt: number;
   cwd: string;
-  tmuxPaneId: string;
 }
 
 /** チーム情報 */

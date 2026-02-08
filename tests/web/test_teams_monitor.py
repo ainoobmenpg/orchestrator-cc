@@ -20,11 +20,7 @@ class TestTeamsMonitorInit:
 
     @patch("orchestrator.web.teams_monitor.Path")
     def test_initialization(self, mock_path):
-        """初期化テスト
-
-        Note: tmux_session_name引数は互換性のために残されていますが、
-        使用されていません（ファイルベースの思考ログを使用）。
-        """
+        """初期化テスト"""
         # チームディレクトリが存在しないようにモック
         mock_path.home.return_value = Path("/tmp/empty_teams")
         mock_path.return_value.exists.return_value = False
@@ -40,19 +36,14 @@ class TestTeamsMonitorInit:
         assert not monitor.is_running()
 
     @patch("orchestrator.web.teams_monitor.Path")
-    def test_initialization_with_session_name(self, mock_path):
-        """tmux_session_nameを指定した初期化テスト
-
-        Note: tmux_session_name引数は互換性のために残されていますが、
-        使用されていません。
-        """
+    def test_initialization_default(self, mock_path):
+        """デフォルトパラメータでの初期化テスト"""
         # チームディレクトリが存在しないようにモック
         mock_path.home.return_value = Path("/tmp/empty_teams")
         mock_path.return_value.exists.return_value = False
         mock_path.return_value.iterdir.return_value = []
 
-        # tmux_session_nameを指定しても例外が発生しないことを確認
-        monitor = TeamsMonitor(tmux_session_name="test-session")
+        monitor = TeamsMonitor()
 
         assert monitor._teams == {}
         assert not monitor.is_running()
@@ -353,13 +344,11 @@ class TestTeamsMonitorEventHandlers:
 class TestTeamsMonitorThinkingCapture:
     """TeamsMonitor思考ログキャプチャのテスト"""
 
-    @patch("orchestrator.web.teams_monitor.ThinkingLog")
-    def test_capture_thinking_no_tmux(self, mock_thinking_log):
-        """tmuxマネージャーがない場合の思考ログキャプチャ"""
-        monitor = TeamsMonitor()  # tmux_session_nameなし
+    def test_capture_thinking_file_based(self):
+        """ファイルベースの思考ログキャプチャ"""
+        monitor = TeamsMonitor()
 
         # 例外が発生しないことを確認
         monitor._capture_thinking()
 
-        # ThinkingLog.from_pane_outputは呼ばれないはず
-        mock_thinking_log.from_pane_output.assert_not_called()
+        # ファイルベースなので何もしない（空実行）
