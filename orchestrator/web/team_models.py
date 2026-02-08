@@ -500,6 +500,7 @@ class GlobalState:
         teams_manager: AgentTeamsManager
         health_monitor: ヘルスモニター
         channel_manager: チャンネルマネージャー
+        channel_client: エージェント向けチャンネル操作クライアント
         event_loop: イベントループ（スレッドセーフなブロードキャスト用）
     """
 
@@ -510,4 +511,5 @@ class GlobalState:
     teams_manager: Any | None = None
     health_monitor: Any | None = None
     channel_manager: Any | None = None
+    channel_client: Any | None = None
     event_loop: Any | None = None
