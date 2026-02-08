@@ -4,7 +4,7 @@
  * ダッシュボードのタブナビゲーションを表示します
  */
 
-import { Layout, List, MessageSquare, Clock, Settings } from "lucide-react";
+import { Users, List } from "lucide-react";
 import { useUIStore } from "../../stores/uiStore";
 import type { TabName } from "../../stores/uiStore";
 
@@ -13,11 +13,8 @@ const TABS: Array<{
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { id: "dashboard", label: "概要", icon: Layout },
-  { id: "tasks", label: "タスク", icon: List },
-  { id: "messages", label: "メッセージ", icon: MessageSquare },
-  { id: "timeline", label: "タイムライン", icon: Clock },
-  { id: "system", label: "システム", icon: Settings },
+  { id: "dashboard", label: "会議ルーム", icon: Users },
+  { id: "tasks", label: "タスクボード", icon: List },
 ];
 
 export function TabNav() {
