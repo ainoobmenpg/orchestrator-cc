@@ -9,6 +9,7 @@ import { useState, useCallback } from "react";
 import { Users, MessageSquare, Brain, Settings, X, Bell, BellOff } from "lucide-react";
 import { ChatMessageList } from "../components/chat/ChatMessageList";
 import { ChatInput } from "../components/chat/ChatInput";
+import { TeamMemberList } from "../components/team/TeamMemberList";
 import { useTeamStore } from "../stores/teamStore";
 import { useThinkingLog } from "../hooks/useThinkingLog";
 import { getWebSocketClient } from "../services/websocket";
@@ -19,12 +20,6 @@ import { cn } from "../lib/utils";
 // ============================================================================
 
 type ViewMode = "all" | "thinking" | "messages";
-
-interface FilterOptions {
-  category?: string[];
-  emotion?: string[];
-  agent?: string[];
-}
 
 // ============================================================================
 // 定数
@@ -52,9 +47,6 @@ export function ConferenceRoomPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [typingAgents] = useState<string[]>([]);
-
-  // フィルター状態
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({});
 
   // WebSocketクライアントを取得
   const wsClient = getWebSocketClient();
@@ -144,25 +136,28 @@ export function ConferenceRoomPage() {
             )}
           </button>
 
-          {/* フィルター */}
+          {/* メンバーリスト */}
           <button
             onClick={handleToggleFilters}
             className={cn(
               "p-2 rounded-lg text-muted-foreground hover:bg-accent",
               "transition-colors"
             )}
-            title="フィルター"
+            title="メンバーリスト"
           >
-            <Settings className="h-5 w-5" />
+            <Users className="h-5 w-5" />
           </button>
         </div>
       </header>
 
-      {/* フィルターパネル */}
+      {/* メンバーリストパネル */}
       {showFilters && (
         <div className="px-4 py-3 border-b border-border bg-muted/30">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium">フィルター</h3>
+            <h3 className="text-sm font-medium flex items-center gap-2">
+              <UsersIcon className="h-4 w-4" />
+              メンバー一覧
+            </h3>
             <button
               onClick={handleToggleFilters}
               className="p-1 rounded hover:bg-accent"
@@ -171,44 +166,14 @@ export function ConferenceRoomPage() {
             </button>
           </div>
 
-          <div className="space-y-3">
-            {/* エージェントフィルター */}
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">
-                エージェント
-              </label>
-              <div className="flex flex-wrap gap-1">
-                {agents.map((agent) => (
-                  <button
-                    key={agent}
-                    onClick={() => {
-                      setFilterOptions((prev) => ({
-                        ...prev,
-                        agent: prev.agent?.includes(agent)
-                          ? prev.agent.filter((a) => a !== agent)
-                          : [...(prev.agent || []), agent],
-                      }));
-                    }}
-                    className={cn(
-                      "px-2 py-1 text-xs rounded-full transition-colors",
-                      filterOptions.agent?.includes(agent)
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-background border border-border hover:bg-accent"
-                    )}
-                  >
-                    {agent}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* クリアボタン */}
-            <button
-              onClick={() => setFilterOptions({})}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              フィルターをクリア
-            </button>
+          <div className="max-h-64 overflow-y-auto">
+            {selectedTeam && selectedTeam.members.length > 0 ? (
+              <TeamMemberList members={selectedTeam.members} />
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                メンバーがいません
+              </p>
+            )}
           </div>
         </div>
       )}

@@ -32,6 +32,49 @@ class EmotionType(str, Enum):
 
 
 @dataclass
+class Personality:
+    """チームメンバーの性格パラメータ
+
+    人間的な性格を表現するパラメータを定義します。
+    各パラメータは0-100の範囲で表現されます。
+
+    Attributes:
+        socialibility: 社交性（0=内向的、100=外向的）
+        cautiousness: 慎重さ（0=大胆、100=慎重）
+        humor: ユーモア（0=真面目、100=ユーモラス）
+        curiosity: 好奇心（0=保守的、100=探究的）
+        friendliness: 親しさやすさ（0=フォーマル、100=カジュアル）
+    """
+
+    socialibility: int = 50  # 社交性
+    cautiousness: int = 50  # 慎重さ
+    humor: int = 50  # ユーモア
+    curiosity: int = 50  # 好奇心
+    friendliness: int = 50  # 親しさやすさ
+
+    def to_dict(self) -> dict[str, Any]:
+        """辞書に変換します。"""
+        return {
+            "socialibility": self.socialibility,
+            "cautiousness": self.cautiousness,
+            "humor": self.humor,
+            "curiosity": self.curiosity,
+            "friendliness": self.friendliness,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Personality":
+        """辞書からPersonalityを作成します。"""
+        return cls(
+            socialibility=data.get("socialibility", 50),
+            cautiousness=data.get("cautiousness", 50),
+            humor=data.get("humor", 50),
+            curiosity=data.get("curiosity", 50),
+            friendliness=data.get("friendliness", 50),
+        )
+
+
+@dataclass
 class TeamMember:
     """チームメンバー情報
 
@@ -42,6 +85,7 @@ class TeamMember:
         model: モデル名
         joined_at: 参加日時
         cwd: 作業ディレクトリ
+        personality: 性格パラメータ
     """
 
     agent_id: str
@@ -50,10 +94,14 @@ class TeamMember:
     model: str
     joined_at: int
     cwd: str = ""
+    personality: Personality | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TeamMember":
         """辞書からTeamMemberを作成します。"""
+        personality_data = data.get("personality")
+        personality = Personality.from_dict(personality_data) if personality_data else None
+
         return cls(
             agent_id=data.get("agentId", ""),
             name=data.get("name", ""),
@@ -61,11 +109,12 @@ class TeamMember:
             model=data.get("model", ""),
             joined_at=data.get("joinedAt", 0),
             cwd=data.get("cwd", ""),
+            personality=personality,
         )
 
     def to_dict(self) -> dict[str, Any]:
         """辞書に変換します。"""
-        return {
+        result = {
             "agentId": self.agent_id,
             "name": self.name,
             "agentType": self.agent_type,
@@ -73,6 +122,9 @@ class TeamMember:
             "joinedAt": self.joined_at,
             "cwd": self.cwd,
         }
+        if self.personality:
+            result["personality"] = self.personality.to_dict()
+        return result
 
 
 @dataclass
