@@ -4,11 +4,16 @@
 """
 
 import logging
+from typing import Any
 
 from fastapi import Query, WebSocket
 from fastapi.websockets import WebSocketDisconnect
 
-from orchestrator.web.message_handler import ChannelManager, WebSocketManager, WebSocketMessageHandler
+from orchestrator.web.message_handler import (
+    ChannelManager,
+    WebSocketManager,
+    WebSocketMessageHandler,
+)
 from orchestrator.web.team_models import GlobalState
 from orchestrator.web.teams_monitor import TeamsMonitor
 
@@ -149,7 +154,7 @@ async def websocket_endpoint(
 
 async def handle_join_channel(
     websocket: WebSocket,
-    message: dict[str, any],
+    message: dict[str, Any],
     handler: WebSocketMessageHandler,
 ) -> None:
     """チャンネル参加リクエストを処理します。
@@ -190,7 +195,7 @@ async def handle_join_channel(
 
 async def handle_leave_channel(
     websocket: WebSocket,
-    message: dict[str, any],
+    message: dict[str, Any],
     handler: WebSocketMessageHandler,
 ) -> None:
     """チャンネル退出リクエストを処理します。
@@ -230,7 +235,7 @@ async def handle_leave_channel(
 
 async def handle_channel_message(
     websocket: WebSocket,
-    message: dict[str, any],
+    message: dict[str, Any],
     handler: WebSocketMessageHandler,
 ) -> None:
     """チャンネル内メッセージを処理します。
@@ -266,7 +271,7 @@ async def handle_channel_message(
 
 async def handle_list_channels(
     websocket: WebSocket,
-    message: dict[str, any],
+    message: dict[str, Any],
     handler: WebSocketMessageHandler,
 ) -> None:
     """チャンネル一覧を返します。

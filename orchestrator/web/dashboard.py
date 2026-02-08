@@ -18,15 +18,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from orchestrator.core.agent_health_monitor import AgentHealthMonitor, get_agent_health_monitor
-from orchestrator.core.agent_teams_manager import (
-    AgentTeamsManager,
-    get_agent_teams_manager,
+from orchestrator.core.agent_health_monitor import get_agent_health_monitor
+from orchestrator.core.agent_teams_manager import get_agent_teams_manager
+from orchestrator.web.message_handler import (
+    ChannelManager,
+    WebSocketManager,
+    WebSocketMessageHandler,
 )
-from orchestrator.web.message_handler import ChannelManager, WebSocketManager, WebSocketMessageHandler
 from orchestrator.web.team_models import GlobalState
 from orchestrator.web.teams_monitor import TeamsMonitor
-from orchestrator.web.thinking_log_handler import ThinkingLogHandler, get_thinking_log_handler
+from orchestrator.web.thinking_log_handler import get_thinking_log_handler
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
@@ -140,13 +141,13 @@ def _broadcast_teams_update(data: dict) -> None:
     Args:
         data: 更新データ
     """
-    if _ws_manager:
+    if _global_state.ws_manager:
         # 非同期でブロードキャスト
         import asyncio
 
         try:
             asyncio.get_running_loop()
-            asyncio.create_task(_ws_manager.broadcast(data))
+            asyncio.create_task(_global_state.ws_manager.broadcast(data))
         except RuntimeError:
             # イベントループが実行中でない場合は無視
             pass
@@ -158,13 +159,13 @@ def _broadcast_thinking_log(data: dict) -> None:
     Args:
         data: 更新データ
     """
-    if _ws_manager:
+    if _global_state.ws_manager:
         # 非同期でブロードキャスト
         import asyncio
 
         try:
             asyncio.get_running_loop()
-            asyncio.create_task(_ws_manager.broadcast(data))
+            asyncio.create_task(_global_state.ws_manager.broadcast(data))
         except RuntimeError:
             # イベントループが実行中でない場合は無視
             pass
@@ -432,10 +433,10 @@ async def get_team_thinking(team_name: str, agent: str | None = None):
     Returns:
         思考ログのリスト
     """
-    if _thinking_log_handler is None:
+    if _global_state.thinking_log_handler is None:
         return {"error": "Thinking log handler not initialized"}
 
-    logs = _thinking_log_handler.get_logs(team_name)
+    logs = _global_state.thinking_log_handler.get_logs(team_name)
 
     if agent:
         logs = [log for log in logs if log.get("agentName") == agent]
@@ -450,13 +451,13 @@ async def start_teams_monitoring():
     Returns:
         成功メッセージ
     """
-    if _teams_monitor is None:
+    if _global_state.teams_monitor is None:
         return {"error": "Teams monitor not initialized"}
 
-    if _teams_monitor.is_running():
+    if _global_state.teams_monitor.is_running():
         return {"message": "Teams monitoring already running"}
 
-    _teams_monitor.start_monitoring()
+    _global_state.teams_monitor.start_monitoring()
     return {"message": "Teams monitoring started"}
 
 
@@ -467,13 +468,13 @@ async def stop_teams_monitoring():
     Returns:
         成功メッセージ
     """
-    if _teams_monitor is None:
+    if _global_state.teams_monitor is None:
         return {"error": "Teams monitor not initialized"}
 
-    if not _teams_monitor.is_running():
+    if not _global_state.teams_monitor.is_running():
         return {"message": "Teams monitoring not running"}
 
-    _teams_monitor.stop_monitoring()
+    _global_state.teams_monitor.stop_monitoring()
     return {"message": "Teams monitoring stopped"}
 
 
@@ -500,7 +501,10 @@ async def root():
     return {
         "message": "Orchestrator CC Dashboard - React Build Required",
         "version": "2.0.0",
-        "instructions": "Reactアプリをビルドしてください: cd orchestrator/web/frontend && npm install && npm run build",
+        "instructions": (
+            "Reactアプリをビルドしてください: "
+            "cd orchestrator/web/frontend && npm install && npm run build"
+        ),
         "endpoints": {
             "teams": "/api/teams",
             "teams_messages": "/api/teams/{team_name}/messages",
@@ -556,7 +560,10 @@ async def serve_spa(full_path: str):
     return {
         "message": "Orchestrator CC Dashboard",
         "version": "2.0.0",
-        "note": "Reactアプリがビルドされていません。frontendディレクトリで npm run build を実行してください。",
+        "note": (
+            "Reactアプリがビルドされていません。"
+            "frontendディレクトリで npm run build を実行してください。"
+        ),
     }
 
 
