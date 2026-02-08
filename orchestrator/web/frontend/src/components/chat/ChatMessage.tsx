@@ -45,39 +45,50 @@ const AGENT_COLORS: Record<string, { bg: string; border: string; text: string }>
 };
 
 // エージェント名から色設定を取得
-function getAgentColor(agentName: string): typeof AGENT_COLORS[keyof typeof AGENT_COLORS] {
+function getAgentColor(agentName: string): { bg: string; border: string; text: string } {
   // エージェント名からロールを推測
   const lowerName = agentName.toLowerCase();
 
+  const defaultColor = AGENT_COLORS.default;
+  const teamLeadColor = AGENT_COLORS["team-lead"];
+  const researcherColor = AGENT_COLORS.researcher;
+  const codingSpecialistColor = AGENT_COLORS["coding-specialist"];
+  const testingSpecialistColor = AGENT_COLORS["testing-specialist"];
+  const reviewSpecialistColor = AGENT_COLORS["review-specialist"];
+
   if (lowerName.includes("lead") || lowerName.includes("leader")) {
-    return AGENT_COLORS["team-lead"];
+    return (teamLeadColor as { bg: string; border: string; text: string }) ?? defaultColor;
   }
   if (lowerName.includes("research") || lowerName.includes("researcher")) {
-    return AGENT_COLORS.researcher;
+    return (researcherColor as { bg: string; border: string; text: string }) ?? defaultColor;
   }
   if (lowerName.includes("coding") || lowerName.includes("coder") || lowerName.includes("developer")) {
-    return AGENT_COLORS["coding-specialist"];
+    return (codingSpecialistColor as { bg: string; border: string; text: string }) ?? defaultColor;
   }
   if (lowerName.includes("testing") || lowerName.includes("tester") || lowerName.includes("test")) {
-    return AGENT_COLORS["testing-specialist"];
+    return (testingSpecialistColor as { bg: string; border: string; text: string }) ?? defaultColor;
   }
   if (lowerName.includes("review") || lowerName.includes("reviewer")) {
-    return AGENT_COLORS["review-specialist"];
+    return (reviewSpecialistColor as { bg: string; border: string; text: string }) ?? defaultColor;
   }
 
   // デフォルト色（エージェント名のハッシュから決定）
   const hash = agentName.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const colors = Object.values(AGENT_COLORS).filter((c) => c !== AGENT_COLORS.default);
-  return colors[hash % colors.length] || AGENT_COLORS.default;
+  const allColors = Object.values(AGENT_COLORS);
+  const colors = allColors.filter((c): c is { bg: string; border: string; text: string } => c !== AGENT_COLORS.default);
+  return (colors[hash % colors.length] as { bg: string; border: string; text: string }) ?? defaultColor;
 }
 
 // エージェント名からイニシャルを取得
 function getInitials(agentName: string): string {
   const parts = agentName.split(/[\s-]+/);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
+  if (parts.length >= 2 && parts[0] && parts[1]) {
+    const firstChar = parts[0][0] ?? "";
+    const secondChar = parts[1][0] ?? "";
+    return (firstChar + secondChar).toUpperCase();
   }
-  return agentName.slice(0, 2).toUpperCase();
+  const firstTwo = agentName.slice(0, 2);
+  return firstTwo.length === 2 ? firstTwo.toUpperCase() : agentName.slice(0, 1).toUpperCase();
 }
 
 // ============================================================================
@@ -181,7 +192,9 @@ export const ChatMessage = memo(function ChatMessage({
               <ReactionBadge
                 key={`${id}-reaction-${idx}`}
                 reaction={reaction}
-                onAdd={onReactionAdd ? () => onReactionAdd(reaction.emoji) : undefined}
+                {...(onReactionAdd !== undefined && {
+                  onAdd: () => onReactionAdd(reaction.emoji)
+                })}
               />
             ))}
           </div>

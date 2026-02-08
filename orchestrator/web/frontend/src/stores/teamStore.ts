@@ -462,19 +462,21 @@ export const useTeamStore = create<TeamStore>()(
             }
 
             // 重複チェック
-            const existingMessage = channelMessages[channelName].find(
+            const existingMessage = channelMessages[channelName]?.find(
               (msg) => msg.id === message.id,
             );
             if (existingMessage) {
               return state;
             }
 
-            channelMessages[channelName] = [...channelMessages[channelName], message];
+            const currentMessages = channelMessages[channelName] || [];
+            channelMessages[channelName] = [...currentMessages, message];
 
             // チャンネルのメッセージカウントを更新
+            const newMessageCount = channelMessages[channelName]?.length || 0;
             const channels = state.channels.map((ch) =>
               ch.name === channelName
-                ? { ...ch, messageCount: channelMessages[channelName].length }
+                ? { ...ch, messageCount: newMessageCount }
                 : ch,
             );
 
@@ -485,7 +487,7 @@ export const useTeamStore = create<TeamStore>()(
           });
         },
 
-        getChannelMessages: (channelName) => {
+        getChannelMessages: (channelName): ChannelMessage[] => {
           return useTeamStore.getState().channelMessages[channelName] || [];
         },
 

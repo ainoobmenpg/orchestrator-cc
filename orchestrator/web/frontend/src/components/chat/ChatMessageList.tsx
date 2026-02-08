@@ -114,11 +114,9 @@ export function ChatMessageList({
                     content={teamMsg.content}
                     timestamp={teamMsg.timestamp}
                     showAvatar={showAvatar}
-                    onReactionAdd={
-                      onReactionAdd
-                        ? (emoji) => onReactionAdd(msg.id, emoji)
-                        : undefined
-                    }
+                    {...(onReactionAdd !== undefined && {
+                      onReactionAdd: (emoji: string) => onReactionAdd(msg.id, emoji)
+                    })}
                   />
                 );
               }

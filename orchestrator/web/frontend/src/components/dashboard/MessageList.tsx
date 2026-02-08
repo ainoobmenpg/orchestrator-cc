@@ -287,7 +287,7 @@ function MessageItem({ message, index, isChannelMode }: MessageItemProps) {
             </Badge>
             {message.timestamp && (
               <span className="text-xs text-muted-foreground">
-                {formatTime(message.timestamp)}
+                {formatTime(typeof message.timestamp === 'string' ? message.timestamp : String(message.timestamp))}
               </span>
             )}
           </div>

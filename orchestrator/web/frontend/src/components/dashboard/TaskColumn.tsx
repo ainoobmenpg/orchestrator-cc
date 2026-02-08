@@ -6,8 +6,8 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useTeamStore } from "../../stores/teamStore";
 import { useTasksByStatus } from "../../hooks/useTasks";
+import type { TaskInfo } from "../../services/types";
 import { Badge } from "../ui/Badge";
 import { TaskCard } from "./TaskCard";
 
@@ -40,7 +40,7 @@ export function TaskColumn({ title, status, icon, count }: TaskColumnProps) {
         className="flex-1 bg-background rounded-b-lg border border-t-0 border-border p-3 space-y-2 overflow-y-auto min-h-[200px]"
       >
         <SortableContext
-          items={tasks.map((t) => t.taskId)}
+          items={tasks.map((t: TaskInfo) => t.taskId)}
           strategy={verticalListSortingStrategy}
         >
           {tasks.length === 0 ? (
@@ -48,7 +48,9 @@ export function TaskColumn({ title, status, icon, count }: TaskColumnProps) {
               タスクなし
             </div>
           ) : (
-            tasks.map((task) => <TaskCard key={task.taskId} task={task} />)
+            tasks.map((task: TaskInfo) => (
+              <TaskCard key={task.taskId} task={task} />
+            ))
           )}
         </SortableContext>
       </div>

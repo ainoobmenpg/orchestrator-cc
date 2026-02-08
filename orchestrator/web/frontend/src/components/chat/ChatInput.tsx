@@ -5,7 +5,7 @@
  * ユーザーからのメッセージ送信、リアクション送信をサポートします
  */
 
-import { useState, useCallback, KeyboardEvent, FormEvent } from "react";
+import { useState, useCallback, type KeyboardEvent, type FormEvent } from "react";
 import { Send, Smile } from "lucide-react";
 import { cn } from "../../lib/utils";
 
