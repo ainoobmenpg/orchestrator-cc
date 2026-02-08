@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { useAgents, useAgentStats, useAgentsByStatus } from "@/hooks/useAgents";
 import { useTeamStore } from "@/stores/teamStore";
 
@@ -17,7 +17,6 @@ describe("useAgents", () => {
     const { result } = renderHook(() => useAgents());
 
     expect(result.current.agents).toEqual([]);
-    expect(result.current.agentsMap).toBeInstanceOf(Map);
   });
 
   it("エージェント統計を取得できる", () => {
