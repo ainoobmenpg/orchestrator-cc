@@ -58,8 +58,6 @@ function App() {
           </main>
         </MainLayout>
         <ReactQueryDevtools initialIsOpen={false} />
-        {/* 初回アクセス時のチュートリアル */}
-        <Tutorial />
       </QueryClientProvider>
     </ErrorBoundary>
   );
