@@ -30,7 +30,7 @@ export function TaskBoard() {
     }
   };
 
-  const stats = useTasksStats();
+  const stats = useTaskStats();
 
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
