@@ -44,20 +44,6 @@ export function useTask(taskId: string | null) {
 }
 
 /**
- * タスク統計を取得するフック
- */
-export function useTasksStats() {
-  const tasks = useTeamStore((state) => state.tasks);
-
-  return useMemo(() => ({
-    pending: tasks.filter((t) => t.status === "pending").length,
-    inProgress: tasks.filter((t) => t.status === "in_progress").length,
-    completed: tasks.filter((t) => t.status === "completed").length,
-    total: tasks.length,
-  }), [tasks]);
-}
-
-/**
  * ステータス別のタスクリストを取得するフック
  */
 export function useTasksByStatus(status: import("../services/types").TaskStatus) {
