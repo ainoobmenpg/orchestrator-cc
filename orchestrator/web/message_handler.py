@@ -475,7 +475,7 @@ class WebSocketMessageHandler:
             "channel": channel_name,
             "sender": data.get("sender", "unknown"),
             "content": data.get("content", ""),
-            "timestamp": data.get("timestamp", None),
+            "timestamp": data.get("timestamp"),
         }
         channel.add_message(message)
         await channel.broadcast(message, self._manager)

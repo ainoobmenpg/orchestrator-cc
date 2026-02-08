@@ -301,6 +301,7 @@ async def api_info() -> dict[str, Any]:
 # ============================================================================
 
 from pydantic import BaseModel
+
 from orchestrator.web.personality_generator import PersonalityGenerator
 
 
