@@ -85,18 +85,21 @@ class TeamsMonitor:
 
     def start_monitoring(self) -> None:
         """監視を開始します。"""
+        logger.info("Starting teams monitoring...")
+
         # コールバックを登録
         self._file_observer.register_callback("config_changed", self._on_config_changed)
         self._file_observer.register_callback("inbox_changed", self._on_inbox_changed)
         self._file_observer.register_callback("team_created", self._on_team_created)
         self._file_observer.register_callback("team_deleted", self._on_team_deleted)
         self._task_observer.register_callback(self._on_task_changed)
+        logger.info(f"Callbacks registered. File observer running: {self._file_observer.is_running()}")
 
         # オブザーバーを開始
         self._file_observer.start()
         self._task_observer.start()
 
-        logger.info("Teams monitoring started")
+        logger.info(f"Teams monitoring started. File observer running: {self._file_observer.is_running()}, Task observer running: {self._task_observer.is_running()}")
 
     def stop_monitoring(self) -> None:
         """監視を停止します。"""
@@ -232,20 +235,25 @@ class TeamsMonitor:
             team_name: チーム名
             path: inboxファイルパス
         """
+        logger.info(f"Processing inbox changed for team: {team_name}, path: {path}")
         team_dir = path.parent.parent
         messages = load_team_messages(team_dir)
         self._messages[team_name] = messages
 
+        logger.info(f"Loaded {len(messages)} messages for team: {team_name}")
+
         # 新しいメッセージのみを送信
         if messages:
             latest_message = messages[-1]
-            self._broadcast(
-                {
-                    "type": "team_message",
-                    "teamName": team_name,
-                    "message": latest_message.to_dict(),
-                }
-            )
+            message_data = {
+                "type": "team_message",
+                "teamName": team_name,
+                "message": latest_message.to_dict(),
+            }
+            logger.info(f"Broadcasting team_message: {message_data}")
+            self._broadcast(message_data)
+        else:
+            logger.warning(f"No messages found for team: {team_name}")
 
         logger.debug(f"Inbox changed: {team_name}")
 

@@ -93,6 +93,12 @@ function initializeWebSocket() {
       ) {
         // setTeamsを使用して一括更新
         useTeamStore.getState().setTeams(msg.teams);
+
+        // 自動選択ロジック: 選択中のチームがない場合、最初のチームを自動選択
+        const currentSelection = useTeamStore.getState().selectedTeamName;
+        if (!currentSelection && msg.teams.length > 0) {
+          useTeamStore.getState().setSelectedTeam(msg.teams[0].name);
+        }
       }
     }
   });
@@ -100,6 +106,13 @@ function initializeWebSocket() {
   const unsubscribeTeamCreated = wsClient.on("team_created", (msg) => {
     if (msg.type === "team_created") {
       addTeam(msg.team);
+
+      // 自動選択ロジック: 選択中のチームがない場合、新規作成されたチームを自動選択
+      const currentSelection = useTeamStore.getState().selectedTeamName;
+      if (!currentSelection) {
+        useTeamStore.getState().setSelectedTeam(msg.teamName);
+      }
+
       addSystemLog({
         timestamp: new Date().toISOString(),
         level: "success",
@@ -110,7 +123,20 @@ function initializeWebSocket() {
 
   const unsubscribeTeamDeleted = wsClient.on("team_deleted", (msg) => {
     if (msg.type === "team_deleted") {
+      const currentSelection = useTeamStore.getState().selectedTeamName;
+
       removeTeam(msg.teamName);
+
+      // 削除されたチームが選択されていた場合、別のチームを自動選択
+      if (currentSelection === msg.teamName) {
+        const remainingTeams = useTeamStore.getState().teams;
+        if (remainingTeams.length > 0) {
+          useTeamStore.getState().setSelectedTeam(remainingTeams[0].name);
+        } else {
+          useTeamStore.getState().setSelectedTeam(null);
+        }
+      }
+
       addSystemLog({
         timestamp: new Date().toISOString(),
         level: "warning",
@@ -127,8 +153,9 @@ function initializeWebSocket() {
 
   const unsubscribeTeamMessage = wsClient.on("team_message", (msg) => {
     if (msg.type === "team_message") {
-      // アイドル通知はフィルタリング
-      if (msg.message.messageType !== "idle_notification") {
+      // アイドル通知はフィルタリング（messageTypeまたはtypeフィールドをチェック）
+      const messageType = msg.message.messageType || msg.message.type;
+      if (messageType !== "idle_notification") {
         addMessage(msg.message);
       }
     }
@@ -213,8 +240,8 @@ function initializeWebSocket() {
 
   unsubscribers.push(unsubscribeStateChange);
 
-  // 接続を開始
-  wsClient.connect();
+  // 接続は useWebSocket フックから遅延して開始する
+  // これにより、ハンドラーが確実に登録されてから接続が確立される
 
   isInitialized = true;
 }
@@ -260,6 +287,13 @@ export function useWebSocket() {
 
     if (!isInitialized) {
       initializeWebSocket();
+
+      // ハンドラーが登録されてから接続を開始するために遅延させる
+      setTimeout(() => {
+        if (wsClient && wsClient.getState() === "disconnected") {
+          wsClient.connect();
+        }
+      }, 100);
     }
 
     // クリーンアップは行わず、接続は維持する

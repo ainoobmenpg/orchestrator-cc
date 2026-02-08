@@ -4,10 +4,13 @@
 """
 
 import json
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class MessageCategory(str, Enum):
@@ -128,25 +131,41 @@ class TeamMessage:
         content: メッセージ内容
         timestamp: タイムスタンプ
         message_type: メッセージタイプ
+        summary: メッセージの要約（inboxファイル用）
+        color: メッセージの色（inboxファイル用）
+        read: 既読かどうか（inboxファイル用）
     """
 
-    id: str
-    sender: str
-    recipient: str
-    content: str
-    timestamp: str
+    id: str = ""
+    sender: str = ""
+    recipient: str = ""
+    content: str = ""
+    timestamp: str = ""
     message_type: str = "message"
+    summary: str = ""
+    color: str = ""
+    read: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TeamMessage":
-        """辞書からTeamMessageを作成します。"""
+        """辞書からTeamMessageを作成します。
+
+        inboxファイル形式（from, text, summary, color, read）と
+        標準形式（sender, content, id, recipient, type）の両方に対応します。
+        """
         return cls(
             id=data.get("id", ""),
-            sender=data.get("sender", ""),
+            # inbox形式の "from" を標準形式の "sender" にマッピング
+            sender=data.get("sender", "") or data.get("from", ""),
             recipient=data.get("recipient", ""),
-            content=data.get("content", ""),
+            # inbox形式の "text" を標準形式の "content" にマッピング
+            content=data.get("content", "") or data.get("text", ""),
             timestamp=data.get("timestamp", ""),
             message_type=data.get("type", "message"),
+            # inbox形式の追加フィールド
+            summary=data.get("summary", ""),
+            color=data.get("color", ""),
+            read=data.get("read", False),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -156,8 +175,12 @@ class TeamMessage:
             "sender": self.sender,
             "recipient": self.recipient,
             "content": self.content,
+            "text": self.content,  # inbox形式との互換性
             "timestamp": self.timestamp,
             "type": self.message_type,
+            "summary": self.summary,
+            "color": self.color,
+            "read": self.read,
         }
 
 
@@ -343,8 +366,10 @@ def load_team_config(team_path: Path) -> TeamInfo | None:
     try:
         with open(config_path, encoding="utf-8") as f:
             data = json.load(f)
+        logger.info(f"Loaded config.json from {config_path}: {data.get('name', 'unknown')}")
         return TeamInfo.from_dict(data)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error(f"Failed to load config from {config_path}: {e}")
         return None
 
 
@@ -422,6 +447,7 @@ class GlobalState:
         thinking_log_handler: 思考ログハンドラー
         teams_manager: AgentTeamsManager
         health_monitor: ヘルスモニター
+        event_loop: イベントループ（スレッドセーフなブロードキャスト用）
     """
 
     ws_manager: Any | None = None
@@ -430,3 +456,4 @@ class GlobalState:
     thinking_log_handler: Any | None = None
     teams_manager: Any | None = None
     health_monitor: Any | None = None
+    event_loop: Any | None = None
