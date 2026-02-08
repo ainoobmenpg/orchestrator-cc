@@ -7,6 +7,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useTeamStore } from "../../stores/teamStore";
+import { useTasksByStatus } from "../../hooks/useTasks";
 import { Badge } from "../ui/Badge";
 import { TaskCard } from "./TaskCard";
 
@@ -22,9 +23,7 @@ export function TaskColumn({ title, status, icon, count }: TaskColumnProps) {
     id: status,
   });
 
-  const tasks = useTeamStore((state) =>
-    state.tasks.filter((t) => t.status === status)
-  );
+  const tasks = useTasksByStatus(status);
 
   return (
     <div className="flex flex-col min-w-[280px] flex-1">

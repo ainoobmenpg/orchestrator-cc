@@ -4,7 +4,7 @@
  * テスト環境のグローバル設定を行います
  */
 
-import { afterEach, vi, expect } from "vitest";
+import { afterEach, expect } from "vitest";
 import { cleanup } from "@testing-library/react";
 import * as matchers from "@testing-library/jest-dom/matchers";
 
@@ -25,7 +25,7 @@ global.IntersectionObserver = class IntersectionObserver {
     return [];
   }
   unobserve() {}
-} as any;
+} as unknown as IntersectionObserver;
 
 // ResizeObserverのモック
 global.ResizeObserver = class ResizeObserver {
@@ -33,7 +33,7 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
   observe() {}
   unobserve() {}
-} as any;
+} as unknown as ResizeObserver;
 
 // requestAnimationFrameのモック
 global.requestAnimationFrame = (callback: FrameRequestCallback) => {
@@ -52,4 +52,4 @@ global.MediaRecorder = class MediaRecorder {
   static isTypeSupported() {
     return true;
   }
-} as any;
+} as unknown as typeof MediaRecorder;

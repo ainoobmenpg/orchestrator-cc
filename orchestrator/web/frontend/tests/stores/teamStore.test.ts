@@ -13,8 +13,8 @@ describe("teamStore", () => {
 
   it("初期状態が正しい", () => {
     const state = useTeamStore.getState();
-    expect(state.teams).toBeInstanceOf(Map);
-    expect(state.agents).toBeInstanceOf(Map);
+    expect(state.teams).toEqual([]);
+    expect(state.agents).toEqual([]);
     expect(state.messages).toEqual([]);
     expect(state.tasks).toEqual([]);
   });
@@ -31,7 +31,7 @@ describe("teamStore", () => {
     useTeamStore.getState().setTeams(teams);
     const state = useTeamStore.getState();
 
-    expect(state.teams.get("test-team")).toEqual(teams[0]);
+    expect(state.teams).toEqual(teams);
   });
 
   it("エージェントを設定できる", () => {
@@ -47,7 +47,7 @@ describe("teamStore", () => {
     useTeamStore.getState().setAgents(agents);
     const state = useTeamStore.getState();
 
-    expect(state.agents.get("test-agent")).toEqual(agents[0]);
+    expect(state.agents).toEqual(agents);
   });
 
   it("エージェントを追加・更新できる", () => {
@@ -61,7 +61,7 @@ describe("teamStore", () => {
     useTeamStore.getState().upsertAgent(agent);
     const state = useTeamStore.getState();
 
-    expect(state.agents.get("test-agent")).toEqual(agent);
+    expect(state.agents).toEqual([agent]);
   });
 
   it("メッセージを追加できる", () => {
@@ -139,6 +139,6 @@ describe("teamStore", () => {
     useTeamStore.getState().reset();
     const state = useTeamStore.getState();
 
-    expect(state.teams.size).toBe(0);
+    expect(state.teams).toEqual([]);
   });
 });
