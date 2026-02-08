@@ -10,6 +10,7 @@
 
 import { useEffect, useCallback } from "react";
 import { getWebSocketClient } from "../services/websocket";
+import { getTeamMessages, getTeamTasks } from "../services/api";
 import { useTeamStore } from "../stores/teamStore";
 import { notify } from "../stores/uiStore";
 import { errorHandler } from "../services/errorHandler";
@@ -73,8 +74,35 @@ function initializeWebSocket() {
   const setHasErrors = useTeamStore.getState().setHasErrors;
 
   // メッセージハンドラーを登録
-  const unsubscribeConnected = wsClient.on("connected", () => {
+  const unsubscribeConnected = wsClient.on("connected", async () => {
     setConnectionState("connected");
+
+    // 再接続時に選択中のチームデータを再取得（Issue #45対応）
+    const selectedTeamName = useTeamStore.getState().selectedTeamName;
+    if (selectedTeamName) {
+      try {
+        // メッセージとタスクを再取得して上書き
+        const [messages, tasks] = await Promise.all([
+          getTeamMessages(selectedTeamName),
+          getTeamTasks(selectedTeamName),
+        ]);
+
+        // setStateで直接上書き（重複チェック済みのため）
+        useTeamStore.setState({
+          messages,
+          messageCount: {
+            total: messages.length,
+            thinking: messages.filter((m) => m.messageType === "thinking").length,
+            task: messages.filter((m) => m.messageType === "task").length,
+            result: messages.filter((m) => m.messageType === "result").length,
+          },
+          tasks,
+        });
+      } catch (error) {
+        console.error(`再接続時のデータ取得エラー (${selectedTeamName}):`, error);
+      }
+    }
+
     notify.success("ダッシュボードに接続しました");
   });
 
