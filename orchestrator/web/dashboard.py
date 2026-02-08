@@ -23,20 +23,16 @@ from orchestrator.core.agent_teams_manager import (
     AgentTeamsManager,
     get_agent_teams_manager,
 )
-from orchestrator.web.message_handler import WebSocketManager, WebSocketMessageHandler
+from orchestrator.web.message_handler import ChannelManager, WebSocketManager, WebSocketMessageHandler
+from orchestrator.web.team_models import GlobalState
 from orchestrator.web.teams_monitor import TeamsMonitor
 from orchestrator.web.thinking_log_handler import ThinkingLogHandler, get_thinking_log_handler
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
 
-# グローバルインスタンス
-_ws_manager: WebSocketManager | None = None
-_ws_handler: WebSocketMessageHandler | None = None
-_teams_monitor: TeamsMonitor | None = None
-_thinking_log_handler: ThinkingLogHandler | None = None
-_teams_manager: AgentTeamsManager | None = None
-_health_monitor: AgentHealthMonitor | None = None
+# グローバルステート
+_global_state: GlobalState = GlobalState()
 
 
 @asynccontextmanager
@@ -45,41 +41,45 @@ async def lifespan(_app: FastAPI):
 
     アプリケーション起動時と終了時の処理を定義します。
     """
-    global \
-        _ws_manager, \
-        _ws_handler, \
-        _teams_monitor, \
-        _thinking_log_handler, \
-        _teams_manager, \
-        _health_monitor
+    global _global_state
 
     # 起動時
     logger.info("FastAPIアプリケーションを起動します")
 
     # WebSocketマネージャーを初期化
-    _ws_manager = WebSocketManager()
-    _ws_handler = WebSocketMessageHandler(_ws_manager)
+    ws_manager = WebSocketManager()
+    channel_manager = ChannelManager()
+    ws_handler = WebSocketMessageHandler(ws_manager, channel_manager)
+
+    # GlobalStateに設定
+    _global_state.ws_manager = ws_manager
+    _global_state.channel_manager = channel_manager
+    _global_state.ws_handler = ws_handler
 
     # TeamsMonitorを初期化
-    _teams_monitor = TeamsMonitor()
-    _teams_monitor.register_update_callback(_broadcast_teams_update)
-    _teams_monitor.start_monitoring()
+    teams_monitor = TeamsMonitor()
+    teams_monitor.register_update_callback(_broadcast_teams_update)
+    teams_monitor.start_monitoring()
+    _global_state.teams_monitor = teams_monitor
     logger.info("Teams monitoring started")
 
     # ThinkingLogHandlerを初期化
-    _thinking_log_handler = get_thinking_log_handler()
-    _thinking_log_handler.register_callback(_broadcast_thinking_log)
-    _thinking_log_handler.start_monitoring()
+    thinking_log_handler = get_thinking_log_handler()
+    thinking_log_handler.register_callback(_broadcast_thinking_log)
+    thinking_log_handler.start_monitoring()
+    _global_state.thinking_log_handler = thinking_log_handler
     logger.info("Thinking log monitoring started")
 
     # AgentTeamsManagerを初期化
-    _teams_manager = get_agent_teams_manager()
+    teams_manager = get_agent_teams_manager()
+    _global_state.teams_manager = teams_manager
     logger.info("AgentTeamsManager initialized")
 
     # AgentHealthMonitorを初期化
-    _health_monitor = get_agent_health_monitor()
-    _health_monitor.register_callback(_on_health_event)
-    _health_monitor.start_monitoring()
+    health_monitor = get_agent_health_monitor()
+    health_monitor.register_callback(_on_health_event)
+    health_monitor.start_monitoring()
+    _global_state.health_monitor = health_monitor
     logger.info("AgentHealthMonitor started")
 
     yield
@@ -88,20 +88,23 @@ async def lifespan(_app: FastAPI):
     logger.info("FastAPIアプリケーションを停止します")
 
     # Teams監視を停止
-    if _teams_monitor and _teams_monitor.is_running():
-        _teams_monitor.stop_monitoring()
+    if _global_state.teams_monitor and _global_state.teams_monitor.is_running():
+        _global_state.teams_monitor.stop_monitoring()
 
     # 思考ログ監視を停止
-    if _thinking_log_handler and _thinking_log_handler.is_running():
-        _thinking_log_handler.stop_monitoring()
+    if (
+        _global_state.thinking_log_handler
+        and _global_state.thinking_log_handler.is_running()
+    ):
+        _global_state.thinking_log_handler.stop_monitoring()
 
     # ヘルスモニターを停止
-    if _health_monitor and _health_monitor.is_running():
-        _health_monitor.stop_monitoring()
+    if _global_state.health_monitor and _global_state.health_monitor.is_running():
+        _global_state.health_monitor.stop_monitoring()
 
     # 全てのWebSocket接続を閉じる
-    if _ws_manager:
-        await _ws_manager.close_all()
+    if _global_state.ws_manager:
+        await _global_state.ws_manager.close_all()
 
 
 # FastAPIアプリケーションを作成
@@ -194,15 +197,15 @@ async def websocket_endpoint(
         websocket: WebSocket接続オブジェクト
         _token: 認証トークン（将来的な実装用）
     """
-    if _ws_manager is None or _ws_handler is None:
+    if _global_state.ws_manager is None or _global_state.ws_handler is None:
         await websocket.close(code=1011, reason="Server not initialized")
         return
 
-    await _ws_manager.connect(websocket)
+    await _global_state.ws_manager.connect(websocket)
 
     try:
         # 接続確立メッセージを送信
-        await _ws_manager.send_personal(
+        await _global_state.ws_manager.send_personal(
             {
                 "type": "connected",
                 "message": "Connected to Orchestrator CC Dashboard",
@@ -211,7 +214,7 @@ async def websocket_endpoint(
         )
 
         # 初期システムログを送信
-        await _ws_manager.send_personal(
+        await _global_state.ws_manager.send_personal(
             {
                 "type": "system_log",
                 "timestamp": None,
@@ -222,9 +225,9 @@ async def websocket_endpoint(
         )
 
         # チーム状態をログに追加
-        if _teams_monitor:
-            teams = _teams_monitor.get_teams()
-            await _ws_manager.send_personal(
+        if _global_state.teams_monitor:
+            teams = _global_state.teams_monitor.get_teams()
+            await _global_state.ws_manager.send_personal(
                 {
                     "type": "system_log",
                     "timestamp": None,
@@ -237,14 +240,14 @@ async def websocket_endpoint(
         # メッセージ受信ループ
         while True:
             message = await websocket.receive_text()
-            await _ws_handler.handle_message(message, websocket)
+            await _global_state.ws_handler.handle_message(message, websocket)
 
     except WebSocketDisconnect:
-        _ws_manager.disconnect(websocket)
+        _global_state.ws_manager.disconnect(websocket)
         logger.info(f"WebSocket接続が切断されました: {websocket.client}")
     except Exception as e:
         logger.error(f"WebSocketエラーが発生: {e}")
-        _ws_manager.disconnect(websocket)
+        _global_state.ws_manager.disconnect(websocket)
 
 
 # ============================================================================
@@ -259,10 +262,10 @@ async def get_teams():
     Returns:
         チーム情報のリスト
     """
-    if _teams_monitor is None:
+    if _global_state.teams_monitor is None:
         return {"error": "Teams monitor not initialized"}
 
-    return {"teams": _teams_monitor.get_teams()}
+    return {"teams": _global_state.teams_monitor.get_teams()}
 
 
 @app.get("/api/teams/{team_name}/messages")
@@ -275,10 +278,13 @@ async def get_team_messages(team_name: str):
     Returns:
         メッセージのリスト
     """
-    if _teams_monitor is None:
+    if _global_state.teams_monitor is None:
         return {"error": "Teams monitor not initialized"}
 
-    return {"teamName": team_name, "messages": _teams_monitor.get_team_messages(team_name)}
+    return {
+        "teamName": team_name,
+        "messages": _global_state.teams_monitor.get_team_messages(team_name),
+    }
 
 
 @app.get("/api/teams/{team_name}/tasks")
@@ -291,10 +297,13 @@ async def get_team_tasks(team_name: str):
     Returns:
         タスクのリスト
     """
-    if _teams_monitor is None:
+    if _global_state.teams_monitor is None:
         return {"error": "Teams monitor not initialized"}
 
-    return {"teamName": team_name, "tasks": _teams_monitor.get_team_tasks(team_name)}
+    return {
+        "teamName": team_name,
+        "tasks": _global_state.teams_monitor.get_team_tasks(team_name),
+    }
 
 
 def _on_health_event(event) -> None:
@@ -303,14 +312,14 @@ def _on_health_event(event) -> None:
     Args:
         event: ヘルスチェックイベント
     """
-    if _ws_manager:
+    if _global_state.ws_manager:
         # 非同期でブロードキャスト
         import asyncio
 
         try:
             asyncio.get_running_loop()
             asyncio.create_task(
-                _ws_manager.broadcast(
+                _global_state.ws_manager.broadcast(
                     {
                         "type": "health_event",
                         "event": event.to_dict(),
@@ -336,10 +345,10 @@ async def get_team_status(team_name: str):
     Returns:
         チーム状態
     """
-    if _teams_manager is None:
+    if _global_state.teams_manager is None:
         return {"error": "Teams manager not initialized"}
 
-    return _teams_manager.get_team_status(team_name)
+    return _global_state.teams_manager.get_team_status(team_name)
 
 
 @app.post("/api/teams/{team_name}/activity")
@@ -353,10 +362,10 @@ async def update_agent_activity(team_name: str, agent_name: str):
     Returns:
         成功メッセージ
     """
-    if _teams_manager is None:
+    if _global_state.teams_manager is None:
         return {"error": "Teams manager not initialized"}
 
-    _teams_manager.update_agent_activity(team_name, agent_name)
+    _global_state.teams_manager.update_agent_activity(team_name, agent_name)
     return {"message": "Activity updated"}
 
 
@@ -367,10 +376,10 @@ async def get_health_status():
     Returns:
         ヘルス状態
     """
-    if _health_monitor is None:
+    if _global_state.health_monitor is None:
         return {"error": "Health monitor not initialized"}
 
-    return _health_monitor.get_health_status()
+    return _global_state.health_monitor.get_health_status()
 
 
 @app.post("/api/health/start")
@@ -380,13 +389,13 @@ async def start_health_monitoring():
     Returns:
         成功メッセージ
     """
-    if _health_monitor is None:
+    if _global_state.health_monitor is None:
         return {"error": "Health monitor not initialized"}
 
-    if _health_monitor.is_running():
+    if _global_state.health_monitor.is_running():
         return {"message": "Health monitoring already running"}
 
-    _health_monitor.start_monitoring()
+    _global_state.health_monitor.start_monitoring()
     return {"message": "Health monitoring started"}
 
 
@@ -397,13 +406,13 @@ async def stop_health_monitoring():
     Returns:
         成功メッセージ
     """
-    if _health_monitor is None:
+    if _global_state.health_monitor is None:
         return {"error": "Health monitor not initialized"}
 
-    if not _health_monitor.is_running():
+    if not _global_state.health_monitor.is_running():
         return {"message": "Health monitoring not running"}
 
-    _health_monitor.stop_monitoring()
+    _global_state.health_monitor.stop_monitoring()
     return {"message": "Health monitoring stopped"}
 
 

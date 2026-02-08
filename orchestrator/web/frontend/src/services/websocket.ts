@@ -180,6 +180,50 @@ export class WebSocketClient {
     }
   }
 
+  /**
+   * チャンネルにメッセージを送信する
+   */
+  sendToChannel(channelName: string, content: string, sender: string = "user"): void {
+    this.send({
+      type: "channel_message",
+      channel: channelName,
+      content: content,
+      sender: sender,
+      timestamp: Date.now(),
+    } as WebSocketMessage);
+  }
+
+  /**
+   * チャンネルに参加する
+   */
+  joinChannel(channelName: string, agentId: string): void {
+    this.send({
+      type: "join_channel",
+      channel: channelName,
+      agent_id: agentId,
+    } as WebSocketMessage);
+  }
+
+  /**
+   * チャンネルから退出する
+   */
+  leaveChannel(channelName: string, agentId: string): void {
+    this.send({
+      type: "leave_channel",
+      channel: channelName,
+      agent_id: agentId,
+    } as WebSocketMessage);
+  }
+
+  /**
+   * チャンネルリストを要求する
+   */
+  listChannels(): void {
+    this.send({
+      type: "list_channels",
+    } as WebSocketMessage);
+  }
+
   // ========================================================================
   // メッセージハンドリング
   // ========================================================================
