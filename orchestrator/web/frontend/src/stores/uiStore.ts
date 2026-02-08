@@ -12,7 +12,7 @@ import { devtools, persist } from "zustand/middleware";
 // ============================================================================
 
 /** タブ名 */
-export type TabName = "dashboard" | "tasks" | "messages" | "timeline" | "system";
+export type TabName = "dashboard" | "tasks" | "messages" | "channels" | "timeline" | "system";
 
 /** 通知タイプ */
 export type NotificationType = "info" | "success" | "warning" | "error";

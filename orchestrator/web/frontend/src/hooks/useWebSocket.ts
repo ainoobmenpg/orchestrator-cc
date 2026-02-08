@@ -72,6 +72,8 @@ function initializeWebSocket() {
   const addSystemLog = useTeamStore.getState().addSystemLog;
   const setTasks = useTeamStore.getState().setTasks;
   const setHasErrors = useTeamStore.getState().setHasErrors;
+  const addChannel = useTeamStore.getState().addChannel;
+  const addChannelMessage = useTeamStore.getState().addChannelMessage;
 
   // メッセージハンドラーを登録
   const unsubscribeConnected = wsClient.on("connected", async () => {
@@ -180,6 +182,71 @@ function initializeWebSocket() {
     }
   });
 
+  // 会話チャンネル関連のハンドラー
+  const unsubscribeChannelMessage = wsClient.on("channel_message", (msg) => {
+    if (msg.type === "channel_message") {
+      addChannelMessage({
+        id: `${msg.channel}-${msg.timestamp}-${msg.sender}`,
+        channel: msg.channel,
+        sender: msg.sender,
+        content: msg.content,
+        timestamp: msg.timestamp,
+      });
+    }
+  });
+
+  const unsubscribeChannelJoined = wsClient.on("channel_joined", (msg) => {
+    if (msg.type === "channel_joined") {
+      addChannel({
+        name: msg.channel,
+        participants: msg.participants,
+        messageCount: 0,
+      });
+      addSystemLog({
+        timestamp: new Date().toISOString(),
+        level: "success",
+        content: `チャンネル ${msg.channel} に参加しました`,
+      });
+    }
+  });
+
+  const unsubscribeChannelLeft = wsClient.on("channel_left", (msg) => {
+    if (msg.type === "channel_left") {
+      addSystemLog({
+        timestamp: new Date().toISOString(),
+        level: "info",
+        content: `チャンネル ${msg.channel} から退出しました`,
+      });
+    }
+  });
+
+  const unsubscribeChannelsList = wsClient.on("channels_list", (msg) => {
+    if (msg.type === "channels_list") {
+      const setChannels = useTeamStore.getState().setChannels;
+      setChannels(msg.channels);
+    }
+  });
+
+  const unsubscribeParticipantJoined = wsClient.on("participant_joined", (msg) => {
+    if (msg.type === "participant_joined") {
+      addSystemLog({
+        timestamp: new Date().toISOString(),
+        level: "info",
+        content: `${msg.agent_id} がチャンネル ${msg.channel} に参加しました`,
+      });
+    }
+  });
+
+  const unsubscribeParticipantLeft = wsClient.on("participant_left", (msg) => {
+    if (msg.type === "participant_left") {
+      addSystemLog({
+        timestamp: new Date().toISOString(),
+        level: "info",
+        content: `${msg.agent_id} がチャンネル ${msg.channel} から退出しました`,
+      });
+    }
+  });
+
   // クリーンアップ関数を保存
   unsubscribers = [
     unsubscribeConnected,
@@ -192,6 +259,12 @@ function initializeWebSocket() {
     unsubscribeSystemLog,
     unsubscribeHealthEvent,
     unsubscribeAgents,
+    unsubscribeChannelMessage,
+    unsubscribeChannelJoined,
+    unsubscribeChannelLeft,
+    unsubscribeParticipantJoined,
+    unsubscribeParticipantLeft,
+    unsubscribeChannelsList,
   ];
 
   // 接続状態変化のハンドラー

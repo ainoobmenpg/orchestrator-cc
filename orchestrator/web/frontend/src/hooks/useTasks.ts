@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTeamTasks } from "../services/api";
 import { useTeamStore } from "../stores/teamStore";
+import type { TaskInfo } from "../services/types";
 
 /**
  * チームタスクリストを取得するフック
@@ -55,7 +56,7 @@ export function useTasksStats() {
 /**
  * ステータス別のタスクリストを取得するフック
  */
-export function useTasksByStatus(status: import("../services/types").TaskStatus) {
+export function useTasksByStatus(status: "pending" | "in_progress" | "completed"): TaskInfo[] {
   const tasks = useTeamStore((state) => state.tasks);
 
   return useMemo(() => tasks.filter((t) => t.status === status), [tasks, status]);

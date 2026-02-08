@@ -499,6 +499,7 @@ class GlobalState:
         thinking_log_handler: 思考ログハンドラー
         teams_manager: AgentTeamsManager
         health_monitor: ヘルスモニター
+        channel_manager: チャンネルマネージャー
         event_loop: イベントループ（スレッドセーフなブロードキャスト用）
     """
 
@@ -508,4 +509,5 @@ class GlobalState:
     thinking_log_handler: Any | None = None
     teams_manager: Any | None = None
     health_monitor: Any | None = None
+    channel_manager: Any | None = None
     event_loop: Any | None = None

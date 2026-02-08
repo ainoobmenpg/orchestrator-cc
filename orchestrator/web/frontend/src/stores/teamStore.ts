@@ -10,6 +10,8 @@ import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import type {
   AgentInfo,
+  ChannelInfo,
+  ChannelMessage,
   SystemLog,
   TaskInfo,
   TeamInfo,
@@ -55,6 +57,11 @@ interface TeamState {
 
   // ヘルス状態
   hasErrors: boolean;
+
+  // 会話チャンネル
+  channels: ChannelInfo[];
+  currentChannel: string | null;
+  channelMessages: Record<string, ChannelMessage[]>;
 }
 
 // ============================================================================
@@ -95,6 +102,14 @@ interface TeamActions {
   // ヘルス状態操作
   setHasErrors: (hasErrors: boolean) => void;
 
+  // 会話チャンネル操作
+  setChannels: (channels: ChannelInfo[]) => void;
+  setCurrentChannel: (channelName: string | null) => void;
+  addChannel: (channel: ChannelInfo) => void;
+  removeChannel: (channelName: string) => void;
+  addChannelMessage: (message: ChannelMessage) => void;
+  getChannelMessages: (channelName: string) => ChannelMessage[];
+
   // リセット
   reset: () => void;
 }
@@ -124,6 +139,9 @@ const initialState: TeamState = {
   thinkingLogs: [],
   systemLogs: [],
   hasErrors: false,
+  channels: [],
+  currentChannel: null,
+  channelMessages: {},
 };
 
 // ============================================================================
@@ -390,6 +408,95 @@ export const useTeamStore = create<TeamStore>()(
         // ヘルス状態操作
         setHasErrors: (hasErrors) => {
           set({ hasErrors });
+        },
+
+        // 会話チャンネル操作
+        setChannels: (channels) => {
+          set({ channels });
+        },
+
+        setCurrentChannel: (channelName) => {
+          set((state) => {
+            // チームが切り替わった場合と同様に処理
+            if (state.currentChannel !== channelName) {
+              return {
+                currentChannel: channelName,
+              };
+            }
+            return { currentChannel: channelName };
+          });
+        },
+
+        addChannel: (channel) => {
+          set((state) => {
+            const existingIndex = state.channels.findIndex((c) => c.name === channel.name);
+            if (existingIndex >= 0) {
+              const newChannels = [...state.channels];
+              newChannels[existingIndex] = channel;
+              return { channels: newChannels };
+            }
+            return { channels: [...state.channels, channel] };
+          });
+        },
+
+        removeChannel: (channelName) => {
+          set((state) => {
+            const newChannelMessages = { ...state.channelMessages };
+            delete newChannelMessages[channelName];
+            return {
+              channels: state.channels.filter((c) => c.name !== channelName),
+              channelMessages: newChannelMessages,
+              currentChannel:
+                state.currentChannel === channelName ? null : state.currentChannel,
+            };
+          });
+        },
+
+        addChannelMessage: (message) => {
+          set((state) => {
+            const channelName = message.channel;
+            const channelMessages = { ...state.channelMessages };
+
+            if (!channelMessages[channelName]) {
+              channelMessages[channelName] = [];
+            }
+
+            // 重複チェック
+            const existingMessage = channelMessages[channelName]?.find(
+              (msg) => msg.id === message.id,
+            );
+            if (existingMessage) {
+              return state;
+            }
+
+            const currentMessages = channelMessages[channelName] || [];
+            const newMessages = [...currentMessages, message];
+
+            // 最大100件のメッセージを保持
+            const MAX_CHANNEL_MESSAGES = 100;
+            if (newMessages.length > MAX_CHANNEL_MESSAGES) {
+              newMessages.shift(); // 最古のメッセージを削除
+            }
+
+            channelMessages[channelName] = newMessages;
+
+            // チャンネルのメッセージカウントを更新
+            const newMessageCount = newMessages.length;
+            const channels = state.channels.map((ch) =>
+              ch.name === channelName
+                ? { ...ch, messageCount: newMessageCount }
+                : ch,
+            );
+
+            return {
+              channelMessages,
+              channels,
+            };
+          });
+        },
+
+        getChannelMessages: (channelName): ChannelMessage[] => {
+          return useTeamStore.getState().channelMessages[channelName] || [];
         },
 
         // リセット

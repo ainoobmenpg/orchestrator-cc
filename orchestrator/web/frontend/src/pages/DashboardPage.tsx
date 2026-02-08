@@ -19,6 +19,7 @@ import { Timeline } from "../components/dashboard/Timeline";
 import { TaskBoard } from "../components/dashboard/TaskBoard";
 import { MessageList } from "../components/dashboard/MessageList";
 import { SystemLog } from "../components/dashboard/SystemLog";
+import { ConversationChannel } from "../components/dashboard/ConversationChannel";
 import { EmptyState } from "../components/common/EmptyState";
 import { Bot } from "lucide-react";
 import { PageTransition } from "../components/ui/PageTransition";
@@ -61,6 +62,11 @@ export function DashboardPage() {
       {activeTab === "messages" && (
         <PageTransition key="messages">
           <MessagesView />
+        </PageTransition>
+      )}
+      {activeTab === "channels" && (
+        <PageTransition key="channels">
+          <ChannelsView />
         </PageTransition>
       )}
       {activeTab === "timeline" && (
@@ -114,6 +120,14 @@ function MessagesView() {
   return (
     <div className="h-full p-4">
       <MessageList />
+    </div>
+  );
+}
+
+function ChannelsView() {
+  return (
+    <div className="h-full p-4">
+      <ConversationChannel />
     </div>
   );
 }

@@ -273,6 +273,89 @@ export interface HealthEventMessage extends BaseWebSocketMessage {
   event: HealthEvent;
 }
 
+// ============================================================================
+// 会話チャンネル関連メッセージ型
+// ============================================================================
+
+/** チャンネル情報 */
+export interface ChannelInfo {
+  name: string;
+  participants: string[];
+  messageCount: number;
+}
+
+/** チャンネルメッセージ */
+export interface ChannelMessage {
+  id: string;
+  channel: string;
+  sender: string;
+  content: string;
+  timestamp: number;
+}
+
+/** チャンネルメッセージ送信 */
+export interface ChannelMessageMessage extends BaseWebSocketMessage {
+  type: "channel_message";
+  channel: string;
+  sender: string;
+  content: string;
+  timestamp: number;
+}
+
+/** チャンネル参加リクエスト */
+export interface JoinChannelMessage extends BaseWebSocketMessage {
+  type: "join_channel";
+  channel: string;
+  agent_id: string;
+}
+
+/** チャンネル参加成功 */
+export interface ChannelJoinedMessage extends BaseWebSocketMessage {
+  type: "channel_joined";
+  channel: string;
+  agent_id: string;
+  participants: string[];
+}
+
+/** チャンネル退出リクエスト */
+export interface LeaveChannelMessage extends BaseWebSocketMessage {
+  type: "leave_channel";
+  channel: string;
+  agent_id: string;
+}
+
+/** チャンネル退出成功 */
+export interface ChannelLeftMessage extends BaseWebSocketMessage {
+  type: "channel_left";
+  channel: string;
+  agent_id: string;
+}
+
+/** 参加者参加通知 */
+export interface ParticipantJoinedMessage extends BaseWebSocketMessage {
+  type: "participant_joined";
+  channel: string;
+  agent_id: string;
+}
+
+/** 参加者退出通知 */
+export interface ParticipantLeftMessage extends BaseWebSocketMessage {
+  type: "participant_left";
+  channel: string;
+  agent_id: string;
+}
+
+/** チャンネルリスト要求 */
+export interface ListChannelsMessage extends BaseWebSocketMessage {
+  type: "list_channels";
+}
+
+/** チャンネルリスト応答 */
+export interface ChannelsListMessage extends BaseWebSocketMessage {
+  type: "channels_list";
+  channels: ChannelInfo[];
+}
+
 /** WebSocketメッセージの共用体型 */
 export type WebSocketMessage =
   | ConnectedMessage
@@ -293,7 +376,16 @@ export type WebSocketMessage =
   | TeamMessageMessage
   | ThinkingLogMessage
   | TasksUpdatedMessage
-  | HealthEventMessage;
+  | HealthEventMessage
+  | ChannelMessageMessage
+  | JoinChannelMessage
+  | ChannelJoinedMessage
+  | LeaveChannelMessage
+  | ChannelLeftMessage
+  | ParticipantJoinedMessage
+  | ParticipantLeftMessage
+  | ListChannelsMessage
+  | ChannelsListMessage;
 
 // ============================================================================
 // APIリクエスト/レスポンス型
