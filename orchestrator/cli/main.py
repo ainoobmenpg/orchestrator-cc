@@ -351,6 +351,45 @@ def health(
             typer.echo()
 
 
+def _follow_logs(
+    team_name: str,
+    agent: str | None,
+    displayed_log_ids: set[str],
+    display_func: Any,
+    handler: Any,
+) -> None:
+    """リアルタイム監視モードでログを表示します。
+
+    Args:
+        team_name: チーム名
+        agent: エージェント名でフィルタ（オプション）
+        displayed_log_ids: 既に表示したログIDのセット
+        display_func: ログ表示関数
+        handler: ThinkingLogHandlerインスタンス
+    """
+    typer.echo("リアルタイム監視中... (Ctrl+C で終了)", err=True)
+
+    try:
+        while True:
+            time.sleep(1)
+            new_logs = handler.get_logs(team_name)
+
+            # エージェントでフィルタ
+            if agent:
+                new_logs = [log for log in new_logs if log.get("agentName") == agent]
+
+            # 新しいログのみを表示
+            fresh_logs = [log for log in new_logs if log.get("id") not in displayed_log_ids]
+            if fresh_logs:
+                for log in fresh_logs:
+                    if log.get("id"):
+                        displayed_log_ids.add(log["id"])
+                display_func(fresh_logs)
+
+    except KeyboardInterrupt:
+        typer.echo("\n監視を終了しました", err=True)
+
+
 @app.command()
 def show_logs(
     team_name: str = typer.Argument(..., help="チーム名"),
@@ -414,28 +453,60 @@ def show_logs(
 
     # リアルタイム監視モード
     if follow:
-        typer.echo("リアルタイム監視中... (Ctrl+C で終了)", err=True)
-        displayed_log_ids = {log.get("id") for log in logs if log.get("id")}
+        displayed_log_ids: set[str] = {
+            log_id for log in logs if (log_id := log.get("id")) is not None
+        }
+        _follow_logs(team_name, agent, displayed_log_ids, _display_logs, handler)
 
-        try:
-            while True:
-                time.sleep(1)
-                new_logs = handler.get_logs(team_name)
 
-                # エージェントでフィルタ
-                if agent:
-                    new_logs = [log for log in new_logs if log.get("agentName") == agent]
+def _aggregate_tasks_by_status(tasks: list[dict[str, Any]]) -> dict[str, int]:
+    """タスクをステータス別に集計します。
 
-                # 新しいログのみを表示
-                fresh_logs = [log for log in new_logs if log.get("id") not in displayed_log_ids]
-                if fresh_logs:
-                    for log in fresh_logs:
-                        if log.get("id"):
-                            displayed_log_ids.add(log["id"])
-                    _display_logs(fresh_logs)
+    Args:
+        tasks: タスクリスト
 
-        except KeyboardInterrupt:
-            typer.echo("\n監視を終了しました", err=True)
+    Returns:
+        ステータス別のタスク数
+    """
+    tasks_by_status: dict[str, int] = {}
+    for task in tasks:
+        status = task.get("status", "pending")
+        tasks_by_status[status] = tasks_by_status.get(status, 0) + 1
+    return tasks_by_status
+
+
+def _find_latest_activity(
+    messages: list[dict[str, Any]],
+    thinking_logs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """最新のアクティビティを特定します。
+
+    Args:
+        messages: メッセージリスト
+        thinking_logs: 思考ログリスト
+
+    Returns:
+        最新アクティビティ（type, timestamp）
+    """
+    latest_timestamp = None
+    latest_type = None
+
+    for msg in messages:
+        ts = msg.get("timestamp", "")
+        if ts and (not latest_timestamp or ts > latest_timestamp):
+            latest_timestamp = ts
+            latest_type = "message"
+
+    for log in thinking_logs:
+        ts = log.get("timestamp", "")
+        if ts and (not latest_timestamp or ts > latest_timestamp):
+            latest_timestamp = ts
+            latest_type = "thinking"
+
+    return {
+        "type": latest_type,
+        "timestamp": latest_timestamp,
+    }
 
 
 @app.command()
@@ -470,34 +541,8 @@ def team_activity(
         "taskCount": len(tasks),
         "thinkingLogCount": len(thinking_logs),
         "memberCount": len(team_info.get("members", [])),
-        "tasksByStatus": {},
-        "latestActivity": None,
-    }
-
-    # タスクをステータス別に集計
-    for task in tasks:
-        status = task.get("status", "pending")
-        activity["tasksByStatus"][status] = activity["tasksByStatus"].get(status, 0) + 1
-
-    # 最新アクティビティを特定
-    latest_timestamp = None
-    latest_type = None
-
-    for msg in messages:
-        ts = msg.get("timestamp", "")
-        if ts and (not latest_timestamp or ts > latest_timestamp):
-            latest_timestamp = ts
-            latest_type = "message"
-
-    for log in thinking_logs:
-        ts = log.get("timestamp", "")
-        if ts and (not latest_timestamp or ts > latest_timestamp):
-            latest_timestamp = ts
-            latest_type = "thinking"
-
-    activity["latestActivity"] = {
-        "type": latest_type,
-        "timestamp": latest_timestamp,
+        "tasksByStatus": _aggregate_tasks_by_status(tasks),
+        "latestActivity": _find_latest_activity(messages, thinking_logs),
     }
 
     if json_output:

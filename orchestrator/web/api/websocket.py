@@ -155,7 +155,7 @@ async def websocket_endpoint(
 async def handle_join_channel(
     websocket: WebSocket,
     message: dict[str, Any],
-    handler: WebSocketMessageHandler,
+    _handler: WebSocketMessageHandler,
 ) -> None:
     """チャンネル参加リクエストを処理します。
 
@@ -196,7 +196,7 @@ async def handle_join_channel(
 async def handle_leave_channel(
     websocket: WebSocket,
     message: dict[str, Any],
-    handler: WebSocketMessageHandler,
+    _handler: WebSocketMessageHandler,
 ) -> None:
     """チャンネル退出リクエストを処理します。
 
@@ -236,7 +236,7 @@ async def handle_leave_channel(
 async def handle_channel_message(
     websocket: WebSocket,
     message: dict[str, Any],
-    handler: WebSocketMessageHandler,
+    _handler: WebSocketMessageHandler,
 ) -> None:
     """チャンネル内メッセージを処理します。
 
@@ -271,8 +271,8 @@ async def handle_channel_message(
 
 async def handle_list_channels(
     websocket: WebSocket,
-    message: dict[str, Any],
-    handler: WebSocketMessageHandler,
+    _message: dict[str, Any],
+    _handler: WebSocketMessageHandler,
 ) -> None:
     """チャンネル一覧を返します。
 
