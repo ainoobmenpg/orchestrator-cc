@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { useAgents, useAgentStats, useAgentsByStatus } from "@/hooks/useAgents";
 import { useTeamStore } from "@/stores/teamStore";
 
