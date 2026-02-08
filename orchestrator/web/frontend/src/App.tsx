@@ -12,7 +12,9 @@ import { SkipLink } from "./components/common/SkipLink";
 import { LiveRegionContainer } from "./components/common/LiveRegion";
 import { MainLayout } from "./components/layout/MainLayout";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ConferenceRoomPage } from "./pages/ConferenceRoomPage";
 import { setupGlobalErrorHandlers } from "./services/errorHandler";
+import { useUIStore } from "./stores/uiStore";
 
 // グローバルエラーハンドラーをセットアップ
 setupGlobalErrorHandlers();
@@ -29,6 +31,8 @@ const queryClient = new QueryClient({
 });
 
 function App() {
+  const activeTab = useUIStore((state) => state.activeTab);
+
   // マウント時にWebSocketクライアントを初期化
   useEffect(() => {
     // WebSocket接続の初期化はuseWebSocketフックで行われます
@@ -46,12 +50,16 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <MainLayout>
           <main id="main-content" tabIndex={-1}>
-            <DashboardPage />
-            {/* タブによる切り替えは UIStore で管理 */}
-            {/* 実際のページ表示は DashboardPage 内で制御 */}
+            {activeTab === "conference" ? (
+              <ConferenceRoomPage />
+            ) : (
+              <DashboardPage />
+            )}
           </main>
         </MainLayout>
         <ReactQueryDevtools initialIsOpen={false} />
+        {/* 初回アクセス時のチュートリアル */}
+        <Tutorial />
       </QueryClientProvider>
     </ErrorBoundary>
   );

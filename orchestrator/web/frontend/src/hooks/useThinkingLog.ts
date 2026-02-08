@@ -331,7 +331,7 @@ export function useThinkingLog(filter?: ThinkingLogFilter) {
  * 特定エージェントの思考ログフック
  */
 export function useAgentThinkingLog(agentName: string) {
-  const { logs, stats, latestLog, ...rest } = useThinkingLog({
+  const { logs, ...rest } = useThinkingLog({
     agentName: [agentName],
   });
 
