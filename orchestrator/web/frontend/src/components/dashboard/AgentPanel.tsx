@@ -25,7 +25,7 @@ const statusConfig: Record<AgentStatus, { label: string; variant: "success" | "w
 
 export function AgentPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const agents = useTeamStore((state) => Array.from(state.agents.values()));
+  const agents = useTeamStore((state) => state.agents);
   const stats = useAgentStats();
 
   const handleRefresh = useCallback(() => {
