@@ -12,6 +12,8 @@
 
 import json
 import logging
+import re
+import threading
 from contextlib import suppress
 from typing import Any
 
@@ -22,6 +24,32 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# チャンネル名検証
+# ============================================================================
+
+# チャンネル名の正規表現: 英数字、ハイフン、アンダースコアのみ（1-50文字）
+CHANNEL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,50}$")
+
+
+def validate_channel_name(channel_name: str) -> bool:
+    """チャンネル名を検証します。
+
+    Args:
+        channel_name: チャンネル名
+
+    Returns:
+        有効な場合はTrue、無効な場合はFalse
+
+    検証ルール:
+    - 1〜50文字であること
+    - 英数字（a-z, A-Z, 0-9）、ハイフン（-）、アンダースコア（_）のみ使用可能
+    """
+    if not isinstance(channel_name, str):
+        return False
+    return bool(CHANNEL_NAME_PATTERN.match(channel_name))
+
+
+# ============================================================================
 # 会話チャンネルクラス
 # ============================================================================
 
@@ -29,6 +57,8 @@ class ConversationChannel:
     """会話チャンネルクラス
 
     チーム内のエージェント同士が会話するための共有スペースです。
+
+    スレッド安全性: メッセージ追加操作はロックで保護されています。
     """
 
     def __init__(self, channel_name: str) -> None:
@@ -40,6 +70,7 @@ class ConversationChannel:
         self.channel_name = channel_name
         self.participants: set[str] = set()
         self.messages: list[dict[str, Any]] = []
+        self._lock = threading.Lock()
 
     def join(self, agent_id: str) -> None:
         """エージェントをチャンネルに参加させます。
@@ -72,13 +103,16 @@ class ConversationChannel:
     def add_message(self, message: dict[str, Any]) -> None:
         """メッセージをチャンネル履歴に追加します。
 
+        スレッド安全: ロックを使用して競合を防ぎます。
+
         Args:
             message: メッセージデータ
         """
-        self.messages.append(message)
-        # 最大100件のメッセージを保持
-        if len(self.messages) > 100:
-            self.messages.pop(0)
+        with self._lock:
+            self.messages.append(message)
+            # 最大100件のメッセージを保持
+            if len(self.messages) > 100:
+                self.messages.pop(0)
 
     def get_participants(self) -> set[str]:
         """参加者リストを取得します。
@@ -118,7 +152,16 @@ class ChannelManager:
 
         Returns:
             作成されたチャンネル
+
+        Raises:
+            ValueError: チャンネル名が無効な場合
         """
+        if not validate_channel_name(channel_name):
+            raise ValueError(
+                f"Invalid channel name: '{channel_name}'. "
+                "Channel names must be 1-50 characters, containing only letters, numbers, hyphens, and underscores."
+            )
+
         if channel_name in self.channels:
             return self.channels[channel_name]
 

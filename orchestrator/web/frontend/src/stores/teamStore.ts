@@ -470,10 +470,18 @@ export const useTeamStore = create<TeamStore>()(
             }
 
             const currentMessages = channelMessages[channelName] || [];
-            channelMessages[channelName] = [...currentMessages, message];
+            const newMessages = [...currentMessages, message];
+
+            // 最大100件のメッセージを保持
+            const MAX_CHANNEL_MESSAGES = 100;
+            if (newMessages.length > MAX_CHANNEL_MESSAGES) {
+              newMessages.shift(); // 最古のメッセージを削除
+            }
+
+            channelMessages[channelName] = newMessages;
 
             // チャンネルのメッセージカウントを更新
-            const newMessageCount = channelMessages[channelName]?.length || 0;
+            const newMessageCount = newMessages.length;
             const channels = state.channels.map((ch) =>
               ch.name === channelName
                 ? { ...ch, messageCount: newMessageCount }

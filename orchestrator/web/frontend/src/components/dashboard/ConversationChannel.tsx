@@ -18,6 +18,31 @@ import { formatTime, cn } from "../../lib/utils";
 import { slideInBottom } from "../../lib/animations";
 import ReactMarkdown from "react-markdown";
 
+// ============================================================================
+// チャンネル名検証
+// ============================================================================
+
+/** チャンネル名の最大長 */
+const MAX_CHANNEL_NAME_LENGTH = 50;
+
+/** チャンネル名の正規表現: 英数字、ハイフン、アンダースコアのみ */
+const CHANNEL_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+/**
+ * チャンネル名を検証します
+ * @param channelName - 検証するチャンネル名
+ * @returns 有効な場合は true、無効な場合は false
+ */
+function validateChannelName(channelName: string): boolean {
+  if (!channelName || channelName.length === 0) {
+    return false;
+  }
+  if (channelName.length > MAX_CHANNEL_NAME_LENGTH) {
+    return false;
+  }
+  return CHANNEL_NAME_PATTERN.test(channelName);
+}
+
 export function ConversationChannel() {
   const channels = useTeamStore((state) => state.channels);
   const currentChannel = useTeamStore((state) => state.currentChannel);
@@ -61,6 +86,16 @@ export function ConversationChannel() {
     if (!newChannelName.trim()) return;
 
     const trimmedName = newChannelName.trim();
+
+    // チャンネル名の検証
+    if (!validateChannelName(trimmedName)) {
+      addSystemLog({
+        timestamp: new Date().toISOString(),
+        level: "warning",
+        content: `チャンネル名は1〜50文字の英数字、ハイフン、アンダースコアのみ使用できます`,
+      });
+      return;
+    }
 
     // 既存のチャンネル名をチェック
     if (channels.some((c) => c.name === trimmedName)) {
