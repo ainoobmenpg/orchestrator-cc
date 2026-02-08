@@ -7,9 +7,11 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from orchestrator.core.agent_health_monitor import AgentHealthMonitor
 from orchestrator.core.agent_teams_manager import AgentTeamsManager
+from orchestrator.web.personality_generator import PersonalityGenerator
 from orchestrator.web.team_models import GlobalState
 from orchestrator.web.teams_monitor import TeamsMonitor
 from orchestrator.web.thinking_log_handler import ThinkingLogHandler
@@ -299,10 +301,6 @@ async def api_info() -> dict[str, Any]:
 # ============================================================================
 # 性格生成 APIエンドポイント
 # ============================================================================
-
-from pydantic import BaseModel
-
-from orchestrator.web.personality_generator import PersonalityGenerator
 
 
 class PersonalityRequest(BaseModel):
