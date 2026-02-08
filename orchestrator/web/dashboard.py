@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from orchestrator.core.agent_health_monitor import get_agent_health_monitor
 from orchestrator.core.agent_teams_manager import get_agent_teams_manager
+from orchestrator.web import init_channel_client
 from orchestrator.web.message_handler import (
     ChannelManager,
     WebSocketManager,
@@ -52,10 +53,14 @@ async def lifespan(_app: FastAPI):
     channel_manager = ChannelManager()
     ws_handler = WebSocketMessageHandler(ws_manager, channel_manager)
 
+    # ChannelClientを初期化
+    channel_client = init_channel_client(channel_manager)
+
     # GlobalStateに設定
     _global_state.ws_manager = ws_manager
     _global_state.channel_manager = channel_manager
     _global_state.ws_handler = ws_handler
+    _global_state.channel_client = channel_client
 
     # TeamsMonitorを初期化
     teams_monitor = TeamsMonitor()
