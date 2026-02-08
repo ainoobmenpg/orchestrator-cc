@@ -4,7 +4,7 @@
  * チームメンバーの性格パラメータを可視化して表示します
  */
 
-import { Smile, Shield, Lightbulb, Users, Heart } from "lucide-react";
+import { Smile, Shield, Lightbulb, Users, Heart, type LucideIcon } from "lucide-react";
 import type { Personality } from "../../services/types";
 import { cn } from "../../lib/utils";
 
@@ -21,7 +21,7 @@ interface PersonalityBadgeProps {
 interface PersonalityBarProps {
   value: number;
   label: string;
-  icon: React.ReactNode;
+  icon: LucideIcon;
   color: string;
   size?: "sm" | "md" | "lg";
 }

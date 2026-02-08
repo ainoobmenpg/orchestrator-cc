@@ -3,8 +3,6 @@
 このモジュールでは、チームメンバーの性格パラメータを生成する機能を提供します。
 """
 
-from typing import Any
-
 from orchestrator.web.team_models import Personality
 
 

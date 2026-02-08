@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { Users, MessageSquare, Brain, Settings, X, Bell, BellOff } from "lucide-react";
+import { Users, MessageSquare, Brain, X, Bell, BellOff } from "lucide-react";
 import { ChatMessageList } from "../components/chat/ChatMessageList";
 import { ChatInput } from "../components/chat/ChatInput";
 import { TeamMemberList } from "../components/team/TeamMemberList";
@@ -36,7 +36,7 @@ const VIEW_MODE_CONFIG = {
 // ============================================================================
 
 export function ConferenceRoomPage() {
-  const { logs: thinkingLogs, agents } = useThinkingLog();
+  const { logs: thinkingLogs } = useThinkingLog();
   const messages = useTeamStore((state) => state.messages);
   const selectedTeam = useTeamStore((state) =>
     state.teams.find((t) => t.name === state.selectedTeamName)
@@ -155,7 +155,7 @@ export function ConferenceRoomPage() {
         <div className="px-4 py-3 border-b border-border bg-muted/30">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium flex items-center gap-2">
-              <UsersIcon className="h-4 w-4" />
+              <Users className="h-4 w-4" />
               メンバー一覧
             </h3>
             <button
