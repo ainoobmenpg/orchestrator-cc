@@ -6,9 +6,8 @@
  */
 
 import { memo } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { ja } from "date-fns/locale";
 import { cn } from "../../lib/utils";
+import { formatTime } from "../../lib/utils";
 import { CATEGORY_CONFIG, EMOTION_CONFIG, inferCategory, inferEmotion } from "../../hooks/useThinkingLog";
 import type { ThinkingLog } from "../../services/types";
 
@@ -31,10 +30,7 @@ export const ThinkingMessage = memo(function ThinkingMessage({
   const categoryConfig = CATEGORY_CONFIG[category];
   const emotionConfig = EMOTION_CONFIG[emotion];
 
-  const timeAgo = formatDistanceToNow(new Date(log.timestamp), {
-    addSuffix: true,
-    locale: ja,
-  });
+  const formattedTime = formatTime(log.timestamp);
 
   return (
     <div
@@ -66,7 +62,7 @@ export const ThinkingMessage = memo(function ThinkingMessage({
         {/* ヘッダー */}
         <div className="flex items-baseline gap-2 mb-1 flex-wrap">
           <span className="font-medium text-sm">{log.agentName}</span>
-          <span className="text-xs text-muted-foreground">{timeAgo}</span>
+          <span className="text-xs text-muted-foreground">{formattedTime}</span>
 
           {/* カテゴリーバッジ */}
           {showCategory && (
@@ -86,7 +82,7 @@ export const ThinkingMessage = memo(function ThinkingMessage({
             <span
               className={cn(
                 "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs",
-                `bg-${emotionConfig.color}/10 text-${emotionConfig.color}-700`
+                "bg-muted"
               )}
             >
               <span>{emotionConfig.emoji}</span>

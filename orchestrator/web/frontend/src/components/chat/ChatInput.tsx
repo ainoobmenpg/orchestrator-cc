@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, KeyboardEvent, FormEvent } from "react";
-import { Send, Smile, AtSign } from "lucide-react";
+import { Send, Smile } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 export interface ChatInputProps {
@@ -37,7 +37,6 @@ export function ChatInput({
 }: ChatInputProps) {
   const [content, setContent] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showMentions, setShowMentions] = useState(false);
 
   const handleSubmit = useCallback(
     (e: FormEvent) => {
@@ -109,9 +108,9 @@ export function ChatInput({
         </div>
 
         {/* メンションボタン（将来の拡張用） */}
+        {/* TODO: メンション機能の実装
         <button
           type="button"
-          onClick={() => setShowMentions((prev) => !prev)}
           disabled={disabled}
           className={cn(
             "p-2 rounded-lg text-muted-foreground hover:bg-accent",
@@ -121,6 +120,7 @@ export function ChatInput({
         >
           <AtSign className="h-5 w-5" />
         </button>
+        */}
 
         {/* テキスト入力 */}
         <div className="flex-1 relative">

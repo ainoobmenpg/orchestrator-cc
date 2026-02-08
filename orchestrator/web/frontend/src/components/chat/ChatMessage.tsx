@@ -6,9 +6,8 @@
  */
 
 import { memo } from "react";
-import { formatDistanceToNow } from "date-fns";
-import { ja } from "date-fns/locale";
 import { cn } from "../../lib/utils";
+import { formatTime } from "../../lib/utils";
 
 // ============================================================================
 // 型定義
@@ -121,10 +120,7 @@ export const ChatMessage = memo(function ChatMessage({
   const agentColor = getAgentColor(agentName);
   const initials = getInitials(agentName);
 
-  const timeAgo = formatDistanceToNow(new Date(timestamp), {
-    addSuffix: true,
-    locale: ja,
-  });
+  const formattedTime = formatTime(timestamp);
 
   return (
     <div
@@ -164,7 +160,7 @@ export const ChatMessage = memo(function ChatMessage({
           <span className={cn("font-medium text-sm", agentColor.text)}>
             {agentName}
           </span>
-          <span className="text-xs text-muted-foreground">{timeAgo}</span>
+          <span className="text-xs text-muted-foreground">{formattedTime}</span>
         </div>
 
         {/* 本文 */}

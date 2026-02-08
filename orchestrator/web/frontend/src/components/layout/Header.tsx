@@ -1,13 +1,17 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, MessageSquare } from "lucide-react";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useTeamStore } from "../../stores/teamStore";
+import { useUIStore } from "../../stores/uiStore";
 import { notify } from "../../stores/uiStore";
+import { cn } from "../../lib/utils";
 import type { ConnectionState } from "../../hooks/useWebSocket";
 import type { TeamInfo } from "../../services/types";
 
 export function Header() {
   const { reconnect } = useWebSocket();
+  const activeTab = useUIStore((state) => state.activeTab);
+  const setActiveTab = useUIStore((state) => state.setActiveTab);
 
   // ストアから直接取得（セレクターを使用して最小限の再レンダリング）
   const teams = useTeamStore((state) => state.teams);
@@ -78,24 +82,54 @@ export function Header() {
         </span>
       </div>
 
-      {/* 中央: チーム選択 */}
-      <div className="flex items-center gap-2">
-        <label htmlFor="team-select" className="text-sm text-muted-foreground">
-          監視対象:
-        </label>
-        <select
-          id="team-select"
-          value={selectedTeamName ?? ""}
-          onChange={(e) => handleTeamChange(e.target.value)}
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">-- チームを選択 --</option>
-          {teams.map((team: TeamInfo) => (
-            <option key={team.name} value={team.name}>
-              {team.name}
-            </option>
-          ))}
-        </select>
+      {/* 中央: タブ・チーム選択 */}
+      <div className="flex items-center gap-4">
+        {/* タブ切り替え */}
+        <div className="flex items-center bg-muted rounded-lg p-1">
+          <button
+            onClick={() => setActiveTab("dashboard")}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              activeTab === "dashboard"
+                ? "bg-background text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            ダッシュボード
+          </button>
+          <button
+            onClick={() => setActiveTab("conference")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              activeTab === "conference"
+                ? "bg-background text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <MessageSquare className="h-4 w-4" />
+            会議室
+          </button>
+        </div>
+
+        {/* チーム選択 */}
+        <div className="flex items-center gap-2">
+          <label htmlFor="team-select" className="text-sm text-muted-foreground">
+            監視対象:
+          </label>
+          <select
+            id="team-select"
+            value={selectedTeamName ?? ""}
+            onChange={(e) => handleTeamChange(e.target.value)}
+            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">-- チームを選択 --</option>
+            {teams.map((team: TeamInfo) => (
+              <option key={team.name} value={team.name}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* 右側: 接続状態 */}

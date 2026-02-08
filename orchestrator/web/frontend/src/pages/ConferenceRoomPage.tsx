@@ -5,7 +5,7 @@
  * エージェントの思考ログ、チームメッセージをリアルタイムで表示します
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Users, MessageSquare, Brain, Settings, X, Bell, BellOff } from "lucide-react";
 import { ChatMessageList } from "../components/chat/ChatMessageList";
 import { ChatInput } from "../components/chat/ChatInput";
@@ -51,7 +51,7 @@ export function ConferenceRoomPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [typingAgents, setTypingAgents] = useState<string[]>([]);
+  const [typingAgents] = useState<string[]>([]);
 
   // フィルター状態
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({});

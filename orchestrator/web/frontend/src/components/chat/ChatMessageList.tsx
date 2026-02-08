@@ -78,35 +78,6 @@ export function ChatMessageList({
     }
   }, [messages, autoScroll]);
 
-  // メッセージをグループ化（同じエージェントの連続メッセージをまとめる）
-  const groupedMessages = useMemo(() => {
-    const groups: typeof messages = [];
-    let currentAgent: string | null = null;
-    let lastTime = 0;
-    const GROUPING_THRESHOLD = 5 * 60 * 1000; // 5分
-
-    messages.forEach((msg) => {
-      const agentName = msg.type === "thinking" ? msg.log!.agentName : msg.message!.sender;
-      const msgTime = new Date(msg.timestamp).getTime();
-
-      if (
-        currentAgent === agentName &&
-        msgTime - lastTime < GROUPING_THRESHOLD
-      ) {
-        // 同じグループに追加
-        groups.push(msg);
-      } else {
-        // 新しいグループ
-        currentAgent = agentName;
-        groups.push(msg);
-      }
-
-      lastTime = msgTime;
-    });
-
-    return groups;
-  }, [messages]);
-
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {/* メッセージリスト */}
