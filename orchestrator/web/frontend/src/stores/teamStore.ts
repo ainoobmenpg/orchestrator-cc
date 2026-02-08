@@ -208,12 +208,13 @@ export const useTeamStore = create<TeamStore>()(
             const messageCount = { ...state.messageCount };
             messageCount.total++;
 
-            // メッセージタイプに応じてカウント
-            if (message.messageType === "thinking") {
+            // メッセージタイプに応じてカウント（messageTypeまたはtypeフィールドをチェック）
+            const messageType = message.messageType || message.type;
+            if (messageType === "thinking") {
               messageCount.thinking++;
-            } else if (message.messageType === "task") {
+            } else if (messageType === "task") {
               messageCount.task++;
-            } else if (message.messageType === "result") {
+            } else if (messageType === "result") {
               messageCount.result++;
             }
 
@@ -228,11 +229,12 @@ export const useTeamStore = create<TeamStore>()(
             messageCount.total += messages.length;
 
             messages.forEach((m) => {
-              if (m.messageType === "thinking") {
+              const messageType = m.messageType || m.type;
+              if (messageType === "thinking") {
                 messageCount.thinking++;
-              } else if (m.messageType === "task") {
+              } else if (messageType === "task") {
                 messageCount.task++;
-              } else if (m.messageType === "result") {
+              } else if (messageType === "result") {
                 messageCount.result++;
               }
             });
@@ -334,9 +336,11 @@ export const useTeamStore = create<TeamStore>()(
       }),
       {
         name: "team-store",
-        // 選択中のチームのみ永続化（リアルタイムデータは永続化しない）
+        // 選択中のチームとメッセージ・タスクを永続化（最大1000件）
         partialize: (state) => ({
           selectedTeamName: state.selectedTeamName,
+          messages: state.messages.slice(-1000), // 最新1000件のみ保存
+          tasks: state.tasks,
         }),
       },
     ),

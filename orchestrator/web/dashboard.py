@@ -39,6 +39,10 @@ from orchestrator.web.teams_monitor import TeamsMonitor
 from orchestrator.web.thinking_log_handler import get_thinking_log_handler
 
 # ロガーの設定
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 # グローバルステート
@@ -64,22 +68,34 @@ async def lifespan(_app: FastAPI):
     global _global_state
 
     # 起動時
-    logger.info("FastAPIアプリケーションを起動します")
+    logger.info("=== FastAPIアプリケーションを起動します ===")
+
+    # 現在のイベントループを保存（スレッドセーフなブロードキャスト用）
+    try:
+        current_loop = asyncio.get_running_loop()
+        _global_state.event_loop = current_loop
+        logger.info(f"Event loop saved: {current_loop}")
+    except RuntimeError:
+        logger.warning("No running event loop at startup")
 
     # WebSocketマネージャーを初期化
+    logger.info("Initializing WebSocketManager...")
     ws_manager = WebSocketManager()
     ws_handler = WebSocketMessageHandler(ws_manager)
     _global_state.ws_manager = ws_manager
     _global_state.ws_handler = ws_handler
 
     # TeamsMonitorを初期化
+    logger.info("Initializing TeamsMonitor...")
     teams_monitor = TeamsMonitor()
     teams_monitor.register_update_callback(_broadcast_teams_update)
+    logger.info("Starting TeamsMonitor...")
     teams_monitor.start_monitoring()
     _global_state.teams_monitor = teams_monitor
-    logger.info("Teams monitoring started")
+    logger.info("=== Teams monitoring started ===")
 
     # ThinkingLogHandlerを初期化
+    logger.info("Initializing ThinkingLogHandler...")
     thinking_log_handler = get_thinking_log_handler()
     thinking_log_handler.register_callback(_broadcast_thinking_log)
     thinking_log_handler.start_monitoring()
@@ -87,11 +103,13 @@ async def lifespan(_app: FastAPI):
     logger.info("Thinking log monitoring started")
 
     # AgentTeamsManagerを初期化
+    logger.info("Initializing AgentTeamsManager...")
     teams_manager = get_agent_teams_manager()
     _global_state.teams_manager = teams_manager
     logger.info("AgentTeamsManager initialized")
 
     # AgentHealthMonitorを初期化
+    logger.info("Initializing AgentHealthMonitor...")
     health_monitor = get_agent_health_monitor()
     health_monitor.register_callback(_on_health_event)
     health_monitor.start_monitoring()
@@ -101,6 +119,8 @@ async def lifespan(_app: FastAPI):
     # グローバルステートを各モジュールに設定
     set_routes_global_state(_global_state)
     set_ws_global_state(_global_state)
+
+    logger.info("=== FastAPIアプリケーションの起動が完了しました ===")
 
     yield
 
@@ -135,13 +155,33 @@ def _broadcast_teams_update(data: dict) -> None:
     Args:
         data: 更新データ
     """
+    logger.info(f"Broadcasting teams update: {data.get('type', 'unknown')}")
     if _global_state.ws_manager:
+        connection_count = _global_state.ws_manager.get_connection_count()
+        logger.info(f"Active WebSocket connections: {connection_count}")
+
         try:
-            asyncio.get_running_loop()
+            # イベントループを取得
+            loop = asyncio.get_running_loop()
+            # イベントループが見つかった場合
             asyncio.create_task(_global_state.ws_manager.broadcast(data))
+            logger.info("Broadcast task created in running loop")
         except RuntimeError:
-            # イベントループが実行中でない場合は無視
-            pass
+            # イベントループが実行中でない場合（ファイル監視コールバックなど）
+            # 保存されたイベントループを使用してスレッドセーフにブロードキャスト
+            if _global_state.event_loop:
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        _global_state.ws_manager.broadcast(data),
+                        _global_state.event_loop
+                    )
+                    logger.info("Broadcast task scheduled thread-safely using saved event loop")
+                except Exception as e:
+                    logger.error(f"Failed to schedule broadcast: {e}")
+            else:
+                logger.warning("Event loop not available in global state")
+    else:
+        logger.warning("ws_manager is None, cannot broadcast")
 
 
 def _broadcast_thinking_log(data: dict) -> None:
@@ -152,11 +192,19 @@ def _broadcast_thinking_log(data: dict) -> None:
     """
     if _global_state.ws_manager:
         try:
-            asyncio.get_running_loop()
+            loop = asyncio.get_running_loop()
             asyncio.create_task(_global_state.ws_manager.broadcast(data))
         except RuntimeError:
-            # イベントループが実行中でない場合は無視
-            pass
+            # イベントループが実行中でない場合（ファイル監視コールバックなど）
+            if _global_state.event_loop:
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        _global_state.ws_manager.broadcast(data),
+                        _global_state.event_loop
+                    )
+                except Exception:
+                    pass
+
 
 
 def _on_health_event(event) -> None:
@@ -167,7 +215,7 @@ def _on_health_event(event) -> None:
     """
     if _global_state.ws_manager:
         try:
-            asyncio.get_running_loop()
+            loop = asyncio.get_running_loop()
             asyncio.create_task(
                 _global_state.ws_manager.broadcast(
                     {
@@ -177,7 +225,21 @@ def _on_health_event(event) -> None:
                 )
             )
         except RuntimeError:
-            pass
+            # イベントループが実行中でない場合（ファイル監視コールバックなど）
+            if _global_state.event_loop:
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        _global_state.ws_manager.broadcast(
+                            {
+                                "type": "health_event",
+                                "event": event.to_dict(),
+                            }
+                        ),
+                        _global_state.event_loop
+                    )
+                except Exception:
+                    pass
+
 
 
 # ============================================================================

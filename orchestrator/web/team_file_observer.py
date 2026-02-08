@@ -72,6 +72,8 @@ class TeamFileObserver:
         self._observer.schedule(handler, str(self._base_dir), recursive=True)
         self._observer.start()
         logger.info(f"Team file observer started: {self._base_dir}")
+        logger.info(f"Watching directory: {self._base_dir}")
+        logger.info(f"Event handlers registered: {list(self._callbacks.keys())}")
 
     def stop(self) -> None:
         """ファイル監視を停止します。"""
@@ -192,13 +194,13 @@ class _TeamFileEventHandler(FileSystemEventHandler):
 
         # config.jsonの変更
         if path.name == "config.json":
-            logger.debug(f"Config changed: {team_name}")
+            logger.info(f"Config changed: {team_name}")
             self._invoke_callbacks("config_changed", team_name, path)
             return
 
         # inboxの変更
         if "inboxes" in parts:
-            logger.debug(f"Inbox changed: {team_name}")
+            logger.info(f"Inbox changed: {team_name} - {path.name}")
             self._invoke_callbacks("inbox_changed", team_name, path)
             return
 
@@ -211,8 +213,10 @@ class _TeamFileEventHandler(FileSystemEventHandler):
             file_path: ファイルパス
         """
         callbacks = self._callbacks.get(event_type, [])
+        logger.info(f"Invoking {len(callbacks)} callbacks for event: {event_type}, team: {team_name}")
         for callback in callbacks:
             try:
+                logger.info(f"Calling callback for event: {event_type}")
                 callback(team_name, file_path)
             except Exception as e:
                 logger.error(f"Callback error for {event_type} in {team_name}: {e}")
