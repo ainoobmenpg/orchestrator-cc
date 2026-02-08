@@ -5,13 +5,14 @@
  * AnimatePresenceを使用したタブ切り替えアニメーションを実装しています
  */
 
+import { useMemo } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useUIStore } from "../stores/uiStore";
 import { useTeamStore } from "../stores/teamStore";
 import { useAgentStats } from "../hooks/useAgents";
 import { useTaskStats } from "../stores/teamStore";
 import { useMessageStats } from "../hooks/useMessages";
-import { useSelectedTeam } from "../stores/teamStore";
+import { useTeams } from "../hooks/useTeams";
 import { SummaryCards } from "../components/dashboard/SummaryCards";
 import { AgentPanel } from "../components/dashboard/AgentPanel";
 import { Timeline } from "../components/dashboard/Timeline";
@@ -24,7 +25,13 @@ import { PageTransition } from "../components/ui/PageTransition";
 
 export function DashboardPage() {
   const activeTab = useUIStore((state) => state.activeTab);
-  const selectedTeam = useSelectedTeam();
+  const { data: teamsData } = useTeams();
+  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
+
+  const selectedTeam = useMemo(
+    () => teamsData?.find((t) => t.name === selectedTeamName) || null,
+    [teamsData, selectedTeamName]
+  );
 
   if (!selectedTeam) {
     return (

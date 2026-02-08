@@ -5,15 +5,17 @@
  * エージェントの思考ログ、チームメッセージをリアルタイムで表示します
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Users, MessageSquare, Brain, X, Bell, BellOff } from "lucide-react";
 import { ChatMessageList } from "../components/chat/ChatMessageList";
 import { ChatInput } from "../components/chat/ChatInput";
 import { TeamMemberList } from "../components/team/TeamMemberList";
 import { useTeamStore } from "../stores/teamStore";
 import { useThinkingLog } from "../hooks/useThinkingLog";
+import { useTeams } from "../hooks/useTeams";
 import { getWebSocketClient } from "../services/websocket";
 import { cn } from "../lib/utils";
+import type { TeamInfo } from "../services/types";
 
 // ============================================================================
 // 型定義
@@ -38,8 +40,12 @@ const VIEW_MODE_CONFIG = {
 export function ConferenceRoomPage() {
   const { logs: thinkingLogs } = useThinkingLog();
   const messages = useTeamStore((state) => state.messages);
-  const selectedTeam = useTeamStore((state) =>
-    state.teams.find((t) => t.name === state.selectedTeamName)
+  const { data: teamsData } = useTeams();
+  const selectedTeamName = useTeamStore((state) => state.selectedTeamName);
+
+  const selectedTeam = useMemo(
+    () => teamsData?.find((t: TeamInfo) => t.name === selectedTeamName) || null,
+    [teamsData, selectedTeamName]
   );
 
   // UI状態
